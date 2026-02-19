@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sequence Diagram Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .header {
+            background-color: #fff;
+            border-bottom: 1px solid #ddd;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 50px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .menu-button {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+            transition: all 0.2s;
+        }
+        
+        .menu-button:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .menu-button:active {
+            background-color: #d0d0d0;
+        }
+        
+        .container {
+            display: flex;
+            height: calc(100vh - 50px);
+        }
+        
+        .diagram-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fff;
+            overflow: auto;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .diagram-area svg {
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .menu {
+            display: none;
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 250px;
+        }
+        
+        .menu.active {
+            display: block;
+        }
+        
+        .menu-section {
+            border-bottom: 1px solid #eee;
+            padding: 12px 16px;
+        }
+        
+        .menu-section:last-child {
+            border-bottom: none;
+        }
+        
+        .menu-section-title {
+            font-weight: bold;
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .verbosity-options,
+        .layers-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .radio-option,
+        .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px 0;
+        }
+        
+        .radio-option input[type="radio"],
+        .checkbox-option input[type="checkbox"] {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+        
+        .radio-option label,
+        .checkbox-option label {
+            cursor: pointer;
+            margin: 0;
+            flex: 1;
+        }
+        
+        .radio-option:hover,
+        .checkbox-option:hover {
+            background-color: #f5f5f5;
+            padding-left: 4px;
+            padding-right: 4px;
+            margin: 0 -4px;
+            border-radius: 2px;
+        }
+        
+        .loading {
+            color: #999;
+            font-size: 12px;
+            font-style: italic;
+            margin-top: 8px;
+        }
+        
+        .error {
+            color: #d32f2f;
+            font-size: 12px;
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #ffebee;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">Sequence Diagram Viewer</div>
+        <button class="menu-button" id="menuButton">⋯</button>
+    </div>
+    
+    <div class="container">
+        <div class="diagram-area" id="diagramArea">
+            <div style="color: #999;">Loading diagram...</div>
+        </div>
+    </div>
+    
+    <div class="menu" id="menu">
+        <div class="menu-section">
+            <div class="menu-section-title">Verbosity</div>
+            <div class="verbosity-options" id="verbosityOptions"></div>
+        </div>
+        
+        <div class="menu-section">
+            <div class="menu-section-title">Display Layers</div>
+            <div class="layers-list" id="layersList"></div>
+        </div>
+    </div>
+    
+    <script>
+        // State
+        let state = {
+            verbosity: 'High',
+            selectedLanes: [],
+            allLanes: [],
+            isLoading: false
+        };
+        
+        // DOM elements
+        const menuButton = document.getElementById('menuButton');
+        const menu = document.getElementById('menu');
+        const diagramArea = document.getElementById('diagramArea');
+        const verbosityOptions = document.getElementById('verbosityOptions');
+        const layersList = document.getElementById('layersList');
+        
+        // Initialize
+        async function init() {
+            try {
+                // Fetch available lanes
+                const response = await fetch('/api/lanes');
+                const data = await response.json();
+                
+                state.allLanes = data.lanes;
+                state.selectedLanes = [...data.lanes]; // Select all by default
+                
+                // Populate verbosity options
+                data.verbosity_levels.forEach(level => {
+                    const div = document.createElement('div');
+                    div.className = 'radio-option';
+                    div.innerHTML = `
+                        <input type="radio" id="verb_${level}" name="verbosity" value="${level}" 
+                               ${level === state.verbosity ? 'checked' : ''}>
+                        <label for="verb_${level}">${level}</label>
+                    `;
+                    div.querySelector('input').addEventListener('change', onVerbosityChange);
+                    verbosityOptions.appendChild(div);
+                });
+                
+                // Populate layers checkboxes
+                state.allLanes.forEach(lane => {
+                    const div = document.createElement('div');
+                    div.className = 'checkbox-option';
+                    div.innerHTML = `
+                        <input type="checkbox" id="lane_${lane}" value="${lane}" checked>
+                        <label for="lane_${lane}">${lane}</label>
+                    `;
+                    div.querySelector('input').addEventListener('change', onLayerChange);
+                    layersList.appendChild(div);
+                });
+                
+                // Load initial diagram
+                loadDiagram();
+            } catch (error) {
+                diagramArea.innerHTML = `<div class="error">Error loading configuration: ${error.message}</div>`;
+            }
+        }
+        
+        // Event handlers
+        menuButton.addEventListener('click', () => {
+            menu.classList.toggle('active');
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#menu') && !e.target.closest('#menuButton')) {
+                menu.classList.remove('active');
+            }
+        });
+        
+        async function onVerbosityChange(e) {
+            state.verbosity = e.target.value;
+            await loadDiagram();
+        }
+        
+        async function onLayerChange(e) {
+            const lane = e.target.value;
+            if (e.target.checked) {
+                if (!state.selectedLanes.includes(lane)) {
+                    state.selectedLanes.push(lane);
+                }
+            } else {
+                state.selectedLanes = state.selectedLanes.filter(l => l !== lane);
+            }
+            await loadDiagram();
+        }
+        
+        async function loadDiagram() {
+            if (state.isLoading) return;
+            
+            state.isLoading = true;
+            diagramArea.innerHTML = '<div style="color: #999;">Loading diagram...</div>';
+            
+            try {
+                const lanesParam = state.selectedLanes.length > 0 ? state.selectedLanes.join(',') : '';
+                const url = `/api/diagram?verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Unknown error');
+                }
+                
+                const svgText = await response.text();
+                diagramArea.innerHTML = svgText;
+            } catch (error) {
+                diagramArea.innerHTML = `<div class="error">Error loading diagram: ${error.message}</div>`;
+            } finally {
+                state.isLoading = false;
+            }
+        }
+        
+        // Start
+        init();
+    </script>
+</body>
+</html>

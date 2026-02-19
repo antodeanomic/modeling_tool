@@ -4,15 +4,95 @@ LANE_WIDTH = 200
 ROW_HEIGHT = 80
 PARTICIPANT_BOX_WIDTH = 140
 PARTICIPANT_BOX_HEIGHT = 40
+STATE_BOX_PADDING = 4
+STATE_TEXT_SIZE = 11
 
-def render_svg(model: Model, seq: SequenceDef, verbosity_level="High") -> str:
-    if not seq.lanes:
-        raise ValueError("Sequence has no lanes. Did you forget SequenceObjects?")
+def measure_text_width(text: str, font_size: float = 11) -> float:
+    """Rough estimate of text width in SVG (monospace-ish)."""
+    return len(text) * (font_size * 0.6)
 
-    lanes = seq.lanes
+def create_state_box(x: float, y: float, state_name: str, state_desc: str = "") -> str:
+    """Create SVG elements for a UML state box.
+    
+    Returns list of SVG elements as strings.
+    """
+    # Calculate box size based on text
+    text_width = measure_text_width(state_name, STATE_TEXT_SIZE)
+    box_width = text_width + (STATE_BOX_PADDING * 2) + 4
+    box_height = STATE_TEXT_SIZE + (STATE_BOX_PADDING * 2) + 4
+    
+    # Positions for rounded box (centered on x, starting at y)
+    left = x - (box_width / 2)
+    top = y
+    
+    svg_parts = []
+    
+    # Draw rounded rectangle for state box
+    box = f'<rect x="{left}" y="{top}" width="{box_width}" height="{box_height}" rx="4" ry="4" fill="#f0f0f0" stroke="#666" stroke-width="1"/>'
+    if state_desc:
+        box = box.replace('/>', f'><title>{state_desc}</title></rect>', 1)
+    svg_parts.append(box)
+    
+    # Draw state name text
+    text = f'<text x="{x}" y="{top + STATE_BOX_PADDING + STATE_TEXT_SIZE}" text-anchor="middle" font-family="Arial" font-size="{STATE_TEXT_SIZE}" fill="#333">{state_name}</text>'
+    if state_desc:
+        text = text.replace('>', f'><title>{state_desc}</title>', 1)
+    svg_parts.append(text)
+    
+    return svg_parts
+
+def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_filter=None) -> str:
+    """Render sequence diagram as SVG.
+    
+    Args:
+        model: Model containing class definitions
+        seq: Sequence definition to render
+        verbosity_level: "Low", "Normal", or "High"
+        lanes_filter: List of lane names to include. If None, includes all lanes.
+    """
+    lanes = seq.get_lanes()
+    if not lanes:
+        raise ValueError("Sequence has no lanes. Did you forget to add steps?")
+    
+    # Filter lanes if specified
+    if lanes_filter:
+        lanes = [lane for lane in lanes if lane in lanes_filter]
+    
+    if not lanes:
+        raise ValueError("No lanes selected after filtering.")
+
     lane_positions = {lane: i * LANE_WIDTH + 100 for i, lane in enumerate(lanes)}
 
-    total_rows = len(seq.steps)
+    # Filter steps to only include those between selected lanes
+    filtered_steps = []
+    if lanes_filter:
+        filtered_steps = [
+            step for step in seq.steps
+            if step.src_obj in lanes and step.dst_obj in lanes
+        ]
+    else:
+        filtered_steps = seq.steps
+
+    # Calculate y positions based on row numbers
+    # Group steps by row number to allow multiple steps on same Y coordinate
+    row_to_y = {}  # Maps row number to y coordinate
+    row_to_steps = {}  # Maps row number to list of steps in that row
+    
+    for step in filtered_steps:
+        if step.row not in row_to_steps:
+            row_to_steps[step.row] = []
+        row_to_steps[step.row].append(step)
+    
+    # Assign Y positions based on unique row numbers
+    sorted_rows = sorted(row_to_steps.keys())
+    for row_index, row_num in enumerate(sorted_rows):
+        row_to_y[row_num] = 120 + row_index * ROW_HEIGHT
+    
+    # Store Y position for each filtered step
+    for step in filtered_steps:
+        step.y = row_to_y[step.row]
+
+    total_rows = len(row_to_y)
     height = (total_rows + 3) * ROW_HEIGHT
     width = max(lane_positions.values()) + 200
 
@@ -29,65 +109,167 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High") -> str:
     </defs>
     """)
 
-    # Draw participants
+    # Draw participants with tooltip descriptions
     for lane, x in lane_positions.items():
-        svg.append(f'<rect x="{x - PARTICIPANT_BOX_WIDTH/2}" y="20" '
-                   f'width="{PARTICIPANT_BOX_WIDTH}" height="{PARTICIPANT_BOX_HEIGHT}" '
-                   f'rx="6" ry="6" fill="#e0e0e0" stroke="#000"/>')
-        svg.append(f'<text x="{x}" y="45" text-anchor="middle" '
-                   f'font-family="Arial" font-size="14">{lane}</text>')
+        # Get class description if available
+        class_def = None
+        for c in model.classes:
+            if c.name == lane:
+                class_def = c
+                break
+        
+        class_description = class_def.description if class_def else ""
+        
+        # Draw participant box
+        box_elem = f'<rect x="{x - PARTICIPANT_BOX_WIDTH/2}" y="20" width="{PARTICIPANT_BOX_WIDTH}" height="{PARTICIPANT_BOX_HEIGHT}" rx="6" ry="6" fill="#e0e0e0" stroke="#000"/>'
+        if class_description:
+            box_elem = box_elem.replace('/>', f'><title>{class_description}</title></rect>', 1)
+        svg.append(box_elem)
+        
+        # Draw participant name text
+        text_elem = f'<text x="{x}" y="45" text-anchor="middle" font-family="Arial" font-size="14">{lane}</text>'
+        if class_description:
+            text_elem = text_elem.replace('>', f'><title>{class_description}</title>', 1)
+        svg.append(text_elem)
 
         svg.append(f'<line x1="{x}" y1="60" x2="{x}" y2="{height - 20}" '
                    f'stroke="#888" stroke-dasharray="4,4"/>')
+    
+    # Track and render states for each lane
+    current_states = {}  # lane_name -> state_name
+    
+    # Initialize states from state machines
+    for lane in lanes:
+        state_machine = model.get_state_machine(lane)
+        if state_machine and state_machine.states:
+            # Use first state as initial state
+            current_states[lane] = state_machine.states[0].name
+    
+    # Render initial states if any exist
+    if current_states:
+        for lane, state_name in current_states.items():
+            x = lane_positions[lane]
+            state_machine = model.get_state_machine(lane)
+            state_def = None
+            if state_machine:
+                for s in state_machine.states:
+                    if s.name == state_name:
+                        state_def = s
+                        break
+            
+            state_desc = state_def.description if state_def else ""
+            state_elements = create_state_box(x, 70, state_name, state_desc)
+            svg.extend(state_elements)
 
     # Draw steps
-    for row_index, step in enumerate(seq.steps):
-        y = 120 + row_index * ROW_HEIGHT
-
-        cleaned = [(i, func.strip()) for i, func in enumerate(step)]
-        filled = [(i, f) for i, f in cleaned if f != ""]
-
-        if len(filled) < 1:
+    for step in filtered_steps:
+        # Skip if lanes aren't in our filtered set
+        if step.src_obj not in lane_positions or step.dst_obj not in lane_positions:
             continue
-
-        src_index = filled[0][0]
-        func_name = filled[1][1] if len(filled) > 1 else filled[0][1]
-        dst_index = filled[1][0] if len(filled) > 1 else src_index + 1
-
-        src_lane = lanes[src_index]
-        dst_lane = lanes[dst_index]
+        
+        y = step.y
+        
+        src_lane = step.src_obj
+        dst_lane = step.dst_obj
+        func_name = step.function
 
         x1 = lane_positions[src_lane]
         x2 = lane_positions[dst_lane]
 
         func_def = model.get_function(src_lane, func_name)
 
+        # Build tooltip with comprehensive information
+        func_tooltip = ""
         if func_def:
-            params = [p.name for p in func_def.params]
-            label = func_name + "(" + ", ".join(params) + ")"
-        else:
-            label = func_name + "()"
+            func_tooltip = func_def.description
+            # Add parameter descriptions to tooltip
+            if func_def.params and step.param_values:
+                param_descriptions = []
+                for i, param_def in enumerate(func_def.params):
+                    if i < len(step.param_values):
+                        value = step.param_values[i]
+                        param_descriptions.append(f"{param_def.name}={value} ({param_def.description})")
+                if param_descriptions:
+                    func_tooltip += "\n\nParameters:\n" + "\n".join(param_descriptions)
+            elif func_def.params:
+                param_descriptions = [f"{p.name} ({p.description})" for p in func_def.params]
+                if param_descriptions:
+                    func_tooltip += "\n\nParameters:\n" + "\n".join(param_descriptions)
+
+        # Build forward arrow label based on verbosity level
+        # Low: function name only
+        # Normal: function name + params + return value
+        # High: normal + descriptions (as tooltips)
+        if verbosity_level.lower() == "low":
+            label = func_name
+        else:  # Normal or High
+            # Include params in parentheses
+            param_labels = []
+            if func_def and step.param_values:
+                for i, param_def in enumerate(func_def.params):
+                    if i < len(step.param_values):
+                        param_labels.append(f"{param_def.name}={step.param_values[i]}")
+            elif func_def:
+                # If no values provided, just show param names
+                param_labels = [p.name for p in func_def.params]
+            
+            label = func_name + "(" + ", ".join(param_labels) + ")"
 
         # Forward arrow
         svg.append(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
                    f'stroke="#000" marker-end="url(#arrow)"/>')
 
-        svg.append(f'<text x="{(x1 + x2)/2}" y="{y - 10}" '
-                   f'text-anchor="middle" font-family="Arial" '
-                   f'font-size="12">{label}</text>')
+        # Forward arrow text with tooltip
+        text_elem = f'<text x="{(x1 + x2)/2}" y="{y - 10}" text-anchor="middle" font-family="Arial" font-size="12">{label}</text>'
+        if func_tooltip:
+            # Escape special characters in tooltip
+            func_tooltip_escaped = func_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+            text_elem = text_elem.replace('>', f'><title>{func_tooltip_escaped}</title>', 1)
+        svg.append(text_elem)
 
-        # Return arrow
-        if func_def and func_def.returns:
-            ret = ", ".join([r.name for r in func_def.returns])
+        # Return arrow with tooltip (show for Normal and High verbosity)
+        if verbosity_level.lower() != "low" and func_def and func_def.returns and step.return_value:
+            # Use the first return value name with the provided value
+            ret_name = func_def.returns[0].name if func_def.returns else "Value"
+            ret_label = f"{ret_name}={step.return_value}"
+            ret_def = func_def.returns[0]
+            
+            # Build return value tooltip
+            ret_tooltip = f"{ret_name}: {ret_def.description}" if ret_def else ""
+            
             y_ret = y + 30
 
             svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
                        f'stroke="#000" stroke-dasharray="5,5" '
                        f'marker-end="url(#arrow)"/>')
-
-            svg.append(f'<text x="{(x1 + x2)/2}" y="{y_ret - 10}" '
-                       f'text-anchor="middle" font-family="Arial" '
-                       f'font-size="12">{ret}</text>')
+            
+            # Return arrow text with tooltip
+            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{y_ret - 10}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
+            if ret_tooltip:
+                ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+                ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
+            svg.append(ret_text_elem)
+        
+        # Render state changes after this step
+        if step.state_changes:
+            state_y = y + 50
+            for lane_name, new_state in step.state_changes.items():
+                if lane_name in lane_positions:
+                    current_states[lane_name] = new_state
+                    x = lane_positions[lane_name]
+                    
+                    # Get state description
+                    state_machine = model.get_state_machine(lane_name)
+                    state_def = None
+                    if state_machine:
+                        for s in state_machine.states:
+                            if s.name == new_state:
+                                state_def = s
+                                break
+                    
+                    state_desc = state_def.description if state_def else ""
+                    state_elements = create_state_box(x, state_y, new_state, state_desc)
+                    svg.extend(state_elements)
 
     svg.append("</svg>")
     return "\n".join(svg)

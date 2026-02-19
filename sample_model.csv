@@ -1,25 +1,41 @@
-Type,Name,Description,Verbosity
-Class,CalculatorCore,Main logic processor,
-    Function,+ReadKey,Reads a key,Medium
-        ReturnVal,Key=7,Key read from hardware,High
+Type,Name,Description
+Class,User,User interface
+    Function,ReadKey,Reads a key
+        ReturnVal,Key,Key read from hardware
 
-    Function,+AppendDigit,Adds a digit,Medium
-        Param,Digit=7,Digit pressed,High
-        ReturnVal,UpdatedValue=7,New value,Medium
+    Function,AppendDigit,Adds a digit
+        Param,Digit,Digit pressed
+        ReturnVal,UpdatedValue,New value
 
-    Function,+Compute,Performs calculation,High
-        Param,ID=1,Unique ID,Low
-        Param,Mode=Fast,Mode,Medium
-        ReturnVal,Result=42,Computed result,High
+    Function,Compute,Performs calculation
+        Param,ID,Unique ID
+        Param,Mode,Mode
+        ReturnVal,Result,Computed result
 
-    Function,+Update,Updates display,Medium
-        Param,Value=42,Value to display,High
-        ReturnVal,Done,Display updated,Low
+    Function,Update,Updates display
+        Param,Value,Value to display
+        ReturnVal,Done,Display updated
+
+    StateMachine,MainSM,Primary user interaction state machine
+        State,Idle,Waiting for user input
+        State,EnteringNumber,User is typing digits
+        State,OperationPending,Operator selected and waiting for next value
+        State,Error,Invalid input or calculation error
+
+Class,Display,Shows current value and results
+    MemberVar,text,Current text displayed
+    Function,Update,Updates the display with new text
+    
+    StateMachine,DisplaySM,Display state transitions
+        State,Empty,No value displayed
+        State,ShowingValue,Displaying numeric value
+        State,ShowingResult,Displaying result
+
+Class,Keypad,Receives button presses
+    Function,ReadKey,Returns which key was pressed       
 
 Sequence,SoftReq0001,Initialization,This sequence initializes the system
-    SequenceObjects,User,Keypad,CalculatorCore,Display,HardwareInterface
-
-    SequenceStep,User,ReadKey,,,
-    SequenceStep,,,AppendDigit,,
-    SequenceStep,,,Compute,,
-    SequenceStep,,,,Update,
+    1,User,Keypad,ReadKey,7
+    2,User,CalculatorCore,AppendDigit,42,7
+    3,User,CalculatorCore,Compute,42,1,Fast
+    4,User,Display,Update,Done,42
