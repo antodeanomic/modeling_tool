@@ -1,0 +1,25 @@
+Type,Name,Description,Verbosity
+Class,CalculatorCore,Main logic processor,
+    Function,+ReadKey,Reads a key,Medium
+        ReturnVal,Key=7,Key read from hardware,High
+
+    Function,+AppendDigit,Adds a digit,Medium
+        Param,Digit=7,Digit pressed,High
+        ReturnVal,UpdatedValue=7,New value,Medium
+
+    Function,+Compute,Performs calculation,High
+        Param,ID=1,Unique ID,Low
+        Param,Mode=Fast,Mode,Medium
+        ReturnVal,Result=42,Computed result,High
+
+    Function,+Update,Updates display,Medium
+        Param,Value=42,Value to display,High
+        ReturnVal,Done,Display updated,Low
+
+Sequence,SoftReq0001,Initialization,This sequence initializes the system
+    SequenceObjects,User,Keypad,CalculatorCore,Display,HardwareInterface
+
+    SequenceStep,User,ReadKey,,,
+    SequenceStep,,,AppendDigit,,
+    SequenceStep,,,Compute,,
+    SequenceStep,,,,Update,
