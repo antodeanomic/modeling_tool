@@ -44,6 +44,17 @@ class ClassDef:
     state_machines: List[StateMachineDef] = field(default_factory=list)
 
 @dataclass
+class NoteDef:
+    """Represents a note in a sequence diagram.
+    
+    Attributes:
+        note_type: Type of note - "Info", "Warning", or "Error"
+        content: Text content of the note (displayed on hover)
+    """
+    note_type: str  # "Info", "Warning", or "Error"
+    content: str
+
+@dataclass
 class SequenceStep:
     """Represents a single step in a sequence diagram.
     
@@ -57,7 +68,8 @@ class SequenceStep:
         return_value: Actual return value to display
         param_values: List of actual parameter values to display
         state_changes: Dict mapping object names to new state names after this step
-        notes: List of notes to display on lanes during this step
+        lane_notes: Dict mapping lane_name -> NoteDef for lane notes
+        function_note: Optional NoteDef for a note on the function call
     """
     depth: int
     src_obj: str
@@ -68,7 +80,8 @@ class SequenceStep:
     return_value: str = ""
     param_values: List[str] = field(default_factory=list)
     state_changes: dict = field(default_factory=dict)  # Maps lane_name -> state_name
-    notes: List[str] = field(default_factory=list)  # Notes to display on lanes
+    lane_notes: dict = field(default_factory=dict)  # Maps lane_name -> NoteDef
+    function_note: Optional['NoteDef'] = None
 
 @dataclass
 class SequenceDef:

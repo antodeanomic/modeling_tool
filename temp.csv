@@ -25,8 +25,3 @@ Class,Keypad,Receives button presses
     Function,+ReadKey,Returns which key was pressed
 
 UserStorySequence,SoftReq0001,{ Actor1->Button->Object1.init->SPI->HWChip } 
-
-
-+-++--\/ t5rA
-\
-\FV 8   ``1``12`1

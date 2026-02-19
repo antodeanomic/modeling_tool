@@ -1,4 +1,4 @@
-from model import Model, SequenceDef
+from model import Model, SequenceDef, NoteDef
 
 LANE_WIDTH = 200
 ROW_HEIGHT = 80
@@ -6,6 +6,16 @@ PARTICIPANT_BOX_WIDTH = 140
 PARTICIPANT_BOX_HEIGHT = 40
 STATE_BOX_PADDING = 4
 STATE_TEXT_SIZE = 11
+NOTE_BOX_WIDTH = 17
+NOTE_BOX_HEIGHT = 13
+NOTE_FOLD_SIZE = 2
+
+# Note type colors
+NOTE_COLORS = {
+    "Info": {"fill": "#E3F2FD", "stroke": "#1976D2", "icon": "ℹ"},
+    "Warning": {"fill": "#FFF3E0", "stroke": "#F57C00", "icon": "⚠"},
+    "Error": {"fill": "#FFEBEE", "stroke": "#D32F2F", "icon": "✕"}
+}
 
 def measure_text_width(text: str, font_size: float = 11) -> float:
     """Rough estimate of text width in SVG (monospace-ish)."""
@@ -38,6 +48,51 @@ def create_state_box(x: float, y: float, state_name: str, state_desc: str = "") 
     if state_desc:
         text = text.replace('>', f'><title>{state_desc}</title>', 1)
     svg_parts.append(text)
+    
+    return svg_parts
+
+def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) -> list:
+    """Create SVG elements for a note box with UML note style (folded corner).
+    
+    Args:
+        x: X coordinate (center of note)
+        y: Y coordinate (top of note)
+        note: NoteDef containing note type and content
+        show_text: If True, show the note content inline; otherwise show only on hover
+    
+    Returns list of SVG elements as strings.
+    """
+    colors = NOTE_COLORS.get(note.note_type, NOTE_COLORS["Info"])
+    svg_parts = []
+    
+    left = x - (NOTE_BOX_WIDTH / 2)
+    
+    # Draw main rectangle
+    rect = f'<rect x="{left}" y="{y}" width="{NOTE_BOX_WIDTH}" height="{NOTE_BOX_HEIGHT}" fill="{colors["fill"]}" stroke="{colors["stroke"]}" stroke-width="1"/>'
+    if note.content:
+        rect = rect.replace('/>', f'><title>{note.content}</title></rect>', 1)
+    svg_parts.append(rect)
+    
+    # Draw folded corner (small triangle in top-right)
+    fold_right = left + NOTE_BOX_WIDTH
+    fold_points = f"{fold_right - NOTE_FOLD_SIZE},{y} {fold_right},{y} {fold_right},{y + NOTE_FOLD_SIZE}"
+    fold = f'<polygon points="{fold_points}" fill="{colors["stroke"]}" opacity="0.3"/>'
+    svg_parts.append(fold)
+    
+    # Draw icon/indicator
+    icon_x = left + 3
+    icon_y = y + 4
+    icon = f'<text x="{icon_x}" y="{icon_y}" font-size="5" font-weight="bold" fill="{colors["stroke"]}" text-anchor="middle">{colors["icon"]}</text>'
+    if note.content:
+        icon = icon.replace('>', f'><title>{note.content}</title>', 1)
+    svg_parts.append(icon)
+    
+    # If show_text is True, add the content text (truncated to fit)
+    if show_text and note.content:
+        # Truncate text to fit in the box
+        truncated = note.content[:10] + ".." if len(note.content) > 10 else note.content
+        text = f'<text x="{x}" y="{y + NOTE_BOX_HEIGHT - 2}" font-size="5" fill="{colors["stroke"]}" text-anchor="middle">{truncated}</text>'
+        svg_parts.append(text)
     
     return svg_parts
 
@@ -249,6 +304,28 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
                 ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
             svg.append(ret_text_elem)
+        
+        # Render function note if present
+        if step.function_note:
+            # Calculate text width to position note to the right of all text
+            label_width = measure_text_width(label, font_size=12)
+            text_center = (x1 + x2) / 2
+            note_x = text_center + (label_width / 2) + 15  # Position after text with padding
+            note_y = y - 20
+            # Show text inline if verbosity is "high"
+            show_text = verbosity_level.lower() == "high"
+            note_elements = create_note_box(note_x, note_y, step.function_note, show_text=show_text)
+            svg.extend(note_elements)
+        
+        # Render lane notes for this step
+        for lane_name, note in step.lane_notes.items():
+            if lane_name in lane_positions:
+                x_lane = lane_positions[lane_name]
+                note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
+                # Show text inline if verbosity is "high"
+                show_text = verbosity_level.lower() == "high"
+                note_elements = create_note_box(x_lane, note_y, note, show_text=show_text)
+                svg.extend(note_elements)
         
         # Render state changes after this step
         if step.state_changes:

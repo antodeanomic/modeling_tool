@@ -1,7 +1,7 @@
 import csv
 from model import (
     Model, ClassDef, MemberVar, FunctionDef, ParamDef, ReturnDef,
-    SequenceDef, SequenceStep, StateMachineDef, StateDef
+    SequenceDef, SequenceStep, StateMachineDef, StateDef, NoteDef
 )
 
 def clean(s: str) -> str:
@@ -13,6 +13,29 @@ def parse_indent(type_field: str) -> tuple[int, str]:
     leading_spaces = len(type_field) - len(type_field.lstrip(" "))
     level = leading_spaces // 4
     return level, type_field.lstrip(" ")
+
+def parse_note(note_str: str) -> tuple[str, str]:
+    """Parse note syntax like @Info,Note content or @Warning,Alert message.
+    
+    Returns (note_type, content) or (None, None) if not a valid note.
+    """
+    note_str = note_str.strip()
+    if not note_str.startswith("@"):
+        return None, None
+    
+    # Remove @ and split on first comma
+    rest = note_str[1:]
+    if "," not in rest:
+        return None, None
+    
+    note_type, content = rest.split(",", 1)
+    note_type = note_type.strip()
+    content = content.strip()
+    
+    if note_type in ["Info", "Warning", "Error"]:
+        return note_type, content
+    
+    return None, None
 
 def parse_csv(path: str) -> Model:
     model = Model()
@@ -101,7 +124,8 @@ def parse_csv(path: str) -> Model:
 
             # Inside a sequence
             if isinstance(parent, SequenceDef):
-                # Parse step: [Row#], Obj1, Obj2, Func, RetVal, ParamVal1, ParamVal2, ...
+                # Parse step: [Row#], Obj1, Obj2, Func, RetVal, ParamVal1, ..., [@NoteType, NoteContent]
+                # Or lane note: [Row#], LaneName, @NoteType, NoteContent
                 # Row# is optional - if first field (column 0, unindented) is a number, it's the row
                 if type_name not in ["SequenceObjects", "SequenceStep"]:
                     # Check if type_name (first field) is the row number
@@ -119,7 +143,23 @@ def parse_csv(path: str) -> Model:
                     
                     step_data = all_step_data[start_idx:]
                     
-                    # Need at least Obj1, Obj2, Func
+                    # Check if this is a lane note (LaneName, @NoteType, Description...)
+                    # A lane note has 2+ elements where element[1] starts with @
+                    if len(step_data) >= 2 and step_data[1].startswith("@"):
+                        lane_name = step_data[0]
+                        note_type_str = step_data[1][1:]  # Remove @
+                        # Reconstruct description from remaining elements
+                        note_content = " ".join(step_data[2:]) if len(step_data) > 2 else ""
+                        
+                        if note_type_str in ["Info", "Warning", "Error"]:
+                            # This is a lane note
+                            if len(parent.steps) > 0:
+                                # Add to the last step
+                                last_step = parent.steps[-1]
+                                last_step.lane_notes[lane_name] = NoteDef(note_type=note_type_str, content=note_content)
+                            continue
+                    
+                    # Need at least Obj1, Obj2, Func for a regular step
                     if len(step_data) < 3:
                         continue
                     
@@ -130,13 +170,35 @@ def parse_csv(path: str) -> Model:
                     # Optional: RetVal at index 3
                     return_value = ""
                     param_values = []
+                    function_note = None
                     
                     if len(step_data) > 3:
                         return_value = step_data[3]
                     
-                    # Remaining elements are parameter values
-                    if len(step_data) > 4:
-                        param_values = step_data[4:]
+                    # Check for function note at the end
+                    # Function note would be: @NoteType, NoteContent
+                    remaining = step_data[4:] if len(step_data) > 4 else []
+                    
+                    # Look for @ marker indicating a note
+                    note_start_idx = None
+                    for i, elem in enumerate(remaining):
+                        if elem.startswith("@"):
+                            note_start_idx = i
+                            break
+                    
+                    if note_start_idx is not None:
+                        # Note found in remaining data
+                        param_values = remaining[:note_start_idx]
+                        
+                        note_type = remaining[note_start_idx][1:]  # Remove @
+                        # Reconstruct note content from remaining elements
+                        note_content = " ".join(remaining[note_start_idx + 1:]) if note_start_idx + 1 < len(remaining) else ""
+                        
+                        if note_type in ["Info", "Warning", "Error"]:
+                            function_note = NoteDef(note_type=note_type, content=note_content)
+                    else:
+                        # No note, all remaining are param values
+                        param_values = remaining
                     
                     step = SequenceStep(
                         depth=level - 1,
@@ -146,7 +208,8 @@ def parse_csv(path: str) -> Model:
                         description="",
                         row=row_num,
                         return_value=return_value,
-                        param_values=param_values
+                        param_values=param_values,
+                        function_note=function_note
                     )
                     parent.steps.append(step)
                 continue
