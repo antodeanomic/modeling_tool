@@ -135,9 +135,9 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "", 
     # Horizontal line returning to lifeline with arrow
     svg_parts.append(f'<line x1="{right_x}" y1="{bottom_y}" x2="{x}" y2="{bottom_y}" stroke="#000" stroke-width="1" marker-end="url(#arrow)"/>')
     
-    # Draw label on the far right, positioned at the midpoint of the bracket
-    label_x = right_x + 8  # Clear margin to the right of vertical line
-    label_y = mid_y + 6  # Positioned midway through the bracket
+    # Draw label on the far right, top-justified at the start of the bracket
+    label_x = right_x + 8
+    label_y = y + 12  # Top-justified with small margin
     text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -207,9 +207,9 @@ def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str,
     # Bottom horizontal line with arrow
     svg_parts.append(f'<line x1="{right_x}" y1="{y_end}" x2="{x}" y2="{y_end}" stroke="#000" stroke-width="1" marker-end="url(#arrow)"/>')
     
-    # Draw label on the right, vertically centered in the span
+    # Draw label on the right, top-justified at the start of the bracket
     label_x = right_x + 8
-    label_y = (y_start + y_end) / 2
+    label_y = y_start + 12  # Top-justified with small margin
     text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -374,8 +374,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         y = step.y
         
-        # For self-messages on the same row, apply vertical offset
-        if step.src_obj == step.dst_obj:
+        # For self-messages on the same row, apply vertical offset (but not if inside spanning bracket)
+        if step.src_obj == step.dst_obj and step.row not in steps_inside_brackets:
             if step.row not in self_message_count:
                 self_message_count[step.row] = 0
             else:
