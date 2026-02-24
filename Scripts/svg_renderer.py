@@ -415,15 +415,15 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 msg_height = 2   # Regular message: minimal height, just the arrow
             
             # Check if this message has a return value (return arrow)
-            # Return arrows add 30px below the message
+            # Return arrows add space below the message and include centered text
             has_return = (step.src_obj != step.dst_obj and 
                          model.get_function(step.src_obj, step.function) and 
                          model.get_function(step.src_obj, step.function).returns and 
                          step.return_value)
             
             if has_return:
-                # Message + return arrow takes 30px more space
-                max_y = current_y + 30 + 2  # 30px for return arrow + 2px gap
+                # Message + return arrow with centered text: 15px for arrow + 4px for text baseline + ~3px for text bottom = ~22px
+                max_y = current_y + 22 + 2  # 22px for arrow + text + 2px gap
             else:
                 max_y = current_y + msg_height + 2
             
@@ -560,12 +560,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             # Build return value tooltip
             ret_tooltip = f"{ret_name}: {ret_def.description}" if ret_def else ""
             
-            # Return arrow positioned below message
-            # For messages inside brackets, use minimal spacing (2px)
+            # Return arrow positioned below message with space for centered text
+            # For messages inside brackets, use spacing for text (15px)
             # For messages outside brackets, use row-based spacing (30px)
             if id(step) in bracket_step_positions:
-                # Inside bracket: minimal spacing for cross-message arrow
-                y_ret = y + 4  # 2px message height + 2px gap
+                # Inside bracket: spacing for cross-message arrow with centered text
+                y_ret = y + 15  # 2px message height + 2px gap + 11px for text
             else:
                 # Outside bracket: row-based spacing
                 y_ret = y + 30
@@ -574,10 +574,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                        f'stroke="#000" stroke-dasharray="5,5" '
                        f'marker-end="url(#arrow)"/>')
             
-            # Return arrow text overlaps the arrow to save vertical space
-            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{y_ret - 2}" text-anchor="middle" font-family="Arial" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label}</text>'
+            # Return arrow text centered over the arrow (arrow passes through text center)
+            # Text baseline positioned so arrow passes through visual center of text
+            ret_text_baseline_y = y_ret + 4  # Visual center of 12px text is roughly 4px above baseline
+            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label}</text>'
             # Add the actual text on top
-            ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{y_ret - 2}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
+            ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
             if ret_tooltip:
                 ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
                 ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
