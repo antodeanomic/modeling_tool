@@ -155,6 +155,9 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     svg.append(f'<svg width="{width}" height="{height}" '
                f'xmlns="http://www.w3.org/2000/svg">')
 
+    # Add white background for visibility in dark mode viewers
+    svg.append(f'<rect width="{width}" height="{height}" fill="white"/>')
+
     svg.append("""
     <defs>
       <marker id="arrow" markerWidth="10" markerHeight="10" 
