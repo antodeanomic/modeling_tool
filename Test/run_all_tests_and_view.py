@@ -28,6 +28,7 @@ def run_all_tests():
     test_cases = [
         'test_layers',
         'test_multirow', 
+        'test_nested_self_messages',
         'test_notes',
         'test_parameters',
         'test_states',

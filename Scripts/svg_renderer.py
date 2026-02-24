@@ -96,22 +96,27 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
     
     return svg_parts
 
-def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") -> list:
+def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "", nesting_depth: int = 0) -> list:
     """Create a self-message (call to same object) as a 3-sided bracket extending right.
     
     A self-message is drawn as a bracket extending to the right of the lane,
     with the label positioned to the right of the bracket.
+    Nested self-messages (same row, same source) have proportionally smaller brackets.
     
     Args:
         x: X position of the lane (center of lifeline)
         y: Y position of the message
         label: Text label for the message
         tooltip: Optional tooltip content
+        nesting_depth: Depth in nesting (0=outermost, 1=inside outermost, etc.)
     
     Returns list of SVG elements as strings.
     """
-    LOOP_WIDTH = 15  # Horizontal segment length
-    LOOP_HEIGHT = 30  # Total vertical distance for the loop
+    # Scale bracket width based on nesting: outermost is 2x the next level
+    # depth 0: 30px, depth 1: 15px, depth 2: 7.5px, etc.
+    BASE_LOOP_WIDTH = 30
+    LOOP_WIDTH = BASE_LOOP_WIDTH / (2 ** nesting_depth)  # Halve width for each nesting level
+    LOOP_HEIGHT = 30  # Vertical distance stays constant
     
     svg_parts = []
     
@@ -334,7 +339,9 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         # Handle self-messages (where source and destination are the same)
         if x1 == x2:
             # Self-message: draw as a rectangular loop
-            self_msg_elements = create_self_message_loop(x1, y, label, func_tooltip)
+            # Pass nesting depth for proportional bracket sizing
+            nesting_depth = self_message_count.get(step.row, 0)
+            self_msg_elements = create_self_message_loop(x1, y, label, func_tooltip, nesting_depth)
             svg.extend(self_msg_elements)
         else:
             # Regular message between different objects
