@@ -100,7 +100,7 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") 
     """Create a self-message (call to same object) as a 3-sided bracket extending right.
     
     A self-message is drawn as a bracket extending to the right of the lane,
-    with vertical segments equal to horizontal segment length.
+    with the label positioned to the right of the bracket.
     
     Args:
         x: X position of the lane (center of lifeline)
@@ -110,7 +110,7 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") 
     
     Returns list of SVG elements as strings.
     """
-    LOOP_WIDTH = 15  # Horizontal segment length (equal to half LOOP_HEIGHT)
+    LOOP_WIDTH = 15  # Horizontal segment length
     LOOP_HEIGHT = 30  # Total vertical distance for the loop
     
     svg_parts = []
@@ -120,19 +120,19 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") 
     bottom_y = y + LOOP_HEIGHT
     mid_y = y + LOOP_HEIGHT / 2
     
-    # Draw 3-sided bracket: down, right, down (no bottom return line)
-    # Vertical line going down from source
-    svg_parts.append(f'<line x1="{x}" y1="{y}" x2="{x}" y2="{mid_y}" stroke="#000" stroke-width="1"/>')
-    
-    # Horizontal line extending right
-    svg_parts.append(f'<line x1="{x}" y1="{mid_y}" x2="{right_x}" y2="{mid_y}" stroke="#000" stroke-width="1"/>')
+    # Draw 3-sided bracket: right, down, left (no initial vertical that overlaps lifeline)
+    # Horizontal line extending right from lifeline
+    svg_parts.append(f'<line x1="{x}" y1="{y}" x2="{right_x}" y2="{y}" stroke="#000" stroke-width="1"/>')
     
     # Vertical line extending down (right side of bracket)
-    svg_parts.append(f'<line x1="{right_x}" y1="{mid_y}" x2="{right_x}" y2="{bottom_y}" stroke="#000" stroke-width="1"/>')
+    svg_parts.append(f'<line x1="{right_x}" y1="{y}" x2="{right_x}" y2="{bottom_y}" stroke="#000" stroke-width="1"/>')
     
-    # Draw label on the far right, positioned at the midpoint of the vertical segment
+    # Horizontal line returning to lifeline with arrow
+    svg_parts.append(f'<line x1="{right_x}" y1="{bottom_y}" x2="{x}" y2="{bottom_y}" stroke="#000" stroke-width="1" marker-end="url(#arrow)"/>')
+    
+    # Draw label on the far right, positioned at the midpoint of the bracket
     label_x = right_x + 8  # Clear margin to the right of vertical line
-    label_y = mid_y + 6  # Positioned midway through vertical segment
+    label_y = mid_y + 6  # Positioned midway through the bracket
     text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
