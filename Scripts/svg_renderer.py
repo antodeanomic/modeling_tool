@@ -209,8 +209,8 @@ def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str,
     
     # Draw label on the right, top-justified at the start of the bracket
     label_x = right_x + 8
-    # Position label at middle of vertical span to avoid overlap
-    label_y = (y_start + y_end) / 2
+    # Position label at top of vertical segment (top-justified)
+    label_y = y_start + 1
     text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -560,9 +560,15 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             # Build return value tooltip
             ret_tooltip = f"{ret_name}: {ret_def.description}" if ret_def else ""
             
-            # Return arrow positioned 30px below message
-            # If message is inside bracket, y is already set from bracket_step_positions
-            y_ret = y + 30
+            # Return arrow positioned below message
+            # For messages inside brackets, use minimal spacing (2px)
+            # For messages outside brackets, use row-based spacing (30px)
+            if id(step) in bracket_step_positions:
+                # Inside bracket: minimal spacing for cross-message arrow
+                y_ret = y + 4  # 2px message height + 2px gap
+            else:
+                # Outside bracket: row-based spacing
+                y_ret = y + 30
 
             svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
                        f'stroke="#000" stroke-dasharray="5,5" '
