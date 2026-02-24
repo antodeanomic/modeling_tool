@@ -1,0 +1,52 @@
+﻿Type,Name,Description
+Class,Client,Client app
+    Function,Authenticate,Send auth
+        Param,token,Auth token
+        ReturnVal,token,Auth token
+Class,APIGateway,API router
+    Function,ValidateToken,Validate token
+        Param,token,Token to check
+        ReturnVal,valid,Valid or not
+    Function,FetchUsers,Get users
+        Param,filter,Search filter
+        ReturnVal,userList,List of users
+Class,AuthService,Auth service
+    Function,ValidateToken,Validate
+        Param,token,Token
+        ReturnVal,valid,Is valid
+    Function,CheckPermission,Check access
+        Param,user,User ID
+        Param,action,Action
+        ReturnVal,allowed,Is allowed
+Class,UserService,User data
+    Function,FetchUsers,Fetch users
+        Param,filter,Filter criteria
+        ReturnVal,userList,User list
+Class,PermissionService,Permissions
+    Function,CheckPermission,Check
+        Param,user,User ID
+        Param,action,Action
+        ReturnVal,allowed,Allowed
+Class,AuditLog,Audit logger
+    Function,LogAccess,Log access
+        Param,user,User ID
+        Param,action,Action
+        ReturnVal,logged,Logged
+    Function,LogQuery,Log query
+        Param,user,User ID
+        Param,query,Query type
+        ReturnVal,logged,Logged
+Sequence,SoftReq_TEST_005,Multi-lane filtering
+    1,Client,APIGateway,Authenticate,token123,token123,@Info,Request received
+    2,APIGateway,AuthService,ValidateToken,token123,valid
+    3,AuthService,PermissionService,CheckPermission,user123,read,allowed
+    4,PermissionService,AuthService,CheckPermission,allowed
+    4,AuthService,@Info,Permissions verified
+    5,AuthService,AuditLog,LogAccess,user123,read,logged
+    6,AuditLog,@Info,Audit recorded
+    7,AuthService,APIGateway,ValidateToken,valid
+    8,APIGateway,UserService,FetchUsers,-,userList
+    9,UserService,AuditLog,LogQuery,user123,fetch,logged
+    10,AuditLog,@Info,Query logged
+    11,UserService,APIGateway,FetchUsers,userList
+    12,APIGateway,Client,Authenticate,userList

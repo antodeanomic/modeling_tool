@@ -1,0 +1,22 @@
+Type,Name,Description
+Class,User,User interface
+    Function,LogEvent,Logs events
+        Param,EventID,Event ID
+        ReturnVal,Status,Logged
+Class,Logger,System logger
+    Function,SendNotification,Send alert
+        Param,EventID,Event ID
+        ReturnVal,Queued,In queue
+Class,NotificationService,Notification handler
+    Function,Notify,Alert user
+        Param,EventID,event
+        ReturnVal,Sent,Delivered
+Sequence,SoftReq_TEST_001,Test note types
+    1,User,Logger,LogEvent,123,logged,@Info,Login successful
+    1,User,@Warning,Session timeout approaching
+    2,Logger,NotificationService,SendNotification,123,queued,@Warning,Queue full
+    2,User,@Info,Backup complete
+    3,NotificationService,User,Notify,123,sent,@Error,Alert delivery failed
+    3,Logger,@Error,Database offline
+
+

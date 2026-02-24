@@ -1,0 +1,28 @@
+﻿Type,Name,Description
+Class,Calculator,Math operations
+    Function,Add,Add numbers
+        Param,a,First operand
+        Param,b,Second operand
+        ReturnVal,result,Sum
+    Function,Multiply,Multiply
+        Param,x,First number
+        Param,y,Second number
+        ReturnVal,product,Product
+    Function,Divide,Divide
+        Param,dividend,Numerator
+        Param,divisor,Denominator
+        ReturnVal,quotient,Quotient
+Class,Display,Shows results
+    Function,Show,Display result
+        Param,value,Result value
+        ReturnVal,shown,Complete
+Sequence,SoftReq_TEST_003,Verbosity test
+    1,Display,Calculator,Add,10,5,sum
+    1,Calculator,@Info,Adding numbers
+    2,Calculator,Display,Show,sum,shown
+    3,Display,Calculator,Multiply,7,8,product
+    3,Calculator,@Info,Multiplying
+    4,Calculator,Display,Show,product,shown
+    5,Display,Calculator,Divide,100,5,quotient
+    5,Calculator,@Info,Dividing
+    6,Calculator,Display,Show,quotient,shown

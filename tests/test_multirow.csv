@@ -1,0 +1,19 @@
+﻿Type,Name,Description
+Class,WebBrowser,Browser
+    Function,GetHomepage,Request page
+        Param,filter,Page filter
+        ReturnVal,html,HTML content
+Class,WebServer,Web server
+    Function,CheckCache,Check cache
+        Param,key,Cache key
+        ReturnVal,found,Found
+    Function,QueryStats,Get stats
+        Param,type,Stat type
+        ReturnVal,stats,Statistics
+Sequence,SoftReq_TEST_006,Parallel operations
+    1,WebBrowser,WebServer,GetHomepage,home,html
+    1,WebBrowser,@Info,Homepage requested
+    2,WebServer,WebServer,CheckCache,home,found
+    2,WebServer,WebServer,QueryStats,traffic,stats
+    3,WebServer,WebBrowser,GetHomepage,html
+    3,WebServer,@Info,Both completed

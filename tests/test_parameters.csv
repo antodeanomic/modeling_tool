@@ -1,0 +1,33 @@
+﻿Type,Name,Description
+Class,UserSvc,User service
+    Function,CreateUser,Create user
+        Param,name,Full name
+        Param,email,Email address
+        Param,role,User role
+        ReturnVal,userID,New ID
+        ReturnVal,status,Status
+    Function,UpdateProfile,Update profile
+        Param,userID,User ID
+        Param,email,New email
+        Param,phone,Phone number
+        ReturnVal,confirmed,Confirmed
+Class,Database,Data store
+    Function,Insert,Insert record
+        Param,userID,ID
+        Param,data,User data
+        ReturnVal,status,Success
+Class,EmailSvc,Email service
+    Function,SendVerification,Send email
+        Param,userID,User ID
+        Param,email,Email address
+        ReturnVal,sent,Sent status
+        ReturnVal,confirmed,Confirmed
+Sequence,SoftReq_TEST_004,Parameters and returns
+    1,UserSvc,Database,Insert,USR001,john@test.com,USR001,created
+    1,UserSvc,@Info,Creating user
+    2,Database,UserSvc,Insert,USR001,created
+    3,UserSvc,EmailSvc,SendVerification,USR001,john@test.com,sent,confirmed
+    4,EmailSvc,UserSvc,SendVerification,sent,confirmed
+    5,UserSvc,Database,Insert,USR001,john.new@test.com,success
+    5,UserSvc,@Info,Profile updated
+    6,Database,UserSvc,Insert,success
