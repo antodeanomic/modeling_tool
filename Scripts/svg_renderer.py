@@ -132,23 +132,15 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") 
     # Horizontal line returning to lifeline with arrow
     svg_parts.append(f'<line x1="{right_x}" y1="{bottom_y}" x2="{x}" y2="{bottom_y}" stroke="#000" stroke-width="1" marker-end="url(#arrow)"/>')
     
-    # Draw label on the top horizontal segment
-    label_y = y + LOOP_HEIGHT/2 - 5
-    label_x = x + LOOP_WIDTH/2
-    text_elem = f'<text x="{label_x}" y="{label_y}" text-anchor="middle" font-family="Arial" font-size="12">{label}</text>'
+    # Draw label on the far right, aligned with bottom horizontal (return segment)
+    # Position label to the right of the loop with clear margin
+    label_x = right_x + 8  # Clear margin to the right of vertical line
+    label_y = y + LOOP_HEIGHT - 3  # Aligned with bottom horizontal (vertical segment)
+    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
         text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
     svg_parts.append(text_elem)
-    
-    # Draw return label to the right of vertical segment, aligned with bottom horizontal
-    return_label_x = right_x + 8  # Clear margin to the right of vertical line
-    return_label_y = y + LOOP_HEIGHT - 3  # Aligned with bottom horizontal (vertical segment)
-    return_text_elem = f'<text x="{return_label_x}" y="{return_label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
-    if tooltip:
-        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
-        return_text_elem = return_text_elem.replace('>', f'><title>return: {tooltip_escaped}</title>', 1)
-    svg_parts.append(return_text_elem)
     
     return svg_parts
 
