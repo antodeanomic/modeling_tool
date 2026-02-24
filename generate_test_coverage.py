@@ -51,17 +51,22 @@ def read_requirements(csv_file):
 
 def generate_test_coverage_markdown(tests_by_file, requirements_coverage, requirements):
     """Generate markdown for test coverage."""
-    lines = []
+    output = []
     
-    lines.append("# Test Coverage Documentation\n")
-    lines.append("## Overview\n")
-    lines.append("This document maps test cases to requirements, providing traceability and coverage metrics.\n")
-    lines.append("Each test case validates one or more specific requirements from the system specification.\n")
+    output.append("# Test Coverage Documentation")
+    output.append("")
+    output.append("## Overview")
+    output.append("")
+    output.append("This document maps test cases to requirements, providing traceability and coverage metrics.")
+    output.append("")
+    output.append("Each test case validates one or more specific requirements from the system specification.")
+    output.append("")
     
     # Test Coverage Table
-    lines.append("\n## Test Coverage by File\n")
-    lines.append("| Test File | Requirements Tested | Test Focus |\n")
-    lines.append("|:---|:---|:---|\n")
+    output.append("## Test Coverage by File")
+    output.append("")
+    output.append("| Test File | Requirements Tested | Test Focus |")
+    output.append("|:---|:---|:---|")
     
     for test_file in sorted(tests_by_file.keys()):
         reqs = tests_by_file[test_file]
@@ -83,44 +88,54 @@ def generate_test_coverage_markdown(tests_by_file, requirements_coverage, requir
         else:
             focus = "Feature validation"
         
-        lines.append(f"| {test_file} | {req_ids} | {focus} |\n")
+        output.append(f"| {test_file} | {req_ids} | {focus} |")
     
     # Requirement Coverage Table
-    lines.append("\n## Requirement Coverage Map\n")
-    lines.append("| Requirement ID | Tested By | Status |\n")
-    lines.append("|:---|:---|:---|\n")
+    output.append("")
+    output.append("## Requirement Coverage Map")
+    output.append("")
+    output.append("| Requirement ID | Tested By | Status |")
+    output.append("|:---|:---|:---|")
     
     for req_id in sorted(requirements_coverage.keys()):
         test_files = "; ".join(sorted(requirements_coverage[req_id]))
         description = requirements.get(req_id, "Unknown requirement")
         status = "✓ Covered" if test_files else "○ Not Tested"
         
-        lines.append(f"| {req_id} | {test_files} | {status} |\n")
+        output.append(f"| {req_id} | {test_files} | {status} |")
     
     # Coverage Statistics
-    lines.append("\n## Coverage Statistics\n")
+    output.append("")
+    output.append("## Coverage Statistics")
+    output.append("")
     total_requirements = len(requirements)
     tested_requirements = len(requirements_coverage)
     coverage_pct = (tested_requirements / total_requirements * 100) if total_requirements > 0 else 0
     
-    lines.append(f"- **Total Requirements**: {total_requirements}\n")
-    lines.append(f"- **Tested Requirements**: {tested_requirements}\n")
-    lines.append(f"- **Coverage**: {coverage_pct:.1f}%\n")
-    lines.append(f"- **Total Test Cases**: {len(tests_by_file)}\n")
+    output.append(f"- **Total Requirements**: {total_requirements}")
+    output.append(f"- **Tested Requirements**: {tested_requirements}")
+    output.append(f"- **Coverage**: {coverage_pct:.1f}%")
+    output.append(f"- **Total Test Cases**: {len(tests_by_file)}")
+    output.append("")
     
     # Test Execution Guide
-    lines.append("\n## Test Execution Guide\n")
-    lines.append("To run all tests:\n\n")
-    lines.append("```bash\n")
+    output.append("## Test Execution Guide")
+    output.append("")
+    output.append("To run all tests:")
+    output.append("")
+    output.append("```bash")
     for test_file in sorted(tests_by_file.keys()):
         test_name = test_file.replace('.csv', '')
-        lines.append(f"python run_test.py {test_name}\n")
-    lines.append("```\n")
+        output.append(f"python run_test.py {test_name}")
+    output.append("```")
+    output.append("")
     
-    lines.append("\nEach test generates a `test_[name]_output.svg` file that can be inspected for correctness.\n")
+    output.append("Each test generates a `test_[name]_output.svg` file that can be inspected for correctness.")
+    output.append("")
     
     # Requirements by Type with Test Coverage
-    lines.append("\n## Requirements by Type\n")
+    output.append("## Requirements by Type")
+    output.append("")
     
     req_types = defaultdict(list)
     for req_id in sorted(requirements.keys()):
@@ -129,16 +144,19 @@ def generate_test_coverage_markdown(tests_by_file, requirements_coverage, requir
         req_types[prefix].append(req_id)
     
     for prefix in sorted(req_types.keys()):
-        lines.append(f"\n### {prefix} Requirements\n\n")
-        lines.append("| ID | Tested By | Description |\n")
-        lines.append("|:---|:---|:---|\n")
+        output.append(f"### {prefix} Requirements")
+        output.append("")
+        output.append("| ID | Tested By | Description |")
+        output.append("|:---|:---|:---|")
         
         for req_id in sorted(req_types[prefix]):
             test_files = ", ".join(sorted(requirements_coverage.get(req_id, ["Not tested"])))
             description = requirements.get(req_id, "Unknown")
-            lines.append(f"| {req_id} | {test_files} | {description} |\n")
+            output.append(f"| {req_id} | {test_files} | {description} |")
+        
+        output.append("")
     
-    return "\n".join(lines)
+    return "\n".join(output)
 
 def main():
     tests_dir = Path("tests")
