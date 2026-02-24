@@ -1,11 +1,11 @@
 from model import Model, SequenceDef, NoteDef
 
 LANE_WIDTH = 200
-ROW_HEIGHT = 80
+ROW_HEIGHT = 60
 PARTICIPANT_BOX_WIDTH = 140
 PARTICIPANT_BOX_HEIGHT = 40
-STATE_BOX_PADDING = 4
-STATE_TEXT_SIZE = 11
+STATE_BOX_PADDING = 6
+STATE_TEXT_SIZE = 13
 NOTE_BOX_WIDTH = 17
 NOTE_BOX_HEIGHT = 13
 NOTE_FOLD_SIZE = 2
@@ -37,14 +37,14 @@ def create_state_box(x: float, y: float, state_name: str, state_desc: str = "") 
     
     svg_parts = []
     
-    # Draw rounded rectangle for state box
-    box = f'<rect x="{left}" y="{top}" width="{box_width}" height="{box_height}" rx="4" ry="4" fill="#f0f0f0" stroke="#666" stroke-width="1"/>'
+    # Draw rounded rectangle for state box (more prominent styling)
+    box = f'<rect x="{left}" y="{top}" width="{box_width}" height="{box_height}" rx="6" ry="6" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>'
     if state_desc:
         box = box.replace('/>', f'><title>{state_desc}</title></rect>', 1)
     svg_parts.append(box)
     
-    # Draw state name text
-    text = f'<text x="{x}" y="{top + STATE_BOX_PADDING + STATE_TEXT_SIZE}" text-anchor="middle" font-family="Arial" font-size="{STATE_TEXT_SIZE}" fill="#333">{state_name}</text>'
+    # Draw state name text (darker color for better visibility)
+    text = f'<text x="{x}" y="{top + STATE_BOX_PADDING + STATE_TEXT_SIZE}" text-anchor="middle" font-family="Arial" font-size="{STATE_TEXT_SIZE}" fill="#1b5e20" font-weight="bold">{state_name}</text>'
     if state_desc:
         text = text.replace('>', f'><title>{state_desc}</title>', 1)
     svg_parts.append(text)
@@ -140,6 +140,15 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") 
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
         text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
     svg_parts.append(text_elem)
+    
+    # Draw return label on the far right, parallel to the vertical return line
+    return_label_x = right_x + 10  # Position to the right of the vertical line
+    return_label_y = y + LOOP_HEIGHT/2  # Vertically centered
+    return_text_elem = f'<text x="{return_label_x}" y="{return_label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
+    if tooltip:
+        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        return_text_elem = return_text_elem.replace('>', f'><title>return: {tooltip_escaped}</title>', 1)
+    svg_parts.append(return_text_elem)
     
     return svg_parts
 
@@ -369,8 +378,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                        f'stroke="#000" stroke-dasharray="5,5" '
                        f'marker-end="url(#arrow)"/>')
             
-            # Return arrow text with tooltip
-            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{y_ret - 10}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
+            # Return arrow text overlaps the arrow to save vertical space
+            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{y_ret - 2}" text-anchor="middle" font-family="Arial" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label}</text>'
+            # Add the actual text on top
+            ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{y_ret - 2}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
             if ret_tooltip:
                 ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
                 ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)

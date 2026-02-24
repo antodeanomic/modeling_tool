@@ -1,0 +1,49 @@
+Type,Name,Description
+Class,Client,Web application
+    Function,Login,User authentication
+        Param,username,User identifier
+        Param,password,Secret credential
+        ReturnVal,token,Session token
+    Function,Logout,End session
+        ReturnVal,status,Success indicator
+Class,AuthService,Authentication backend
+    Function,ValidateCredentials,Check user identity
+        Param,user,Username to verify
+        Param,pass,Password to check
+        ReturnVal,valid,True if authenticated
+    Function,CreateSession,Generate token
+        Param,userId,User identifier
+        ReturnVal,sessionToken,New token
+Class,SessionManager,Manages active sessions
+    Function,StoreSession,Persist session
+        Param,token,Session token
+        Param,userData,User information
+        ReturnVal,stored,Confirmation
+    Function,ValidateToken,Check if token exists
+        Param,token,Token to verify
+        ReturnVal,isValid,Token validity
+Class,AuditLog,Records user actions
+    Function,RecordLogin,Log authentication
+        Param,userId,User identifier
+        Param,timestamp,Event time
+        ReturnVal,recorded,Confirmation
+    Function,RecordLogout,Log session end
+        Param,userId,User identifier
+        ReturnVal,recorded,Confirmation
+Sequence,SoftReq_TEST_UI_001,Complete login flow with notifications
+    1,Client,AuthService,ValidateCredentials,user1,pass123,valid
+    1,AuthService,@Info,Checking credentials in database
+    2,AuthService,SessionManager,StoreSession,token_abc,user1_data,stored
+    2,SessionManager,@Info,Session persisted to cache
+    3,Client,Client,Login,user1,pass123,token_abc
+    3,Client,@Info,Storing token locally
+    4,Client,AuditLog,RecordLogin,user1,2026-02-24_15:05:50,recorded
+    4,AuditLog,@Info,Login event recorded
+    5,AuthService,SessionManager,ValidateToken,token_abc,isValid
+    5,SessionManager,@Warning,Token expiry approaching
+    6,Client,AuthService,ValidateCredentials,user1,pass123,valid
+    6,AuthService,@Warning,Multiple login attempts detected
+    7,Client,Client,Logout
+    7,Client,@Info,Clearing local token
+    8,Client,AuditLog,RecordLogout,user1,recorded
+    8,AuditLog,@Error,Failed to write audit log

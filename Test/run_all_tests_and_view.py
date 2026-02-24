@@ -31,6 +31,7 @@ def run_all_tests():
         'test_notes',
         'test_parameters',
         'test_states',
+        'test_ui_controls',
         'test_verbosity'
     ]
     
@@ -68,7 +69,7 @@ def open_viewer():
     
     try:
         webbrowser.open(viewer_url)
-        print("✓ Test viewer opened in browser")
+        print("[OK] Test viewer opened in browser")
     except Exception as e:
         print(f"Warning: Could not open browser ({e})")
         print(f"You can manually open: {viewer_path}")
