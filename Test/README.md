@@ -13,6 +13,25 @@ Open `test_viewer.html` directly in any browser:
 
 Simply double-click `test_viewer.html` or navigate to it in your browser.
 
+### VS Code Integration (Recommended)
+
+If you're working in VS Code, use these keyboard shortcuts for automated testing:
+
+| Action | Shortcut | What Happens |
+|:---|:---|:---|
+| **Run all tests + view results** | `Ctrl+Shift+B` | Regenerates all 6 test SVGs, then opens test_viewer.html in your default browser |
+| **Run single test** | `Ctrl+Shift+P` → "Run Single Test" | Displays dropdown to pick one test, regenerates its SVG |
+| **View results only** | `Ctrl+Shift+P` → "View Test Results" | Opens test_viewer.html without regenerating (useful for reviewing) |
+| **Debug in Edge** | `F5` → "View Test Results" | Opens test viewer in Edge browser with debugging enabled |
+
+**Workflow:**
+1. Make changes to code in `Scripts/svg_renderer.py`, `Scripts/parser.py`, etc.
+2. Press `Ctrl+Shift+B` to regenerate all tests and view results
+3. Browser opens automatically with `test_viewer.html` showing 6 tabs
+4. Refresh browser after making more code changes to see updates
+
+See [.vscode/README.md](../.vscode/README.md) for more details on VS Code integration.
+
 ### Run Tests
 
 To regenerate test SVG outputs, run the test runner from this directory:
