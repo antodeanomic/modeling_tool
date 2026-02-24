@@ -112,11 +112,11 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "", 
     
     Returns list of SVG elements as strings.
     """
-    # Scale bracket width based on nesting: outermost is 2x the next level
-    # depth 0: 30px, depth 1: 15px, depth 2: 7.5px, etc.
-    BASE_LOOP_WIDTH = 30
+    # Scale bracket width based on nesting
+    # depth 0 (alone): 15px, depth 1 (inside bracket): 7.5px, etc.
+    BASE_LOOP_WIDTH = 15  # Original single-row self-message width
     LOOP_WIDTH = BASE_LOOP_WIDTH / (2 ** nesting_depth)  # Halve width for each nesting level
-    LOOP_HEIGHT = 30  # Vertical distance stays constant
+    LOOP_HEIGHT = 15  # Vertical span matches width for compact layout
     
     svg_parts = []
     
@@ -137,7 +137,7 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "", 
     
     # Draw label on the far right, top-justified at the start of the bracket
     label_x = right_x + 8
-    label_y = y + 12  # Top-justified with small margin
+    label_y = y + 1  # Minimal gap between arrow and text
     text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -191,7 +191,7 @@ def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str,
     
     Returns list of SVG elements as strings.
     """
-    BASE_LOOP_WIDTH = 30
+    BASE_LOOP_WIDTH = 30  # Spanning brackets are 2X the base width
     LOOP_WIDTH = BASE_LOOP_WIDTH / (2 ** nesting_depth)
     
     right_x = x + LOOP_WIDTH
@@ -209,7 +209,7 @@ def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str,
     
     # Draw label on the right, top-justified at the start of the bracket
     label_x = right_x + 8
-    label_y = y_start + 12  # Top-justified with small margin
+    label_y = y_start + 1  # Minimal gap between arrow and text
     text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -239,6 +239,46 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         raise ValueError("No lanes selected after filtering.")
 
     lane_positions = {lane: i * LANE_WIDTH + 100 for i, lane in enumerate(lanes)}
+
+    # Pre-calculate required lane width based on message text overlap
+    # If text overlaps arrow endpoints, increase LANE_WIDTH
+    adjusted_lane_width = LANE_WIDTH
+    for step in seq.steps:
+        func_def = model.get_function(step.src_obj, step.function)
+        if func_def and step.src_obj != step.dst_obj:
+            # Build label
+            param_labels = []
+            if step.param_values:
+                for i, param_def in enumerate(func_def.params):
+                    if i < len(step.param_values):
+                        param_labels.append(f"{param_def.name}={step.param_values[i]}")
+            label = step.function + "(" + ", ".join(param_labels) + ")"
+            
+            # Measure text width
+            text_width = measure_text_width(label, font_size=12)
+            
+            # Check if text would overlap endpoints
+            # Text is centered, so each side extends text_width/2 from center
+            src_x = lane_positions.get(step.src_obj, 100)
+            dst_x = lane_positions.get(step.dst_obj, 100)
+            center_x = (src_x + dst_x) / 2
+            
+            # Text bounds: [center_x - text_width/2, center_x + text_width/2]
+            text_start = center_x - text_width / 2
+            text_end = center_x + text_width / 2
+            
+            # Check overlap with endpoints (with 5px safety margin)
+            min_x = min(src_x, dst_x)
+            max_x = max(src_x, dst_x)
+            
+            if text_start < min_x + 5 or text_end > max_x - 5:
+                # Text overlaps, need wider lane spacing
+                required_width = text_width + 20  # 10px margin on each side
+                adjusted_lane_width = max(adjusted_lane_width, required_width)
+    
+    # Update LANE_WIDTH if needed (but keep minimum)
+    effective_lane_width = max(LANE_WIDTH, adjusted_lane_width)
+    lane_positions = {lane: i * effective_lane_width + 100 for i, lane in enumerate(lanes)}
 
     # Filter steps to only include those between selected lanes
     filtered_steps = []
@@ -344,24 +384,53 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # Detect and render spanning self-message brackets
     spanning_brackets = detect_spanning_brackets(filtered_steps)
     steps_inside_brackets = set()  # Track which steps are inside spanning brackets
+    bracket_step_positions = {}  # Maps step object to y position for steps inside brackets
+    bracket_render_info = {}  # Stores bracket rendering info after positions calculated
     
     for start_row, (end_row, func_name, src_obj) in spanning_brackets.items():
         x = lane_positions[src_obj]
         y_start = row_to_y[start_row]
-        y_end = row_to_y[end_row]
         
-        # Find the function definition for tooltip
+        # Collect and position messages inside this bracket
+        bracket_messages = []
+        for step in filtered_steps:
+            if (start_row < step.row < end_row and step.src_obj == src_obj):
+                bracket_messages.append(step)
+        
+        # Sort messages by row to maintain order
+        bracket_messages.sort(key=lambda s: s.row)
+        
+        # Assign sequential y positions to messages inside bracket
+        current_y = y_start + 15  # Start after bracket opening (15px)
+        for i, step in enumerate(bracket_messages):
+            bracket_step_positions[id(step)] = current_y
+            
+            # Calculate height of this message
+            if step.src_obj == step.dst_obj:
+                msg_height = 15  # Self-message: 15px tall
+            else:
+                msg_height = 2   # Regular message: minimal height, just the arrow
+            
+            # Next message starts 2px after this one ends
+            current_y += msg_height + 2
+        
+        # Bracket ends after the last message inside (plus 15px for closing)
+        y_end = current_y - 2 + 15  # Remove last gap, add 15px for bracket closing
+        
+        # Store bracket info for rendering after positions are set
         func_def = model.get_function(src_obj, func_name)
         func_tooltip = func_def.description if func_def else ""
-        
-        # Render the spanning bracket
-        bracket_elements = render_spanning_bracket(x, y_start, y_end, func_name, func_tooltip)
-        svg.extend(bracket_elements)
+        bracket_render_info[start_row] = (x, y_start, y_end, func_name, func_tooltip)
         
         # Mark all steps between start and end as inside this bracket
         for row in row_to_y:
             if start_row < row < end_row:
                 steps_inside_brackets.add(row)
+    
+    # Render spanning brackets now that end positions are calculated
+    for start_row, (x, y_start, y_end, func_name, func_tooltip) in bracket_render_info.items():
+        bracket_elements = render_spanning_bracket(x, y_start, y_end, func_name, func_tooltip)
+        svg.extend(bracket_elements)
 
     # Draw steps
     # Track self-messages per row for vertical offset
@@ -374,15 +443,19 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         y = step.y
         
-        # For self-messages on the same row, apply vertical offset (but not if inside spanning bracket)
-        if step.src_obj == step.dst_obj and step.row not in steps_inside_brackets:
+        # Check if this step is inside a spanning bracket and use sequential position
+        if id(step) in bracket_step_positions:
+            y = bracket_step_positions[id(step)]
+        # For self-messages on the same row (not inside brackets), apply vertical offset
+        elif step.src_obj == step.dst_obj:
+            # Track self-messages per row to apply offsets
             if step.row not in self_message_count:
                 self_message_count[step.row] = 0
             else:
                 self_message_count[step.row] += 1
-            # Apply offset for each subsequent self-message on the same row
-            # Each self-message is 30 pixels tall (LOOP_HEIGHT) plus 20 pixel spacing
-            y += self_message_count[step.row] * 50
+            
+            # Apply offset based on nesting (15px for LOOP_HEIGHT)
+            y += self_message_count[step.row] * 15
         
         src_lane = step.src_obj
         dst_lane = step.dst_obj
@@ -452,8 +525,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             svg.append(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
                        f'stroke="#000" marker-end="url(#arrow)"/>')
 
-            # Forward arrow text with tooltip
-            text_elem = f'<text x="{(x1 + x2)/2}" y="{y - 10}" text-anchor="middle" font-family="Arial" font-size="12">{label}</text>'
+            # Forward arrow text with tooltip - positioned close to arrow (1-2px gap)
+            text_elem = f'<text x="{(x1 + x2)/2}" y="{y - 2}" text-anchor="middle" font-family="Arial" font-size="12">{label}</text>'
             if func_tooltip:
                 # Escape special characters in tooltip
                 func_tooltip_escaped = func_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
