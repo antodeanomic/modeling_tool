@@ -34,14 +34,15 @@ def run_test(test_name):
     print(f"{'='*60}")
     print(f"Input: {test_file}")
     
-    # Backup original
+    # Backup original from Source/
     backup_file = Path("sample_model.csv.backup")
+    source_file = Path("../Source/sample_model.csv")
     # Remove 'test_' prefix if present for output filename
     base_name = test_name.replace("test_", "") if test_name.startswith("test_") else test_name
-    output_file = Path(f"{base_name}_output.svg")
+    output_file = Path(f"../Process/{base_name}_output.svg")
     
-    if Path("sample_model.csv").exists():
-        shutil.copy("sample_model.csv", backup_file)
+    if source_file.exists():
+        shutil.copy(source_file, backup_file)
     
     # Copy test file
     shutil.copy(test_file, "sample_model.csv")
@@ -51,7 +52,7 @@ def run_test(test_name):
         # Update main.py to use the correct test sequence ID
         # The test files use SoftReq_TEST_XXX naming
         import sys
-        sys.path.insert(0, str(Path.cwd()))
+        sys.path.insert(0, str(Path.cwd().parent / "Scripts"))
         from parser import parse_csv
         from svg_renderer import render_svg
         
@@ -84,7 +85,7 @@ def run_test(test_name):
     finally:
         # Restore original
         if backup_file.exists():
-            shutil.copy(backup_file, "sample_model.csv")
+            shutil.copy(backup_file, str(source_file))
             backup_file.unlink()
     
     return True

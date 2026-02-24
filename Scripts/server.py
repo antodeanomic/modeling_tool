@@ -9,7 +9,7 @@ from parser import parse_csv
 from svg_renderer import render_svg
 
 # Configuration
-CSV_PATH = "sample_model.csv"
+CSV_PATH = "Source/sample_model.csv"
 SEQUENCE_ID = "SoftReq0001"
 
 def load_model_and_sequence():

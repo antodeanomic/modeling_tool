@@ -71,7 +71,7 @@ def generate_markdown_table(requirements):
     return "\n".join(lines)
 
 def main():
-    csv_file = Path("requirements.csv")
+    csv_file = Path("Source/requirements.csv")
     
     if not csv_file.exists():
         print(f"Error: {csv_file} not found")

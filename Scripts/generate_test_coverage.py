@@ -159,9 +159,9 @@ def generate_test_coverage_markdown(tests_by_file, requirements_coverage, requir
     return "\n".join(output)
 
 def main():
-    tests_dir = Path("tests")
+    tests_dir = Path("Test/tests")
     test_map_file = tests_dir / "test_mapping.csv"
-    req_file = Path("requirements.csv")
+    req_file = Path("Source/requirements.csv")
     
     if not test_map_file.exists():
         print(f"Error: {test_map_file} not found")
