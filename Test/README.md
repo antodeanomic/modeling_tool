@@ -1,3 +1,41 @@
+# Test Infrastructure
+
+This directory contains all test cases for the Sequence Diagram Tool.
+
+## Quick Start
+
+### View Test Results
+Open `test_viewer.html` directly in any browser:
+- No server needed
+- Works on any browser (Chrome, Firefox, Safari, Edge, etc.)
+- Multiple tabs - one for each test case
+- Self-contained - all tests load from the `tests/` subdirectory
+
+Simply double-click `test_viewer.html` or navigate to it in your browser.
+
+### Run Tests
+
+To regenerate test SVG outputs, run the test runner from this directory:
+
+```bash
+cd Test
+python run_test.py test_layers
+python run_test.py test_multirow
+python run_test.py test_notes
+python run_test.py test_parameters
+python run_test.py test_states
+python run_test.py test_verbosity
+```
+
+Or run all tests at once:
+```bash
+python run_test.py test_layers && python run_test.py test_multirow && python run_test.py test_notes && python run_test.py test_parameters && python run_test.py test_states && python run_test.py test_verbosity
+```
+
+Test outputs are generated in the `tests/` subdirectory.
+
+---
+
 # Test CSV Datasets
 
 This directory contains sample CSV files designed to demonstrate and test specific features of the Sequence Diagram Tool.

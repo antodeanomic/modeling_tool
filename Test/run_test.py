@@ -39,7 +39,7 @@ def run_test(test_name):
     source_file = Path("../Source/sample_model.csv")
     # Remove 'test_' prefix if present for output filename
     base_name = test_name.replace("test_", "") if test_name.startswith("test_") else test_name
-    output_file = Path(f"../Process/{base_name}_output.svg")
+    output_file = Path(f"tests/{base_name}_output.svg")
     
     if source_file.exists():
         shutil.copy(source_file, backup_file)
