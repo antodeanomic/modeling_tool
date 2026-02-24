@@ -110,7 +110,7 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") 
     
     Returns list of SVG elements as strings.
     """
-    LOOP_WIDTH = 50  # How far the loop extends right
+    LOOP_WIDTH = 30  # Make equal to LOOP_HEIGHT for balanced proportions
     LOOP_HEIGHT = 30  # Vertical distance for the loop
     
     svg_parts = []
@@ -141,8 +141,8 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") 
         text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
     svg_parts.append(text_elem)
     
-    # Draw return label aligned with vertical segment, barely to the right of forward label
-    return_label_x = label_x + 5  # Barely to the right of the forward label
+    # Draw return label to the right of vertical segment, aligned with bottom horizontal
+    return_label_x = right_x + 8  # Clear margin to the right of vertical line
     return_label_y = y + LOOP_HEIGHT - 3  # Aligned with bottom horizontal (vertical segment)
     return_text_elem = f'<text x="{return_label_x}" y="{return_label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
