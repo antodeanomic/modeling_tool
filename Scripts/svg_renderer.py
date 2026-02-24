@@ -146,6 +146,78 @@ def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "", 
     
     return svg_parts
 
+def detect_spanning_brackets(steps) -> dict:
+    """Detect self-messages that span multiple rows.
+    
+    A spanning bracket occurs when the same self-message function is called
+    on non-consecutive rows by the same source object. The first call starts
+    the bracket, the second call ends it.
+    
+    Returns: Dict mapping start row to (end_row, function_name, src_obj)
+    """
+    spanning_brackets = {}
+    open_brackets = {}  # Maps (src_obj, func_name) -> start_row
+    
+    for step in steps:
+        if step.src_obj != step.dst_obj:
+            # Not a self-message, can't be part of spanning bracket
+            continue
+        
+        key = (step.src_obj, step.function)
+        
+        if key in open_brackets:
+            # This is the closing bracket
+            start_row = open_brackets[key]
+            spanning_brackets[start_row] = (step.row, step.function, step.src_obj)
+            del open_brackets[key]
+        else:
+            # This might be an opening bracket
+            # Check if there are intervening steps before the next occurrence
+            open_brackets[key] = step.row
+    
+    return spanning_brackets
+
+def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str, 
+                           tooltip: str = "", nesting_depth: int = 0) -> list:
+    """Render a spanning self-message bracket across multiple rows.
+    
+    Args:
+        x: X position of the lane
+        y_start: Y position of bracket start
+        y_end: Y position of bracket end
+        label: Text label for the message
+        tooltip: Optional tooltip content
+        nesting_depth: Depth for proportional sizing
+    
+    Returns list of SVG elements as strings.
+    """
+    BASE_LOOP_WIDTH = 30
+    LOOP_WIDTH = BASE_LOOP_WIDTH / (2 ** nesting_depth)
+    
+    right_x = x + LOOP_WIDTH
+    svg_parts = []
+    
+    # Draw spanning bracket: right line at top, vertical down, right line at bottom
+    # Top horizontal line
+    svg_parts.append(f'<line x1="{x}" y1="{y_start}" x2="{right_x}" y2="{y_start}" stroke="#000" stroke-width="1"/>')
+    
+    # Vertical line spanning rows
+    svg_parts.append(f'<line x1="{right_x}" y1="{y_start}" x2="{right_x}" y2="{y_end}" stroke="#000" stroke-width="1"/>')
+    
+    # Bottom horizontal line with arrow
+    svg_parts.append(f'<line x1="{right_x}" y1="{y_end}" x2="{x}" y2="{y_end}" stroke="#000" stroke-width="1" marker-end="url(#arrow)"/>')
+    
+    # Draw label on the right, vertically centered in the span
+    label_x = right_x + 8
+    label_y = (y_start + y_end) / 2
+    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
+    if tooltip:
+        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
+    svg_parts.append(text_elem)
+    
+    return svg_parts
+
 def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_filter=None) -> str:
     """Render sequence diagram as SVG.
     
@@ -269,6 +341,28 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             state_elements = create_state_box(x, 70, state_name, state_desc)
             svg.extend(state_elements)
 
+    # Detect and render spanning self-message brackets
+    spanning_brackets = detect_spanning_brackets(filtered_steps)
+    steps_inside_brackets = set()  # Track which steps are inside spanning brackets
+    
+    for start_row, (end_row, func_name, src_obj) in spanning_brackets.items():
+        x = lane_positions[src_obj]
+        y_start = row_to_y[start_row]
+        y_end = row_to_y[end_row]
+        
+        # Find the function definition for tooltip
+        func_def = model.get_function(src_obj, func_name)
+        func_tooltip = func_def.description if func_def else ""
+        
+        # Render the spanning bracket
+        bracket_elements = render_spanning_bracket(x, y_start, y_end, func_name, func_tooltip)
+        svg.extend(bracket_elements)
+        
+        # Mark all steps between start and end as inside this bracket
+        for row in row_to_y:
+            if start_row < row < end_row:
+                steps_inside_brackets.add(row)
+
     # Draw steps
     # Track self-messages per row for vertical offset
     self_message_count = {}  # Maps row number to count of self-messages processed
@@ -338,11 +432,20 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
 
         # Handle self-messages (where source and destination are the same)
         if x1 == x2:
-            # Self-message: draw as a rectangular loop
-            # Pass nesting depth for proportional bracket sizing
-            nesting_depth = self_message_count.get(step.row, 0)
-            self_msg_elements = create_self_message_loop(x1, y, label, func_tooltip, nesting_depth)
-            svg.extend(self_msg_elements)
+            # Check if this is a spanning bracket endpoint - if so, skip individual rendering
+            is_spanning_bracket_endpoint = step.row in spanning_brackets or any(
+                start_row < step.row == end_row 
+                for start_row, (end_row, _, src_obj) 
+                in spanning_brackets.items() 
+                if src_obj == step.src_obj
+            )
+            
+            if not is_spanning_bracket_endpoint:
+                # Self-message: draw as a rectangular loop
+                # Pass nesting depth for proportional bracket sizing
+                nesting_depth = self_message_count.get(step.row, 0)
+                self_msg_elements = create_self_message_loop(x1, y, label, func_tooltip, nesting_depth)
+                svg.extend(self_msg_elements)
         else:
             # Regular message between different objects
             # Forward arrow
