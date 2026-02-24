@@ -96,6 +96,53 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
     
     return svg_parts
 
+def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "") -> list:
+    """Create a self-message (call to same object) as a rectangular loop.
+    
+    A self-message is drawn as a rectangle extending to the right of the lane,
+    with the label positioned in the middle of the top horizontal segment.
+    
+    Args:
+        x: X position of the lane (center of lifeline)
+        y: Y position of the message
+        label: Text label for the message
+        tooltip: Optional tooltip content
+    
+    Returns list of SVG elements as strings.
+    """
+    LOOP_WIDTH = 50  # How far the loop extends right
+    LOOP_HEIGHT = 30  # Vertical distance for the loop
+    
+    svg_parts = []
+    
+    # Calculate positions for the loop
+    right_x = x + LOOP_WIDTH
+    bottom_y = y + LOOP_HEIGHT
+    
+    # Draw the loop: vertical line down, horizontal right, vertical down, horizontal back
+    # Vertical line going down from source
+    svg_parts.append(f'<line x1="{x}" y1="{y}" x2="{x}" y2="{y + LOOP_HEIGHT/2}" stroke="#000" stroke-width="1"/>')
+    
+    # Horizontal line extending right
+    svg_parts.append(f'<line x1="{x}" y1="{y + LOOP_HEIGHT/2}" x2="{right_x}" y2="{y + LOOP_HEIGHT/2}" stroke="#000" stroke-width="1"/>')
+    
+    # Vertical line extending down
+    svg_parts.append(f'<line x1="{right_x}" y1="{y + LOOP_HEIGHT/2}" x2="{right_x}" y2="{bottom_y}" stroke="#000" stroke-width="1"/>')
+    
+    # Horizontal line returning to lifeline with arrow
+    svg_parts.append(f'<line x1="{right_x}" y1="{bottom_y}" x2="{x}" y2="{bottom_y}" stroke="#000" stroke-width="1" marker-end="url(#arrow)"/>')
+    
+    # Draw label on the top horizontal segment
+    label_y = y + LOOP_HEIGHT/2 - 5
+    label_x = x + LOOP_WIDTH/2
+    text_elem = f'<text x="{label_x}" y="{label_y}" text-anchor="middle" font-family="Arial" font-size="12">{label}</text>'
+    if tooltip:
+        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
+    svg_parts.append(text_elem)
+    
+    return svg_parts
+
 def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_filter=None) -> str:
     """Render sequence diagram as SVG.
     
@@ -220,12 +267,25 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             svg.extend(state_elements)
 
     # Draw steps
+    # Track self-messages per row for vertical offset
+    self_message_count = {}  # Maps row number to count of self-messages processed
+    
     for step in filtered_steps:
         # Skip if lanes aren't in our filtered set
         if step.src_obj not in lane_positions or step.dst_obj not in lane_positions:
             continue
         
         y = step.y
+        
+        # For self-messages on the same row, apply vertical offset
+        if step.src_obj == step.dst_obj:
+            if step.row not in self_message_count:
+                self_message_count[step.row] = 0
+            else:
+                self_message_count[step.row] += 1
+            # Apply offset for each subsequent self-message on the same row
+            # Each self-message is 30 pixels tall (LOOP_HEIGHT) plus 20 pixel spacing
+            y += self_message_count[step.row] * 50
         
         src_lane = step.src_obj
         dst_lane = step.dst_obj
@@ -273,20 +333,28 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             
             label = func_name + "(" + ", ".join(param_labels) + ")"
 
-        # Forward arrow
-        svg.append(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
-                   f'stroke="#000" marker-end="url(#arrow)"/>')
+        # Handle self-messages (where source and destination are the same)
+        if x1 == x2:
+            # Self-message: draw as a rectangular loop
+            self_msg_elements = create_self_message_loop(x1, y, label, func_tooltip)
+            svg.extend(self_msg_elements)
+        else:
+            # Regular message between different objects
+            # Forward arrow
+            svg.append(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
+                       f'stroke="#000" marker-end="url(#arrow)"/>')
 
-        # Forward arrow text with tooltip
-        text_elem = f'<text x="{(x1 + x2)/2}" y="{y - 10}" text-anchor="middle" font-family="Arial" font-size="12">{label}</text>'
-        if func_tooltip:
-            # Escape special characters in tooltip
-            func_tooltip_escaped = func_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
-            text_elem = text_elem.replace('>', f'><title>{func_tooltip_escaped}</title>', 1)
-        svg.append(text_elem)
+            # Forward arrow text with tooltip
+            text_elem = f'<text x="{(x1 + x2)/2}" y="{y - 10}" text-anchor="middle" font-family="Arial" font-size="12">{label}</text>'
+            if func_tooltip:
+                # Escape special characters in tooltip
+                func_tooltip_escaped = func_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+                text_elem = text_elem.replace('>', f'><title>{func_tooltip_escaped}</title>', 1)
+            svg.append(text_elem)
 
-        # Return arrow with tooltip (show for Normal and High verbosity)
-        if verbosity_level.lower() != "low" and func_def and func_def.returns and step.return_value:
+        # Return arrow with tooltip (only for non-self messages and Normal/High verbosity)
+        # Self-messages skip the separate return arrow since the loop's return edge serves that purpose
+        if x1 != x2 and verbosity_level.lower() != "low" and func_def and func_def.returns and step.return_value:
             # Use the first return value name with the provided value
             ret_name = func_def.returns[0].name if func_def.returns else "Value"
             ret_label = f"{ret_name}={step.return_value}"

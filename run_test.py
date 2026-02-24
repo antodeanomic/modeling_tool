@@ -36,7 +36,9 @@ def run_test(test_name):
     
     # Backup original
     backup_file = Path("sample_model.csv.backup")
-    output_file = Path(f"test_{test_name}_output.svg")
+    # Remove 'test_' prefix if present for output filename
+    base_name = test_name.replace("test_", "") if test_name.startswith("test_") else test_name
+    output_file = Path(f"{base_name}_output.svg")
     
     if Path("sample_model.csv").exists():
         shutil.copy("sample_model.csv", backup_file)
