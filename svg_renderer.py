@@ -305,27 +305,26 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
             svg.append(ret_text_elem)
         
-        # Render function note if present
-        if step.function_note:
+        # Render function note if present (only in High verbosity)
+        if step.function_note and verbosity_level.lower() == "high":
             # Calculate text width to position note to the right of all text
             label_width = measure_text_width(label, font_size=12)
             text_center = (x1 + x2) / 2
             note_x = text_center + (label_width / 2) + 15  # Position after text with padding
             note_y = y - 20
-            # Show text inline if verbosity is "high"
-            show_text = verbosity_level.lower() == "high"
-            note_elements = create_note_box(note_x, note_y, step.function_note, show_text=show_text)
+            # Show text inline (we're in high verbosity)
+            note_elements = create_note_box(note_x, note_y, step.function_note, show_text=False)
             svg.extend(note_elements)
         
-        # Render lane notes for this step
-        for lane_name, note in step.lane_notes.items():
-            if lane_name in lane_positions:
-                x_lane = lane_positions[lane_name]
-                note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
-                # Show text inline if verbosity is "high"
-                show_text = verbosity_level.lower() == "high"
-                note_elements = create_note_box(x_lane, note_y, note, show_text=show_text)
-                svg.extend(note_elements)
+        # Render lane notes for this step (only in High verbosity)
+        if verbosity_level.lower() == "high":
+            for lane_name, note in step.lane_notes.items():
+                if lane_name in lane_positions:
+                    x_lane = lane_positions[lane_name]
+                    note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
+                    # Never show inline text, rely on hover tooltip
+                    note_elements = create_note_box(x_lane, note_y, note, show_text=False)
+                    svg.extend(note_elements)
         
         # Render state changes after this step
         if step.state_changes:
