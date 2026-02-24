@@ -209,7 +209,8 @@ def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str,
     
     # Draw label on the right, top-justified at the start of the bracket
     label_x = right_x + 8
-    label_y = y_start + 1  # Minimal gap between arrow and text
+    # Position label at middle of vertical span to avoid overlap
+    label_y = (y_start + y_end) / 2
     text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -402,6 +403,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         # Assign sequential y positions to messages inside bracket
         current_y = y_start + 15  # Start after bracket opening (15px)
+        max_y = current_y  # Track maximum y for bracket end calculation
+        
         for i, step in enumerate(bracket_messages):
             bracket_step_positions[id(step)] = current_y
             
@@ -411,11 +414,24 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             else:
                 msg_height = 2   # Regular message: minimal height, just the arrow
             
+            # Check if this message has a return value (return arrow)
+            # Return arrows add 30px below the message
+            has_return = (step.src_obj != step.dst_obj and 
+                         model.get_function(step.src_obj, step.function) and 
+                         model.get_function(step.src_obj, step.function).returns and 
+                         step.return_value)
+            
+            if has_return:
+                # Message + return arrow takes 30px more space
+                max_y = current_y + 30 + 2  # 30px for return arrow + 2px gap
+            else:
+                max_y = current_y + msg_height + 2
+            
             # Next message starts 2px after this one ends
-            current_y += msg_height + 2
+            current_y = max_y
         
         # Bracket ends after the last message inside (plus 15px for closing)
-        y_end = current_y - 2 + 15  # Remove last gap, add 15px for bracket closing
+        y_end = max_y - 2 + 15  # Remove last gap, add 15px for bracket closing anchor
         
         # Store bracket info for rendering after positions are set
         func_def = model.get_function(src_obj, func_name)
@@ -544,6 +560,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             # Build return value tooltip
             ret_tooltip = f"{ret_name}: {ret_def.description}" if ret_def else ""
             
+            # Return arrow positioned 30px below message
+            # If message is inside bracket, y is already set from bracket_step_positions
             y_ret = y + 30
 
             svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
