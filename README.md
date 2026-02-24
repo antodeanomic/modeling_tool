@@ -1,17 +1,26 @@
-README.md (Project Overview)
-├── requirements/
-│   └── [ProjectName]_Requirements.md
-│       ├── # User Stories (table)
-│       ├── # Acceptance Criteria (table)
-│       ├── # Constraints & Assumptions
-│       └── [Link to diagrams in next section]
-├── design/
-│   └── [ProjectName]_Design.md
-│       ├── # Architecture Overview (summary)
-│       ├── # Data Model (reference your tool's diagram)
-│       ├── # System Interactions (reference your tool's diagram)
-│       ├── # State Machines (reference your tool's diagram)
-│       └── ADRs/ (Architecture Decision Records)
-│           └── ADR-001_Why_We_Chose_X.md
-└── diagrams/
-    └── sample_model.csv (your tool's source)
+modeling_tool/
+├── Process/              ← Generated outputs
+│   ├── *.svg            (diagram outputs)
+│   └── ui_data.json
+├── Source/              ← Source data
+│   ├── sample_model.csv
+│   ├── requirements.csv
+│   └── temp.csv
+├── Scripts/             ← Core functionality
+│   ├── main.py
+│   ├── parser.py
+│   ├── model.py
+│   ├── svg_renderer.py
+│   ├── server.py
+│   ├── convert_requirements.py
+│   ├── generate_test_coverage.py
+│   ├── diagram_viewer.html
+│   └── interactive_ui.py
+├── Test/                ← Test infrastructure
+│   ├── tests/           (test CSV files)
+│   ├── run_test.py
+│   └── test_verbosity.py
+└── Documentation
+    ├── README.md
+    ├── REQUIREMENTS.md
+    └── TEST_COVERAGE.md
