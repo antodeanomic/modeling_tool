@@ -96,6 +96,39 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
     
     return svg_parts
 
+def create_self_message_marker(x: float, y: float, label: str, tooltip: str = "") -> list:
+    """Create a simple self-message marker using ↩ character (no 3-segment bracket).
+    
+    Used for simple function calls that don't have nested calls within them.
+    Much cleaner and uses less vertical space than the full 3-segment bracket.
+    
+    Args:
+        x: X position of the lane
+        y: Y position of the message
+        label: Text label for the message
+        tooltip: Optional tooltip content
+    
+    Returns list of SVG elements as strings.
+    """
+    svg_parts = []
+    
+    # Draw the ↩ character (curved arrow indicating return/self-call)
+    marker_x = x - 15  # Position marker to the left of the lane
+    marker_y = y + 2
+    marker_elem = f'<text x="{marker_x}" y="{marker_y}" font-family="Arial" font-size="12" fill="#666">↩</text>'
+    svg_parts.append(marker_elem)
+    
+    # Draw the label text next to the marker
+    label_x = marker_x + 15
+    label_y = y
+    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="12" fill="#000">{label}</text>'
+    if tooltip:
+        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
+    svg_parts.append(text_elem)
+    
+    return svg_parts
+
 def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "", nesting_depth: int = 0) -> list:
     """Create a self-message (call to same object) as a 3-sided bracket extending right.
     
@@ -537,19 +570,25 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
 
         # Handle self-messages (where source and destination are the same)
         if x1 == x2:
-            # Check if this is a spanning bracket endpoint - if so, skip individual rendering
-            is_spanning_bracket_endpoint = step.row in spanning_brackets or any(
+            # Check if this is a spanning bracket start or endpoint
+            # Spanning brackets indicate COMPLEX self-messages (with nested calls)
+            is_spanning_bracket_start = step.row in spanning_brackets
+            is_spanning_bracket_endpoint = any(
                 start_row < step.row == end_row 
                 for start_row, (end_row, _, src_obj) 
                 in spanning_brackets.items() 
                 if src_obj == step.src_obj
             )
             
-            if not is_spanning_bracket_endpoint:
-                # Self-message: draw as a rectangular loop
-                # Pass nesting depth for proportional bracket sizing
+            if is_spanning_bracket_start or is_spanning_bracket_endpoint:
+                # Complex self-message (starts or ends a spanning bracket)
+                # Don't draw 3-segment bracket - spanning bracket rectangle will be drawn instead
+                pass
+            else:
+                # Simple self-message (no nested calls)
+                # Draw minimal ↩ marker instead of full 3-segment bracket
                 nesting_depth = self_message_count.get(step.row, 0)
-                self_msg_elements = create_self_message_loop(x1, y, label, func_tooltip, nesting_depth)
+                self_msg_elements = create_self_message_marker(x1, y, label, func_tooltip)
                 svg.extend(self_msg_elements)
         else:
             # Regular message between different objects
