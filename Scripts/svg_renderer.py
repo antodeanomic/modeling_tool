@@ -164,14 +164,14 @@ def create_small_self_message_arrow(x: float, y: float, label: str, tooltip: str
     svg_parts.append(f'<line x1="{x_left}" y1="{y}" x2="{x_left}" y2="{y_down}" '
                      f'stroke="#000" stroke-width="{STROKE_WIDTH}"/>')
     
-    # Horizontal line returning to lane with arrowhead
+    # Horizontal line returning to lane with arrowhead (using smaller arrow marker)
     svg_parts.append(f'<line x1="{x_left}" y1="{y_down}" x2="{x}" y2="{y_down}" '
-                     f'stroke="#000" stroke-width="{STROKE_WIDTH}" marker-end="url(#arrow)"/>')
+                     f'stroke="#000" stroke-width="{STROKE_WIDTH}" marker-end="url(#arrow-small)"/>')
     
-    # Draw the label text to the right of the arrow
-    label_x = x + 5
-    label_y = y + 4
-    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#000">{label}</text>'
+    # Draw the label text to the LEFT of the vertical segment (above the vertical line)
+    label_x = x_left - 5  # 5px to the left of vertical line
+    label_y = y + 2      # Positioned near the top of the arrow
+    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#000" text-anchor="end">{label}</text>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
         text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
@@ -415,6 +415,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
       <marker id="arrow" markerWidth="10" markerHeight="10" 
               refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
         <path d="M0,0 L0,6 L9,3 z" fill="#000" />
+      </marker>
+      <marker id="arrow-small" markerWidth="5" markerHeight="5" 
+              refX="5" refY="1.5" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L0,3 L4,1.5 z" fill="#000" />
       </marker>
     </defs>
     """)
