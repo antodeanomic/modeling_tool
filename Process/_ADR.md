@@ -11,7 +11,9 @@
 | **Consequences** | Spanning brackets now stack horizontally to the left (depth 0: x-2 to x-4, depth 1: x-6 to x-8, etc.); cleaner diagram appearance; label moved to tooltip (hover); rectangle height equals bracket duration |
 | **Positioning Formula** | For depth n: `right_edge = lane_x - (2 + n*4)`, `left_edge = right_edge - 2`. Clamped to minimum x=20 to keep within diagram bounds |
 | **Visual Properties** | Gray fill (#666), 70% opacity, 2px width, semi-transparent; provides subtle visual indicator without dominating the diagram |
-| **Status** | ✅ Implemented & Tested (Commit: incoming) |
+| **Bracket Start Alignment** | Bracket rectangle begins at the y position where the first message inside the bracket starts (not before it) |
+| **Message Spacing** | 10px gap between consecutive messages within brackets (increased from 2px) for improved readability |
+| **Status** | ✅ Implemented & Tested (Commit: 743fa8f) |
 
 ### ADR-001: Loop Height and Bracket Sizing
 | Aspect | Details |
@@ -112,21 +114,23 @@
 - test_ui_controls
 - test_verbosity
 
-## Final Metrics (test_message_nesting.csv - Rectangle-Based Design)
+## Final Metrics (test_message_nesting.csv - Current Rectangle-Based Design with 10px Gaps)
 ```
 Msg1 spanning bracket:   2px-wide gray rectangle, x=96-98 (lane_x 100 - 4 for depth 0)
-                         y=120→189 (69px tall, contains all nested content)
+                         y=135→182 (47px tall, aligned with first message start)
 Msg1a self-message:      Traditional 15x15px bracket (depth 1), nested inside Msg1
-Msg1b cross-message:     y=152 (2px gap from Msg1a end)
-Response arrow:          y=167 (15px from Msg1b, centered text at y=171)
-Total vertical:          69px (vs 150px+ before spacing optimization)
+                         y=135 to y=150 (15px tall)
+Msg1b cross-message:     y=160 (150 + 10px gap) - improved spacing from messages
+                         2px arrow height, return arrow at y=175
+Response arrow:          y=175 (160 + 15px spacing for return arrow + text)
+Response text baseline:  y=179 (centered over dashed return arrow)
+Total bracket vertical:  47px (vs 69px with 2px gaps, vs 150px+ before optimization)
 
-Visual Layout:
-  |  (Msg1 duration indicator at x=96-98)
-  |__|  (self-message Msg1a)
-  |    Msg1b() ------>
-  |    <------ response
-  |
+Visual Improvements:
+  - Bracket now properly aligned with first message (y=135, not y=120)
+  - 10px gaps make nested messages clearly distinct and readable
+  - Return arrow still properly contained within bracket bounds
+  - Cleaner visual appearance overall
 ```
 
 ## Design Evolution Summary
