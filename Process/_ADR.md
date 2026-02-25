@@ -2,6 +2,18 @@
 
 ## UML Sequence Diagram Rendering - Spacing & Layout Optimization
 
+### ADR-010: Self-Message Rendering Simplification - ↩ Markers vs Spanning Brackets
+| Aspect | Details |
+|--------|---------|
+| **Decision** | Replace all 3-segment brackets with two rendering approaches: simple ↩ markers for functions with no nested calls, left-side duration rectangles for functions with nested calls |
+| **Context** | 3-segment brackets consumed vertical space and visual complexity for both simple and complex self-messages; most nested scenarios have a single caller waiting for completion |
+| **Rationale** | Two-tier approach optimizes for both cases: simple functions get minimal ↩ indicator, complex functions get spanning bracket rectangles showing duration/scope |
+| **Simple Self-Messages** | Functions with no nested calls rendered as: ↩ character positioned left of lane, followed by function label. Minimal vertical footprint (same baseline as message row) |
+| **Complex Self-Messages** | Functions with nested calls rendered as: left-side gray rectangle spanning the bracket duration, with 2px width, depth-based horizontal offset |
+| **Visual Result** | Dramatically reduced visual clutter; cleaner diagrams; both simple and complex scenarios clearly distinguishable at a glance |
+| **Implementation** | Detect spanning brackets (complex cases) before rendering steps; for self-messages NOT in spanning brackets, render ↩ marker; for those that START/END spanning brackets, skip 3-segment bracket |
+| **Status** | ✅ Implemented & Tested (Commit: 95e64c5) |
+
 ### ADR-009: Spanning Bracket Visual Redesign - Left-Side Duration Rectangles
 | Aspect | Details |
 |--------|---------|
@@ -114,23 +126,33 @@
 - test_ui_controls
 - test_verbosity
 
-## Final Metrics (test_message_nesting.csv - Current Rectangle-Based Design with 10px Gaps)
+## Final Metrics (test_message_nesting.csv - Current Two-Tier Self-Message Design)
 ```
-Msg1 spanning bracket:   2px-wide gray rectangle, x=96-98 (lane_x 100 - 4 for depth 0)
-                         y=135→182 (47px tall, aligned with first message start)
-Msg1a self-message:      Traditional 15x15px bracket (depth 1), nested inside Msg1
-                         y=135 to y=150 (15px tall)
-Msg1b cross-message:     y=160 (150 + 10px gap) - improved spacing from messages
-                         2px arrow height, return arrow at y=175
-Response arrow:          y=175 (160 + 15px spacing for return arrow + text)
-Response text baseline:  y=179 (centered over dashed return arrow)
-Total bracket vertical:  47px (vs 69px with 2px gaps, vs 150px+ before optimization)
+Msg1 (complex):
+  - Spanning bracket rectangle: 2px-wide gray, x=96-98 (left side of lane)
+  - Duration: y=135→182 (47px tall, indicates scope of function)
+  - Tooltip: Hover over rectangle shows "Outer message container"
+
+Msg1a (simple self-message):
+  - Rendered as: ↩ Msg1a() 
+  - No 3-segment bracket, minimal vertical space
+  - Positioned at y=135 (same baseline as spanning bracket start)
+
+Msg1b (cross-message):
+  - Regular arrow message: y=160 (10px gap from Msg1a)
+  - Return arrow: y=175 (15px spacing for return + text)
+
+Test Case (nested_self_messages.csv - All Simple Case):
+  - Msg1: ↩ Msg1() at y=120
+  - Msg1a: ↩ Msg1a() at y=135  
+  - Msg1b: Regular arrow to Obj2
+  - All self-messages rendered as simple ↩ markers (no spanning brackets)
 
 Visual Improvements:
-  - Bracket now properly aligned with first message (y=135, not y=120)
-  - 10px gaps make nested messages clearly distinct and readable
-  - Return arrow still properly contained within bracket bounds
-  - Cleaner visual appearance overall
+  - Eliminated all 3-segment brackets in favor of simpler indicators
+  - Simple messages: minimal ↩ character + label
+  - Complex messages: left-side rectangle showing duration
+  - Cleaner, more scannable diagrams
 ```
 
 ## Design Evolution Summary
@@ -139,11 +161,26 @@ Visual Improvements:
 - Reduced vertical spacing and standardized sizing
 - Used traditional 3-line L-shaped brackets for multi-row messages
 
-**Phase 3 (Current - Rectangle-Based Left-Side Indicators):**
+**Phase 3 (Rectangle-Based Left-Side Indicators):**
 - Replaced complex 3-line brackets with simple 2px-wide left-side rectangles
 - Nesting depth indicated by horizontal offset from lane
 - Eliminates visual clutter and rightward overlap
-- Maintains all functional requirements with cleaner appearance
+
+**Phase 4 (Current - Two-Tier Self-Message Simplification):**
+- Simple self-messages (no nested calls): minimal ↩ character + label
+- Complex self-messages (with nested calls): left-side duration rectangles
+- Dramatic reduction in visual clutter and vertical space usage
+- Cleaner, more professional appearance
+
+## Key Improvements Over Time
+
+| Aspect | Original | Phase 3 | Current (Phase 4) |
+|--------|----------|---------|-------------------|
+| Simple self-messages | 3-segment brackets | 3-segment brackets | ↩ character only |
+| Complex self-messages | 3-segment brackets | Left-side rectangles | Left-side rectangles |
+| Message gaps | 2px | 10px | 10px |
+| Visual clutter | High | Medium | Low |
+| Vertical efficiency | Poor | Good | Excellent |
 
 ## Decision Status: ✅ COMPLETE & EVOLVED
 All design decisions implemented, tested, and validated. Latest redesign improves visual clarity while maintaining backward compatibility.
