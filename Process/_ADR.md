@@ -2,6 +2,17 @@
 
 ## UML Sequence Diagram Rendering - Spacing & Layout Optimization
 
+### ADR-009: Spanning Bracket Visual Redesign - Left-Side Duration Rectangles
+| Aspect | Details |
+|--------|---------|
+| **Decision** | Replace 3-line L-shaped spanning brackets with 2px-wide filled rectangles on left side of lane; each nesting level extends further left |
+| **Context** | Nested arrow brackets to the right of lanes created complexity, overlap, and wasted space. Most nested scenarios have a single caller that waits—space on the left can be used effectively |
+| **Rationale** | Left-side rectangles indicate bracket duration/scope without adding visual complexity; nesting depth visible through horizontal offset; reduces rightward clutter and arrow overlap |
+| **Consequences** | Spanning brackets now stack horizontally to the left (depth 0: x-2 to x-4, depth 1: x-6 to x-8, etc.); cleaner diagram appearance; label moved to tooltip (hover); rectangle height equals bracket duration |
+| **Positioning Formula** | For depth n: `right_edge = lane_x - (2 + n*4)`, `left_edge = right_edge - 2`. Clamped to minimum x=20 to keep within diagram bounds |
+| **Visual Properties** | Gray fill (#666), 70% opacity, 2px width, semi-transparent; provides subtle visual indicator without dominating the diagram |
+| **Status** | ✅ Implemented & Tested (Commit: incoming) |
+
 ### ADR-001: Loop Height and Bracket Sizing
 | Aspect | Details |
 |--------|---------|
@@ -31,7 +42,7 @@
 
 ### ADR-004: Dynamic Lane Width Adjustment
 | Aspect | Details |
-|--------|---------|
+|--------|---------|⤵
 | **Decision** | Automatically increase lane width if message text overlaps arrow endpoints |
 | **Context** | Tight 2px text spacing could cause long labels to overlap horizontal arrow segments |
 | **Rationale** | Prevents text collision while maintaining tight spacing in normal cases; preserves readability without manual intervention |
@@ -101,14 +112,34 @@
 - test_ui_controls
 - test_verbosity
 
-## Final Metrics (test_message_nesting.csv)
+## Final Metrics (test_message_nesting.csv - Rectangle-Based Design)
 ```
-Msg1 bracket:        30px wide, y=120→197 (77px tall, contains all nested content)
-Msg1a bracket:       15px wide, y=135→150 (15px tall)
-Msg1b message:       y=152 (2px gap from Msg1a end)
-Response arrow:      y=167 (15px from Msg1b, centered text at y=171)
-Total vertical:      77px (vs 150px+ before optimization)
+Msg1 spanning bracket:   2px-wide gray rectangle, x=96-98 (lane_x 100 - 4 for depth 0)
+                         y=120→189 (69px tall, contains all nested content)
+Msg1a self-message:      Traditional 15x15px bracket (depth 1), nested inside Msg1
+Msg1b cross-message:     y=152 (2px gap from Msg1a end)
+Response arrow:          y=167 (15px from Msg1b, centered text at y=171)
+Total vertical:          69px (vs 150px+ before spacing optimization)
+
+Visual Layout:
+  |  (Msg1 duration indicator at x=96-98)
+  |__|  (self-message Msg1a)
+  |    Msg1b() ------>
+  |    <------ response
+  |
 ```
 
-## Decision Status: ✅ COMPLETE
-All design decisions implemented, tested, and validated through regression test suite.
+## Design Evolution Summary
+
+**Phase 1-2 (Initial Spacing Optimization):**
+- Reduced vertical spacing and standardized sizing
+- Used traditional 3-line L-shaped brackets for multi-row messages
+
+**Phase 3 (Current - Rectangle-Based Left-Side Indicators):**
+- Replaced complex 3-line brackets with simple 2px-wide left-side rectangles
+- Nesting depth indicated by horizontal offset from lane
+- Eliminates visual clutter and rightward overlap
+- Maintains all functional requirements with cleaner appearance
+
+## Decision Status: ✅ COMPLETE & EVOLVED
+All design decisions implemented, tested, and validated. Latest redesign improves visual clarity while maintaining backward compatibility.

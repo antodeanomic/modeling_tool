@@ -179,43 +179,50 @@ def detect_spanning_brackets(steps) -> dict:
 
 def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str, 
                            tooltip: str = "", nesting_depth: int = 0) -> list:
-    """Render a spanning self-message bracket across multiple rows.
+    """Render a spanning bracket as a filled rectangle to the left of the lane.
+    
+    Each nesting level extends further left from the lane.
+    Nesting layout:
+      - Depth 0: right edge at x-2, left edge at x-4 (overlaps lane left margin)
+      - Depth 1: right edge at x-6, left edge at x-8
+      - Depth n: right edge at x-(2+n*4), left edge at x-(4+n*4)
     
     Args:
-        x: X position of the lane
+        x: X position of the lane center
         y_start: Y position of bracket start
         y_end: Y position of bracket end
-        label: Text label for the message
+        label: Text label for the message (stored in tooltip for hover)
         tooltip: Optional tooltip content
-        nesting_depth: Depth for proportional sizing
+        nesting_depth: Indentation level (0 = outermost, increases for nested)
     
     Returns list of SVG elements as strings.
     """
-    BASE_LOOP_WIDTH = 30  # Spanning brackets are 2X the base width
-    LOOP_WIDTH = BASE_LOOP_WIDTH / (2 ** nesting_depth)
+    RECTANGLE_WIDTH = 2  # 2px wide rectangle for duration indicator
+    MIN_X_POSITION = 20  # Minimum left edge to keep within diagram bounds
     
-    right_x = x + LOOP_WIDTH
+    # Calculate rectangle position based on nesting depth
+    # Each level goes 4px further left (2px for previous rectangle + 2px gap)
+    right_x = x - (2 + nesting_depth * 4)
+    left_x = right_x - RECTANGLE_WIDTH
+    
+    # Clamp to minimum x position to avoid going off left edge
+    if left_x < MIN_X_POSITION:
+        left_x = MIN_X_POSITION
+        right_x = left_x + RECTANGLE_WIDTH
+    
     svg_parts = []
     
-    # Draw spanning bracket: right line at top, vertical down, right line at bottom
-    # Top horizontal line
-    svg_parts.append(f'<line x1="{x}" y1="{y_start}" x2="{right_x}" y2="{y_start}" stroke="#000" stroke-width="1"/>')
-    
-    # Vertical line spanning rows
-    svg_parts.append(f'<line x1="{right_x}" y1="{y_start}" x2="{right_x}" y2="{y_end}" stroke="#000" stroke-width="1"/>')
-    
-    # Bottom horizontal line with arrow
-    svg_parts.append(f'<line x1="{right_x}" y1="{y_end}" x2="{x}" y2="{y_end}" stroke="#000" stroke-width="1" marker-end="url(#arrow)"/>')
-    
-    # Draw label on the right, top-justified at the start of the bracket
-    label_x = right_x + 8
-    # Position label at top of vertical segment (top-justified)
-    label_y = y_start + 1
-    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
+    # Draw filled rectangle spanning the bracket duration
+    height = y_end - y_start
+    rect_elem = f'<rect x="{left_x}" y="{y_start}" width="{RECTANGLE_WIDTH}" height="{height}" fill="#666" opacity="0.7"/>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
-        text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
-    svg_parts.append(text_elem)
+        rect_elem = rect_elem.replace('/>', f'><title>{tooltip_escaped}</title></rect>', 1)
+    elif label:
+        # If no explicit tooltip but we have a label, use it
+        label_escaped = label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        rect_elem = rect_elem.replace('/>', f'><title>{label_escaped}</title></rect>', 1)
+    svg_parts.append(rect_elem)
     
     return svg_parts
 
@@ -401,6 +408,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         # Sort messages by row to maintain order
         bracket_messages.sort(key=lambda s: s.row)
         
+        # Get the nesting depth from the first bracket message
+        # (all messages in a spanning bracket should have the same depth)
+        nesting_depth = 0
+        if bracket_messages:
+            nesting_depth = bracket_messages[0].depth
+        
         # Assign sequential y positions to messages inside bracket
         current_y = y_start + 15  # Start after bracket opening (15px)
         max_y = current_y  # Track maximum y for bracket end calculation
@@ -436,7 +449,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         # Store bracket info for rendering after positions are set
         func_def = model.get_function(src_obj, func_name)
         func_tooltip = func_def.description if func_def else ""
-        bracket_render_info[start_row] = (x, y_start, y_end, func_name, func_tooltip)
+        bracket_render_info[start_row] = (x, y_start, y_end, func_name, func_tooltip, nesting_depth)
         
         # Mark all steps between start and end as inside this bracket
         for row in row_to_y:
@@ -444,8 +457,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 steps_inside_brackets.add(row)
     
     # Render spanning brackets now that end positions are calculated
-    for start_row, (x, y_start, y_end, func_name, func_tooltip) in bracket_render_info.items():
-        bracket_elements = render_spanning_bracket(x, y_start, y_end, func_name, func_tooltip)
+    for start_row, (x, y_start, y_end, func_name, func_tooltip, nesting_depth) in bracket_render_info.items():
+        bracket_elements = render_spanning_bracket(x, y_start, y_end, func_name, func_tooltip, nesting_depth)
         svg.extend(bracket_elements)
 
     # Draw steps
