@@ -415,7 +415,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             nesting_depth = bracket_messages[0].depth
         
         # Assign sequential y positions to messages inside bracket
-        current_y = y_start + 15  # Start after bracket opening (15px)
+        # First message starts 15px after the bracket row (where the arrow starts)
+        current_y = y_start + 15  # Start at first message position
         max_y = current_y  # Track maximum y for bracket end calculation
         
         for i, step in enumerate(bracket_messages):
@@ -436,20 +437,22 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             
             if has_return:
                 # Message + return arrow with centered text: 15px for arrow + 4px for text baseline + ~3px for text bottom = ~22px
-                max_y = current_y + 22 + 2  # 22px for arrow + text + 2px gap
+                max_y = current_y + 22 + 10  # 22px for arrow + text + 10px gap
             else:
-                max_y = current_y + msg_height + 2
+                max_y = current_y + msg_height + 10  # 10px gap between messages
             
-            # Next message starts 2px after this one ends
+            # Next message starts 10px after this one ends
             current_y = max_y
         
-        # Bracket ends after the last message inside (plus 15px for closing)
-        y_end = max_y - 2 + 15  # Remove last gap, add 15px for bracket closing anchor
+        # Bracket ends after the last message inside
+        # The bracket rectangle should span from first message to last message end (including return arrow)
+        y_bracket_start = y_start + 15  # Bracket starts where first message is
+        y_bracket_end = max_y - 10  # End at last message (remove trailing gap)
         
         # Store bracket info for rendering after positions are set
         func_def = model.get_function(src_obj, func_name)
         func_tooltip = func_def.description if func_def else ""
-        bracket_render_info[start_row] = (x, y_start, y_end, func_name, func_tooltip, nesting_depth)
+        bracket_render_info[start_row] = (x, y_bracket_start, y_bracket_end, func_name, func_tooltip, nesting_depth)
         
         # Mark all steps between start and end as inside this bracket
         for row in row_to_y:
