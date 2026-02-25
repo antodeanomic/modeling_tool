@@ -129,7 +129,56 @@ def create_self_message_marker(x: float, y: float, label: str, tooltip: str = ""
     
     return svg_parts
 
-def create_self_message_loop(x: float, y: float, label: str, tooltip: str = "", nesting_depth: int = 0) -> list:
+def create_small_self_message_arrow(x: float, y: float, label: str, tooltip: str = "") -> list:
+    """Create a small 3-segment arrow for self-messages inside spanning brackets.
+    
+    Renders a compact 3-segment arrow (similar to spanning bracket indicators) for
+    self-messages nested inside other spanning brackets.
+    
+    Arrow structure:
+      ←  (horizontal left)
+      ↓  (vertical down)
+      →  (horizontal right back to lane with arrowhead)
+    
+    Args:
+        x: X position of the lane center
+        y: Y position of the message
+        label: Text label for the message
+        tooltip: Optional tooltip content
+    
+    Returns list of SVG elements as strings.
+    """
+    ARROW_WIDTH = 12  # Small horizontal segments
+    ARROW_HEIGHT = 10  # Vertical segment height
+    STROKE_WIDTH = 1.5
+    
+    svg_parts = []
+    
+    # Horizontal line going left from lane
+    x_left = x - ARROW_WIDTH
+    svg_parts.append(f'<line x1="{x}" y1="{y}" x2="{x_left}" y2="{y}" '
+                     f'stroke="#000" stroke-width="{STROKE_WIDTH}"/>')
+    
+    # Vertical line going down
+    y_down = y + ARROW_HEIGHT
+    svg_parts.append(f'<line x1="{x_left}" y1="{y}" x2="{x_left}" y2="{y_down}" '
+                     f'stroke="#000" stroke-width="{STROKE_WIDTH}"/>')
+    
+    # Horizontal line returning to lane with arrowhead
+    svg_parts.append(f'<line x1="{x_left}" y1="{y_down}" x2="{x}" y2="{y_down}" '
+                     f'stroke="#000" stroke-width="{STROKE_WIDTH}" marker-end="url(#arrow)"/>')
+    
+    # Draw the label text to the right of the arrow
+    label_x = x + 5
+    label_y = y + 4
+    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#000">{label}</text>'
+    if tooltip:
+        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
+    svg_parts.append(text_elem)
+    
+    return svg_parts
+
     """Create a self-message (call to same object) as a 3-sided bracket extending right.
     
     A self-message is drawn as a bracket extending to the right of the lane,
@@ -580,12 +629,24 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 if src_obj == step.src_obj
             )
             
+            # Check if this message is INSIDE a spanning bracket
+            is_inside_spanning_bracket = any(
+                start_row < step.row < end_row and src_obj == step.src_obj
+                for start_row, (end_row, _, src_obj)
+                in spanning_brackets.items()
+            )
+            
             if is_spanning_bracket_start or is_spanning_bracket_endpoint:
                 # Complex self-message (starts or ends a spanning bracket)
-                # Don't draw 3-segment bracket - spanning bracket rectangle will be drawn instead
+                # Don't draw anything - spanning bracket rectangle will be drawn instead
                 pass
+            elif is_inside_spanning_bracket:
+                # Self-message nested inside a spanning bracket
+                # Draw small 3-segment arrow on the left side
+                self_msg_elements = create_small_self_message_arrow(x1, y, label, func_tooltip)
+                svg.extend(self_msg_elements)
             else:
-                # Simple self-message (no nested calls)
+                # Simple self-message (no nested calls, not in any bracket)
                 # Draw minimal ↩ marker instead of full 3-segment bracket
                 nesting_depth = self_message_count.get(step.row, 0)
                 self_msg_elements = create_self_message_marker(x1, y, label, func_tooltip)
