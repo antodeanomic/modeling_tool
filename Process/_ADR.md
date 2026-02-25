@@ -7,11 +7,12 @@
 |--------|---------|
 | **Decision** | Use three distinct rendering modes for self-messages based on context: small 3-segment arrows for bracketed, ↩ markers for simple, skip for bracket endpoints |
 | **Context** | Self-messages can be simple (no nesting), complex (start/end spanning bracket), or nested within another bracket; unified rendering was visually confusing |
-| **Three Modes** | **1) Inside spanning bracket:** Compact 3-segment arrow (12px wide, 10px tall) on left of lane, same arrowhead style as message overlays. **2) Simple/outside brackets:** Minimal ↩ character + label. **3) Bracket endpoints:** Skip rendering (spanning bracket rectangle indicates the scope) |
-| **Small Arrow Design** | Horizontal segment left from lane, vertical segment down, horizontal return with arrowhead. Uses same arrow marker (#arrow) as other message arrows for visual consistency |
+| **Three Modes** | **1) Inside spanning bracket:** Compact 3-segment arrow (12px wide, 10px tall) on left of lane, small proportional arrowhead. **2) Simple/outside brackets:** Minimal ↩ character + label. **3) Bracket endpoints:** Skip rendering (spanning bracket rectangle indicates the scope) |
+| **Small Arrow Design** | Horizontal segment left from lane (12px), vertical segment down (10px), horizontal return with small arrowhead. Uses new `arrow-small` marker (5×5) - half-size of regular message arrow. Label positioned to LEFT of vertical segment with right text anchor |
+| **Arrow Marker** | Created new SVG marker `arrow-small` with dimensions 5×5 and scaled path for proportional arrowhead compared to regular `arrow` (10×10) |
 | **Visual Hierarchy** | Spanning bracket rectangle shows scope and duration; contained self-messages have small arrows; outside messages use character marker. Context immediately apparent from rendering style |
-| **Benefits** | Eliminates all full 3-segment brackets; deeply nested scenarios stay clean; simple vs complex immediately distinguishable; minimal vertical space |
-| **Status** | ✅ Implemented & Tested (Commit: 1be64ed) |
+| **Benefits** | Eliminates all full 3-segment brackets; deeply nested scenarios stay clean; simple vs complex immediately distinguishable; minimal vertical space; proportional arrows maintain visual consistency |
+| **Status** | ✅ Implemented & Tested (Commit: 7b19de1) |
 
 ### ADR-009: Spanning Bracket Visual Redesign - Left-Side Duration Rectangles
 | Aspect | Details |
@@ -125,22 +126,23 @@
 - test_ui_controls
 - test_verbosity
 
-## Final Metrics (Rendering Examples - Current Three-Tier Design)
+## Final Metrics (Rendering Examples - Current Three-Tier Design with Refined Arrows)
 
 ### test_message_nesting.csv (Complex with Nesting)
 ```
 Msg1 (bracket start): Spanning bracket rectangle on left, x=96-98, y=135→182
-    └─ Msg1a (inside bracket): ↙-↓-→ small 3-segment arrow, 12px wide, 10px tall
+    └─ Msg1a (inside bracket): Small 3-segment arrow (12px wide, 10px tall)
+       ├─ Arrow: left horizontal (12px) → down (10px) → right with small arrowhead
+       ├─ Label: positioned LEFT of vertical segment, right-anchored
+       ├─ Arrowhead: proportional small marker (5×5, half-size of regular 10×10)
        └─ Msg1b (cross-message): regular arrow to Obj2
        └─ response1b (return): dashed return arrow, centered text
 Msg1 (bracket end): Spanning bracket rectangle closes
 
-Layout:
-  ┌─[bracket]
-  │ → Msg1a()         (small 3-seg arrow)
-  │   Msg1b-------->  (regular message)
-  │   <--response1b   (return arrow)
-  └─[/bracket]
+Actual SVG rendering:
+  - Small arrow: <line marker-end="url(#arrow-small)"/>
+  - Label: <text x="83" text-anchor="end">Msg1a()</text> (left of vertical at x=88)
+  - Arrowhead: using marker id="arrow-small" (5×5)
 ```
 
 ### nested_self_messages.csv (All Simple, No Brackets)
@@ -153,6 +155,12 @@ response at y=150: return arrow
 All self-messages render as minimal ↩ character since none
 are inside spanning brackets.
 ```
+
+### Arrow Marker Comparison
+| Marker | Size | Path | Usage |
+|--------|------|------|-------|
+| `arrow` | 10×10, refX=10, refY=3 | M0,0 L0,6 L9,3 z | Regular messages, return arrows |
+| `arrow-small` | 5×5, refX=5, refY=1.5 | M0,0 L0,3 L4,1.5 z | Small 3-segment arrows in bracketed self-messages |
 
 ### Design Modes in Action
 | Location | Self-Message Type | Rendering | Space Used |
