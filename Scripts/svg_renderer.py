@@ -1,7 +1,7 @@
 from model import Model, SequenceDef, NoteDef
 
 LANE_WIDTH = 200
-ROW_HEIGHT = 60
+ROW_HEIGHT = 20  # Minimal spacing for consecutive message rows (reduced from 60 to save vertical space)
 PARTICIPANT_BOX_WIDTH = 140
 PARTICIPANT_BOX_HEIGHT = 40
 STATE_BOX_PADDING = 6
@@ -96,206 +96,79 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
     
     return svg_parts
 
-def create_self_message_marker(x: float, y: float, label: str, tooltip: str = "") -> list:
-    """Create a simple self-message marker using ↩ character (no 3-segment bracket).
-    
-    Used for simple function calls that don't have nested calls within them.
-    Much cleaner and uses less vertical space than the full 3-segment bracket.
-    
-    Args:
-        x: X position of the lane
-        y: Y position of the message
-        label: Text label for the message
-        tooltip: Optional tooltip content
-    
-    Returns list of SVG elements as strings.
-    """
-    svg_parts = []
-    
-    # Draw the ↩ character (curved arrow indicating return/self-call)
-    marker_x = x - 15  # Position marker to the left of the lane
-    marker_y = y + 2
-    marker_elem = f'<text x="{marker_x}" y="{marker_y}" font-family="Arial" font-size="12" fill="#666">↩</text>'
-    svg_parts.append(marker_elem)
-    
-    # Draw the label text next to the marker
-    label_x = marker_x + 15
-    label_y = y
-    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="12" fill="#000">{label}</text>'
-    if tooltip:
-        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
-        text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
-    svg_parts.append(text_elem)
-    
-    return svg_parts
-
-def create_small_self_message_arrow(x: float, y: float, label: str, tooltip: str = "") -> list:
-    """Create a small 3-segment arrow for self-messages inside spanning brackets.
-    
-    Renders a compact 3-segment arrow (similar to spanning bracket indicators) for
-    self-messages nested inside other spanning brackets.
-    
-    Arrow structure:
-      ←  (horizontal left)
-      ↓  (vertical down)
-      →  (horizontal right back to lane with arrowhead)
-    
-    Args:
-        x: X position of the lane center
-        y: Y position of the message
-        label: Text label for the message
-        tooltip: Optional tooltip content
-    
-    Returns list of SVG elements as strings.
-    """
-    ARROW_WIDTH = 12  # Small horizontal segments
-    ARROW_HEIGHT = 10  # Vertical segment height
-    STROKE_WIDTH = 1.5
-    
-    svg_parts = []
-    
-    # Horizontal line going left from lane
-    x_left = x - ARROW_WIDTH
-    svg_parts.append(f'<line x1="{x}" y1="{y}" x2="{x_left}" y2="{y}" '
-                     f'stroke="#000" stroke-width="{STROKE_WIDTH}"/>')
-    
-    # Vertical line going down
-    y_down = y + ARROW_HEIGHT
-    svg_parts.append(f'<line x1="{x_left}" y1="{y}" x2="{x_left}" y2="{y_down}" '
-                     f'stroke="#000" stroke-width="{STROKE_WIDTH}"/>')
-    
-    # Horizontal line returning to lane with arrowhead (using smaller arrow marker)
-    svg_parts.append(f'<line x1="{x_left}" y1="{y_down}" x2="{x}" y2="{y_down}" '
-                     f'stroke="#000" stroke-width="{STROKE_WIDTH}" marker-end="url(#arrow-small)"/>')
-    
-    # Draw the label text to the LEFT of the vertical segment (above the vertical line)
-    label_x = x_left - 5  # 5px to the left of vertical line
-    label_y = y + 2      # Positioned near the top of the arrow
-    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#000" text-anchor="end">{label}</text>'
-    if tooltip:
-        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
-        text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
-    svg_parts.append(text_elem)
-    
-    return svg_parts
-
-    """Create a self-message (call to same object) as a 3-sided bracket extending right.
-    
-    A self-message is drawn as a bracket extending to the right of the lane,
-    with the label positioned to the right of the bracket.
-    Nested self-messages (same row, same source) have proportionally smaller brackets.
-    
-    Args:
-        x: X position of the lane (center of lifeline)
-        y: Y position of the message
-        label: Text label for the message
-        tooltip: Optional tooltip content
-        nesting_depth: Depth in nesting (0=outermost, 1=inside outermost, etc.)
-    
-    Returns list of SVG elements as strings.
-    """
-    # Scale bracket width based on nesting
-    # depth 0 (alone): 15px, depth 1 (inside bracket): 7.5px, etc.
-    BASE_LOOP_WIDTH = 15  # Original single-row self-message width
-    LOOP_WIDTH = BASE_LOOP_WIDTH / (2 ** nesting_depth)  # Halve width for each nesting level
-    LOOP_HEIGHT = 15  # Vertical span matches width for compact layout
-    
-    svg_parts = []
-    
-    # Calculate positions for the loop
-    right_x = x + LOOP_WIDTH
-    bottom_y = y + LOOP_HEIGHT
-    mid_y = y + LOOP_HEIGHT / 2
-    
-    # Draw 3-sided bracket: right, down, left (no initial vertical that overlaps lifeline)
-    # Horizontal line extending right from lifeline
-    svg_parts.append(f'<line x1="{x}" y1="{y}" x2="{right_x}" y2="{y}" stroke="#000" stroke-width="1"/>')
-    
-    # Vertical line extending down (right side of bracket)
-    svg_parts.append(f'<line x1="{right_x}" y1="{y}" x2="{right_x}" y2="{bottom_y}" stroke="#000" stroke-width="1"/>')
-    
-    # Horizontal line returning to lifeline with arrow
-    svg_parts.append(f'<line x1="{right_x}" y1="{bottom_y}" x2="{x}" y2="{bottom_y}" stroke="#000" stroke-width="1" marker-end="url(#arrow)"/>')
-    
-    # Draw label on the far right, top-justified at the start of the bracket
-    label_x = right_x + 8
-    label_y = y + 1  # Minimal gap between arrow and text
-    text_elem = f'<text x="{label_x}" y="{label_y}" font-family="Arial" font-size="11" fill="#666">{label}</text>'
-    if tooltip:
-        tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
-        text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
-    svg_parts.append(text_elem)
-    
-    return svg_parts
-
 def detect_spanning_brackets(steps) -> dict:
-    """Detect self-messages that span multiple rows.
+    """Detect spanning brackets based on nesting depth from indentation.
     
-    A spanning bracket occurs when the same self-message function is called
-    on non-consecutive rows by the same source object. The first call starts
-    the bracket, the second call ends it.
+    A spanning bracket represents the scope of a function call:
+    - Starts when a function is called (defining row)
+    - Ends when nesting depth decreases (next row with lower depth) or at file end
     
-    Returns: Dict mapping start row to (end_row, function_name, src_obj)
+    Returns: Dict mapping start_row to (end_row, function_name, src_obj, dst_obj, nesting_depth)
+    where end_row is the last row where this function's scope is active.
     """
     spanning_brackets = {}
-    open_brackets = {}  # Maps (src_obj, func_name) -> start_row
+    scope_stack = []  # Stack of (row, depth, src_obj, dst_obj, function) tuples
     
-    for step in steps:
-        if step.src_obj != step.dst_obj:
-            # Not a self-message, can't be part of spanning bracket
-            continue
+    for i, step in enumerate(steps):
+        # Close any scopes that are deeper than current step
+        while scope_stack and scope_stack[-1][1] >= step.depth:
+            start_row, depth, src_obj, dst_obj, func_name = scope_stack.pop()
+            # Scope ends at the row before current step
+            end_row = steps[i-1].row if i > 0 else start_row
+            spanning_brackets[start_row] = (end_row, func_name, src_obj, dst_obj, depth)
         
-        key = (step.src_obj, step.function)
-        
-        if key in open_brackets:
-            # This is the closing bracket
-            start_row = open_brackets[key]
-            spanning_brackets[start_row] = (step.row, step.function, step.src_obj)
-            del open_brackets[key]
-        else:
-            # This might be an opening bracket
-            # Check if there are intervening steps before the next occurrence
-            open_brackets[key] = step.row
+        # Open new scope for current step
+        scope_stack.append((step.row, step.depth, step.src_obj, step.dst_obj, step.function))
+    
+    # Close any remaining open scopes at end of sequence
+    last_row = steps[-1].row if steps else 0
+    while scope_stack:
+        start_row, depth, src_obj, dst_obj, func_name = scope_stack.pop()
+        spanning_brackets[start_row] = (last_row, func_name, src_obj, dst_obj, depth)
     
     return spanning_brackets
 
 def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str, 
-                           tooltip: str = "", nesting_depth: int = 0) -> list:
-    """Render a spanning bracket as a filled rectangle to the left of the lane.
+                           tooltip: str = "", nesting_depth: int = 0, is_self_message: bool = False) -> list:
+    """Render a spanning bracket as a filled rectangle on the lane, offset left for nesting.
     
-    Each nesting level extends further left from the lane.
+    For nesting, brackets are offset to the left of the lifeline.
     Nesting layout:
-      - Depth 0: right edge at x-2, left edge at x-4 (overlaps lane left margin)
-      - Depth 1: right edge at x-6, left edge at x-8
-      - Depth n: right edge at x-(2+n*4), left edge at x-(4+n*4)
+      - Depth 0: centered at x (lifeline center)
+      - Depth 1: centered at x-4 (4px left of lifeline)
+      - Depth n: centered at x-(n*4)
+    
+    The function name label is positioned to the left of the bracket at the top,
+    but only for self-messages (where source and destination objects are the same).
+    
+    Minimum height is enforced to match text font height (approximately 15px).
     
     Args:
-        x: X position of the lane center
+        x: X position of the lane center (lifeline)
         y_start: Y position of bracket start
         y_end: Y position of bracket end
-        label: Text label for the message (stored in tooltip for hover)
+        label: Text label for the message (displayed to left of bracket for self-messages)
         tooltip: Optional tooltip content
         nesting_depth: Indentation level (0 = outermost, increases for nested)
+        is_self_message: If True, render the function name label; if False, omit label
     
     Returns list of SVG elements as strings.
     """
     RECTANGLE_WIDTH = 2  # 2px wide rectangle for duration indicator
-    MIN_X_POSITION = 20  # Minimum left edge to keep within diagram bounds
+    MIN_HEIGHT = 15  # Minimum height matching text font height (12px font + padding)
+    TEXT_PADDING = 5  # Space between bracket and label text
     
-    # Calculate rectangle position based on nesting depth
-    # Each level goes 4px further left (2px for previous rectangle + 2px gap)
-    right_x = x - (2 + nesting_depth * 4)
-    left_x = right_x - RECTANGLE_WIDTH
-    
-    # Clamp to minimum x position to avoid going off left edge
-    if left_x < MIN_X_POSITION:
-        left_x = MIN_X_POSITION
-        right_x = left_x + RECTANGLE_WIDTH
+    # Calculate rectangle position centered over lane with left offset for nesting
+    # Depth 0: centered at x (no offset)
+    # Deeper nesting: offset further left by nesting_depth * 4px
+    center_x = x - (nesting_depth * 4)
+    left_x = center_x - (RECTANGLE_WIDTH / 2)
+    right_x = center_x + (RECTANGLE_WIDTH / 2)
     
     svg_parts = []
     
     # Draw filled rectangle spanning the bracket duration
-    height = y_end - y_start
+    height = max(MIN_HEIGHT, y_end - y_start)  # Enforce minimum height
     rect_elem = f'<rect x="{left_x}" y="{y_start}" width="{RECTANGLE_WIDTH}" height="{height}" fill="#666" opacity="0.7"/>'
     if tooltip:
         tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -305,6 +178,19 @@ def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str,
         label_escaped = label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
         rect_elem = rect_elem.replace('/>', f'><title>{label_escaped}</title></rect>', 1)
     svg_parts.append(rect_elem)
+    
+    # Add function name label to the left of the bracket at the top (only for self-messages)
+    if label and is_self_message:
+        # Position text so that the TOP of the text aligns with the top of the bracket (y_start)
+        # For SVG text, y is the baseline. For a 12px font, ascent is roughly 10px.
+        # So baseline = y_start + ascent positions the top of text at y_start
+        text_x = left_x - TEXT_PADDING
+        text_baseline_y = y_start + 10  # Ascent for 12px font
+        text_elem = f'<text x="{text_x}" y="{text_baseline_y}" text-anchor="end" font-family="Arial" font-size="12" fill="#000">{label}</text>'
+        if tooltip:
+            tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+            text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
+        svg_parts.append(text_elem)
     
     return svg_parts
 
@@ -400,7 +286,9 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         step.y = row_to_y[step.row]
 
     total_rows = len(row_to_y)
-    height = (total_rows + 3) * ROW_HEIGHT
+    # Calculate height based on actual last row position plus padding
+    max_y = max(row_to_y.values()) if row_to_y else 120
+    height = max_y + 60  # Add 60px padding after last row
     width = max(lane_positions.values()) + 200
 
     svg = []
@@ -415,10 +303,6 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
       <marker id="arrow" markerWidth="10" markerHeight="10" 
               refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
         <path d="M0,0 L0,6 L9,3 z" fill="#000" />
-      </marker>
-      <marker id="arrow-small" markerWidth="5" markerHeight="5" 
-              refX="5" refY="1.5" orient="auto" markerUnits="strokeWidth">
-        <path d="M0,0 L0,3 L4,1.5 z" fill="#000" />
       </marker>
     </defs>
     """)
@@ -446,6 +330,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             text_elem = text_elem.replace('>', f'><title>{class_description}</title>', 1)
         svg.append(text_elem)
 
+        # Draw lifeline extending to the end of the diagram (based on actual last row position)
         svg.append(f'<line x1="{x}" y1="60" x2="{x}" y2="{height - 20}" '
                    f'stroke="#888" stroke-dasharray="4,4"/>')
     
@@ -475,84 +360,74 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             state_elements = create_state_box(x, 70, state_name, state_desc)
             svg.extend(state_elements)
 
-    # Detect and render spanning self-message brackets
+    # Detect and render spanning message brackets
     spanning_brackets = detect_spanning_brackets(filtered_steps)
-    steps_inside_brackets = set()  # Track which steps are inside spanning brackets
-    bracket_step_positions = {}  # Maps step object to y position for steps inside brackets
-    bracket_render_info = {}  # Stores bracket rendering info after positions calculated
+    bracket_render_info = {}  # Stores bracket rendering info
+    bracket_end_for_start_row = {}  # Maps start_row -> end_row
+    step_return_row = {}  # Maps step id -> the row where its return arrow should appear
+    parent_scope_end_y = {}  # Maps parent bracket start_row -> final y position including return arrows
+    RETURN_ARROW_SPACING = 10  # Space between message and return arrow
     
-    for start_row, (end_row, func_name, src_obj) in spanning_brackets.items():
-        x = lane_positions[src_obj]
+    for start_row, (end_row, func_name, src_obj, dst_obj, nesting_depth) in spanning_brackets.items():
+        # Bracket appears on DESTINATION lane (where work is performed)
+        bracket_lane = dst_obj
+        x = lane_positions[bracket_lane]
         y_start = row_to_y[start_row]
+        y_end = row_to_y[end_row]
         
-        # Collect and position messages inside this bracket
-        bracket_messages = []
-        for step in filtered_steps:
-            if (start_row < step.row < end_row and step.src_obj == src_obj):
-                bracket_messages.append(step)
-        
-        # Sort messages by row to maintain order
-        bracket_messages.sort(key=lambda s: s.row)
-        
-        # Get the nesting depth from the first bracket message
-        # (all messages in a spanning bracket should have the same depth)
-        nesting_depth = 0
-        if bracket_messages:
-            nesting_depth = bracket_messages[0].depth
-        
-        # Assign sequential y positions to messages inside bracket
-        # First message starts 15px after the bracket row (where the arrow starts)
-        current_y = y_start + 15  # Start at first message position
-        max_y = current_y  # Track maximum y for bracket end calculation
-        
-        for i, step in enumerate(bracket_messages):
-            bracket_step_positions[id(step)] = current_y
-            
-            # Calculate height of this message
-            if step.src_obj == step.dst_obj:
-                msg_height = 15  # Self-message: 15px tall
-            else:
-                msg_height = 2   # Regular message: minimal height, just the arrow
-            
-            # Check if this message has a return value (return arrow)
-            # Return arrows add space below the message and include centered text
-            has_return = (step.src_obj != step.dst_obj and 
-                         model.get_function(step.src_obj, step.function) and 
-                         model.get_function(step.src_obj, step.function).returns and 
-                         step.return_value)
-            
-            if has_return:
-                # Message + return arrow with centered text: 15px for arrow + 4px for text baseline + ~3px for text bottom = ~22px
-                max_y = current_y + 22 + 10  # 22px for arrow + text + 10px gap
-            else:
-                max_y = current_y + msg_height + 10  # 10px gap between messages
-            
-            # Next message starts 10px after this one ends
-            current_y = max_y
-        
-        # Bracket ends after the last message inside
-        # The bracket rectangle should span from first message to last message end (including return arrow)
-        y_bracket_start = y_start + 15  # Bracket starts where first message is
-        y_bracket_end = max_y - 10  # End at last message (remove trailing gap)
-        
-        # Store bracket info for rendering after positions are set
+        # Store bracket info for rendering
         func_def = model.get_function(src_obj, func_name)
         func_tooltip = func_def.description if func_def else ""
-        bracket_render_info[start_row] = (x, y_bracket_start, y_bracket_end, func_name, func_tooltip, nesting_depth)
+        # Use the full function name from the definition (includes signature for self-messages)
+        display_func_name = func_def.name if func_def else func_name
+        # Store src_obj and dst_obj to determine if this is a self-message
+        bracket_render_info[start_row] = (x, y_start, y_end, display_func_name, func_tooltip, nesting_depth, src_obj, dst_obj)
         
-        # Mark all steps between start and end as inside this bracket
-        for row in row_to_y:
-            if start_row < row < end_row:
-                steps_inside_brackets.add(row)
+        # Track bracket end for return arrow deferral
+        bracket_end_for_start_row[start_row] = end_row
+        
+        # Calculate final y position including return arrow spacing
+        # Return arrow appears after the last message in the bracket
+        parent_scope_end_y[start_row] = y_end + RETURN_ARROW_SPACING
+        
+        # For the starting step, its return should appear at the ending row
+        for step in filtered_steps:
+            if step.row == start_row and step.src_obj == src_obj and step.dst_obj == dst_obj and step.function == func_name:
+                step_return_row[id(step)] = end_row  # Return appears at end_row
+                break
+    
+    # Extend parent scopes to include child return arrow positions
+    # If a message at depth N is inside a bracket from depth N-1, 
+    # the parent bracket should extend to include the child's return arrow position
+    for start_row, (end_row, func_name, src_obj, dst_obj, nesting_depth) in spanning_brackets.items():
+        # Find all nested messages (higher depth that fall within this bracket)
+        for inner_start_row, (inner_end_row, _, _, _, inner_depth) in spanning_brackets.items():
+            if inner_start_row != start_row and start_row < inner_start_row <= end_row and inner_depth > nesting_depth:
+                # This inner bracket is nested within the current bracket
+                # Extend parent to include inner's return arrow position
+                inner_return_y = row_to_y[inner_end_row] + RETURN_ARROW_SPACING
+                if parent_scope_end_y[start_row] < inner_return_y:
+                    parent_scope_end_y[start_row] = inner_return_y
+    
+    # Update bracket_render_info with final parent scope end positions
+    for start_row in bracket_render_info:
+        x, y_start, _, func_name, func_tooltip, nesting_depth, src_obj, dst_obj = bracket_render_info[start_row]
+        # Use parent_scope_end_y for the final y_end (already includes return arrow spacing)
+        bracket_render_info[start_row] = (x, y_start, parent_scope_end_y[start_row], func_name, func_tooltip, nesting_depth, src_obj, dst_obj)
     
     # Render spanning brackets now that end positions are calculated
-    for start_row, (x, y_start, y_end, func_name, func_tooltip, nesting_depth) in bracket_render_info.items():
-        bracket_elements = render_spanning_bracket(x, y_start, y_end, func_name, func_tooltip, nesting_depth)
+    for start_row, (x, y_start, y_end, func_name, func_tooltip, nesting_depth, src_obj, dst_obj) in bracket_render_info.items():
+        # Only show label for self-messages (where src and dst are the same object)
+        is_self_message = (src_obj == dst_obj)
+        # For cross-object messages, the bracket on the destination object is depth 0 (new scope)
+        bracket_depth = nesting_depth if is_self_message else 0
+        bracket_elements = render_spanning_bracket(x, y_start, y_end, func_name, func_tooltip, bracket_depth, is_self_message)
         svg.extend(bracket_elements)
 
+    # Track deferred return arrows: end_row -> list of (x1, x2, label, tooltip, y_pos)
+    deferred_return_arrows = {}
+    
     # Draw steps
-    # Track self-messages per row for vertical offset
-    self_message_count = {}  # Maps row number to count of self-messages processed
     
     for step in filtered_steps:
         # Skip if lanes aren't in our filtered set
@@ -561,24 +436,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         y = step.y
         
-        # Check if this step is inside a spanning bracket and use sequential position
-        if id(step) in bracket_step_positions:
-            y = bracket_step_positions[id(step)]
-        # For self-messages on the same row (not inside brackets), apply vertical offset
-        elif step.src_obj == step.dst_obj:
-            # Track self-messages per row to apply offsets
-            if step.row not in self_message_count:
-                self_message_count[step.row] = 0
-            else:
-                self_message_count[step.row] += 1
-            
-            # Apply offset based on nesting (15px for LOOP_HEIGHT)
-            y += self_message_count[step.row] * 15
-        
         src_lane = step.src_obj
         dst_lane = step.dst_obj
         func_name = step.function
 
+        # Calculate arrow endpoints at object lifelines (always)
+        # Nesting depth is shown visually via bracket positions, but arrows always connect lifelines
         x1 = lane_positions[src_lane]
         x2 = lane_positions[dst_lane]
 
@@ -623,38 +486,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
 
         # Handle self-messages (where source and destination are the same)
         if x1 == x2:
-            # Check if this is a spanning bracket start or endpoint
-            # Spanning brackets indicate COMPLEX self-messages (with nested calls)
-            is_spanning_bracket_start = step.row in spanning_brackets
-            is_spanning_bracket_endpoint = any(
-                start_row < step.row == end_row 
-                for start_row, (end_row, _, src_obj) 
-                in spanning_brackets.items() 
-                if src_obj == step.src_obj
-            )
-            
-            # Check if this message is INSIDE a spanning bracket
-            is_inside_spanning_bracket = any(
-                start_row < step.row < end_row and src_obj == step.src_obj
-                for start_row, (end_row, _, src_obj)
-                in spanning_brackets.items()
-            )
-            
-            if is_spanning_bracket_start or is_spanning_bracket_endpoint:
-                # Complex self-message (starts or ends a spanning bracket)
-                # Don't draw anything - spanning bracket rectangle will be drawn instead
-                pass
-            elif is_inside_spanning_bracket:
-                # Self-message nested inside a spanning bracket
-                # Draw small 3-segment arrow on the left side
-                self_msg_elements = create_small_self_message_arrow(x1, y, label, func_tooltip)
-                svg.extend(self_msg_elements)
-            else:
-                # Simple self-message (no nested calls, not in any bracket)
-                # Draw minimal ↩ marker instead of full 3-segment bracket
-                nesting_depth = self_message_count.get(step.row, 0)
-                self_msg_elements = create_self_message_marker(x1, y, label, func_tooltip)
-                svg.extend(self_msg_elements)
+            # All self-messages use spanning brackets
+            # The spanning bracket is rendered by render_spanning_bracket() with label text
+            # So we skip rendering the message arrow text label here to avoid duplication
+            pass
         else:
             # Regular message between different objects
             # Forward arrow
@@ -680,30 +515,39 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             # Build return value tooltip
             ret_tooltip = f"{ret_name}: {ret_def.description}" if ret_def else ""
             
-            # Return arrow positioned below message with space for centered text
-            # For messages inside brackets, use spacing for text (15px)
-            # For messages outside brackets, use row-based spacing (30px)
-            if id(step) in bracket_step_positions:
-                # Inside bracket: spacing for cross-message arrow with centered text
-                y_ret = y + 15  # 2px message height + 2px gap + 11px for text
-            else:
-                # Outside bracket: row-based spacing
-                y_ret = y + 30
-
-            svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
-                       f'stroke="#000" stroke-dasharray="5,5" '
-                       f'marker-end="url(#arrow)"/>')
+            # Check if this message has a deferred return row (spanning bracket)
+            return_row = step_return_row.get(id(step), step.row)  # Use actual return row if deferred, else current row
             
-            # Return arrow text centered over the arrow (arrow passes through text center)
-            # Text baseline positioned so arrow passes through visual center of text
-            ret_text_baseline_y = y_ret + 4  # Visual center of 12px text is roughly 4px above baseline
-            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label}</text>'
-            # Add the actual text on top
-            ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
-            if ret_tooltip:
-                ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
-                ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
-            svg.append(ret_text_elem)
+            # Return arrow positioned below message with 10px spacing
+            # This spacing applies to both immediate and deferred returns
+            if return_row != step.row:
+                # Deferred: use the end_row's y position plus spacing
+                y_ret = row_to_y[return_row] + 10
+            else:
+                # Position below message
+                y_ret = y + 10
+
+            # If deferred, store for later rendering at the end_row
+            if return_row != step.row:
+                if return_row not in deferred_return_arrows:
+                    deferred_return_arrows[return_row] = []
+                deferred_return_arrows[return_row].append((x1, x2, ret_label, ret_tooltip, y_ret))
+            else:
+                # Render immediately
+                svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
+                           f'stroke="#000" stroke-dasharray="5,5" '
+                           f'marker-end="url(#arrow)"/>')
+                
+                # Return arrow text centered over the arrow (arrow passes through text center)
+                # Text baseline positioned so arrow passes through visual center of text
+                ret_text_baseline_y = y_ret + 4  # Visual center of 12px text is roughly 4px above baseline
+                ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label}</text>'
+                # Add the actual text on top
+                ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
+                if ret_tooltip:
+                    ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+                    ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
+                svg.append(ret_text_elem)
         
         # Render function note if present (only in High verbosity)
         if step.function_note and verbosity_level.lower() == "high":
@@ -746,6 +590,23 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                     state_desc = state_def.description if state_def else ""
                     state_elements = create_state_box(x, state_y, new_state, state_desc)
                     svg.extend(state_elements)
+
+    # Render deferred return arrows (for messages with spanning brackets)
+    for end_row in sorted(deferred_return_arrows.keys()):
+        y_ret = row_to_y[end_row] + 10  # Add 10px spacing below the last message row
+        for x1, x2, ret_label, ret_tooltip, _ in deferred_return_arrows[end_row]:
+            svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
+                       f'stroke="#000" stroke-dasharray="5,5" '
+                       f'marker-end="url(#arrow)"/>')
+            
+            # Return arrow text centered over the arrow
+            ret_text_baseline_y = y_ret + 4
+            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label}</text>'
+            ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
+            if ret_tooltip:
+                ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+                ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
+            svg.append(ret_text_elem)
 
     svg.append("</svg>")
     return "\n".join(svg)

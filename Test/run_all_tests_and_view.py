@@ -32,9 +32,11 @@ def run_all_tests():
         'test_nested_self_messages',
         'test_notes',
         'test_parameters',
+        'test_self_message_label_alignment',
         'test_states',
         'test_ui_controls',
-        'test_verbosity'
+        'test_verbosity',
+        'test_comprehensive_nesting'
     ]
     
     print("=" * 60)

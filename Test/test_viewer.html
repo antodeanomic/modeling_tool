@@ -166,6 +166,11 @@
                 description: "Tests nested and stacked self-messages on the same row. Demonstrates proportional bracket sizing where outer brackets are 2x wider than nested inner brackets."
             },
             {
+                name: "Self Message Label Alignment",
+                file: "tests/self_message_label_alignment_output.svg",
+                description: "Tests function name labels on spanning brackets for self-messages. Verifies label top alignment with bracket tops at various nesting depths."
+            },
+            {
                 name: "Notes",
                 file: "tests/notes_output.svg",
                 description: "Tests note rendering, positioning, and visibility. Demonstrates @Info, @Warning, and @Error note types with proper styling."
@@ -189,6 +194,11 @@
                 name: "Verbosity",
                 file: "tests/verbosity_output.svg",
                 description: "Tests verbosity level effects on display. Demonstrates how High verbosity shows detailed information including tooltips."
+            },
+            {
+                name: "Comprehensive Nesting",
+                file: "tests/comprehensive_nesting_output.svg",
+                description: "Comprehensive test with 5 nested levels (Caller→Obj1→Obj2→Obj3→Obj4→Obj5) and 24 messages. Tests deep nesting, complex self-message scopes with cross-object calls, parameter passing, return values, and multiple object interactions."
             }
         ];
         

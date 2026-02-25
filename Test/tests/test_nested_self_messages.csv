@@ -8,11 +8,10 @@ Class,Obj1,First object
         Param,data,Some data
         ReturnVal,response1b,Response
 Class,Obj2,Second object
-    Function,Msg,"Main call to Obj2"
-        Param,param1,Parameter
-        ReturnVal,response,Response value
+    Function,Msg1b,"Receive message from Obj1"
+        Param,data,Data parameter
+        ReturnVal,response,"Response value"
 Sequence,SoftReq_TEST_NESTED,Nested self-messages with stacking
     1,Obj1,Obj1,Msg1,result1
-    1,Obj1,Obj1,Msg1a,result1a
-    1,Obj1,Obj2,Msg1b,data,response1b
-    2,Obj1,Obj2,Msg,param1,response
+        2,Obj1,Obj1,Msg1a,result1a
+        3,Obj1,Obj2,Msg1b,data,response1b

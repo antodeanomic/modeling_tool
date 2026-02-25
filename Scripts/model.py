@@ -115,7 +115,9 @@ class Model:
         for c in self.classes:
             if c.name == class_name:
                 for f in c.functions:
-                    if f.name == func_name:
+                    # Extract base function name from f.name (handles "FuncName() : RetVal" format)
+                    base_name = f.name.split('(')[0] if '(' in f.name else f.name
+                    if base_name == func_name or f.name == func_name:
                         return f
         return None
     

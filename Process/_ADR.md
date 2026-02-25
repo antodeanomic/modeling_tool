@@ -2,17 +2,18 @@
 
 ## UML Sequence Diagram Rendering - Spacing & Layout Optimization
 
-### ADR-010: Self-Message Rendering Simplification - Three-Tier Approach
+### ADR-010: Self-Message Rendering Unification - Spanning Brackets Only
 | Aspect | Details |
 |--------|---------|
-| **Decision** | Use three distinct rendering modes for self-messages based on context: small 3-segment arrows for bracketed, ↩ markers for simple, skip for bracket endpoints |
-| **Context** | Self-messages can be simple (no nesting), complex (start/end spanning bracket), or nested within another bracket; unified rendering was visually confusing |
-| **Three Modes** | **1) Inside spanning bracket:** Compact 3-segment arrow (12px wide, 10px tall) on left of lane, small proportional arrowhead. **2) Simple/outside brackets:** Minimal ↩ character + label. **3) Bracket endpoints:** Skip rendering (spanning bracket rectangle indicates the scope) |
-| **Small Arrow Design** | Horizontal segment left from lane (12px), vertical segment down (10px), horizontal return with small arrowhead. Uses new `arrow-small` marker (5×5) - half-size of regular message arrow. Label positioned to LEFT of vertical segment with right text anchor |
-| **Arrow Marker** | Created new SVG marker `arrow-small` with dimensions 5×5 and scaled path for proportional arrowhead compared to regular `arrow` (10×10) |
-| **Visual Hierarchy** | Spanning bracket rectangle shows scope and duration; contained self-messages have small arrows; outside messages use character marker. Context immediately apparent from rendering style |
-| **Benefits** | Eliminates all full 3-segment brackets; deeply nested scenarios stay clean; simple vs complex immediately distinguishable; minimal vertical space; proportional arrows maintain visual consistency |
-| **Status** | ✅ Implemented & Tested (Commit: 7b19de1) |
+| **Decision** | Render all self-messages using spanning brackets exclusively; no character markers (↩) or explicit 3-segment arrows |
+| **Context** | Previous approach attempted three different rendering modes (markers, arrows, brackets), creating complexity and inconsistency. Decision to standardize on spanning brackets for clarity |
+| **Single Approach** | All self-messages (simple, nested, or standalone) render as: (1) Spanning bracket rectangle on left side of lane at appropriate nesting depth, (2) Label text positioned to the right of the lane near the bracket start |
+| **Visual Indication** | The spanning bracket rectangle itself (gray filled 2px rectangle) indicates the self-message occurrence and span; proportional nesting depth through horizontal offset left |
+| **Label Positioning** | Label text placed to the right of the lane (x=lane_x + 10), slightly above the bracket line (y - 2px); positioned like regular messages but anchored to the lane center |
+| **Nesting Depth** | Bracket position follows same formula as spanning bracket nesting: `right_edge = lane_x - (2 + n*4)` for depth n |
+| **Removes Complexity** | Eliminates need for ↩ character marker function and 3-segment arrow function; single unified rendering path for all self-messages |
+| **Benefits** | Consistent visual style across all message types; no special characters in diagrams; spanning brackets provide clear duration/scope indication; cleaner SVG output; easier to maintain |
+| **Status** | ✅ Implemented & Tested |
 
 ### ADR-009: Spanning Bracket Visual Redesign - Left-Side Duration Rectangles
 | Aspect | Details |
@@ -99,6 +100,19 @@
 | **Consequences** | Bracket height calculation includes return arrow space (22px when return present, vs 2px for message-only); max_y tracking required during positioning pass |
 | **Status** | ✅ Implemented & Tested |
 
+### ADR-011: Self-Message Function Name Label Alignment on Spanning Brackets
+| Aspect | Details |
+|--------|---------|
+| **Decision** | For self-messages (src_obj == dst_obj), render function name label to the left of spanning bracket with label top aligned to bracket top (y_start); no label for cross-object messages |
+| **Context** | Function names on spanning brackets needed clear positioning convention to avoid confusion about label placement relative to bracket start position |
+| **Rationale** | Text top alignment with bracket top provides unambiguous visual relationship; browser-independent (uses SVG text baseline + ascent calculation); self-messages get labels, cross-object messages do not (labels already on message arrows) |
+| **Implementation** | Text positioned with baseline at `y_start + ascent` where ascent ≈ 10px for 12px font; x-position at `bracket_left - TEXT_PADDING` (5px left of bracket); text-anchor="end" for right-alignment |
+| **Visual Result** | For self-messages: function name appears aligned vertically with the top of the gray spanning bracket rectangle on the left side of the lane; top of text character aligns with top of bracket |
+| **Self-Message Check** | Rendered as label only when `src_obj == dst_obj`; cross-object messages (Obj1→Obj2) omit bracket label and show label on message arrow instead |
+| **Label Visibility** | Labels positioned left of brackets, text character height: ~10px top margin, ~2px descent; readable and non-overlapping |
+| **Test Coverage** | test_self_message_label_alignment.csv: Verifies three nested self-messages (Msg1, Msg1a, Msg1b) all have labels top-aligned to bracket tops at their respective nesting depths |
+| **Status** | ✅ Implemented & Tested |
+
 ---
 
 ## Summary Table: Evolution of Key Constants
@@ -126,48 +140,36 @@
 - test_ui_controls
 - test_verbosity
 
-## Final Metrics (Rendering Examples - Current Three-Tier Design with Refined Arrows)
+## Final Metrics (Rendering Examples - Spanning Brackets Only for All Self-Messages)
 
-### test_message_nesting.csv (Complex with Nesting)
+### test_message_nesting.csv (Complex with Spanning Brackets)
 ```
-Msg1 (bracket start): Spanning bracket rectangle on left, x=96-98, y=135→182
-    └─ Msg1a (inside bracket): Small 3-segment arrow (12px wide, 10px tall)
-       ├─ Arrow: left horizontal (12px) → down (10px) → right with small arrowhead
-       ├─ Label: positioned LEFT of vertical segment, right-anchored
-       ├─ Arrowhead: proportional small marker (5×5, half-size of regular 10×10)
-       └─ Msg1b (cross-message): regular arrow to Obj2
-       └─ response1b (return): dashed return arrow, centered text
-Msg1 (bracket end): Spanning bracket rectangle closes
+Msg1 (self-message): Spanning bracket rectangle on left of Obj1, y=135→182
+    └─ Msg1a (nested self-message): Spanning bracket at deeper nesting level (further left)
+       ├─ Bracket: Gray 2px rectangle at nesting depth 1 (x=92-94)
+       ├─ Label: "Msg1a()" positioned right of lane (x=110)
+       ├─ Msg1b (cross-message): Regular arrow from Obj1 to Obj2 (different lanes)
+       └─ response1b (return): Dashed return arrow, centered text
+Msg1b (cross-message): Arrow from Obj1 (x=100) to Obj2 (x=160), y=150
 
 Actual SVG rendering:
-  - Small arrow: <line marker-end="url(#arrow-small)"/>
-  - Label: <text x="83" text-anchor="end">Msg1a()</text> (left of vertical at x=88)
-  - Arrowhead: using marker id="arrow-small" (5×5)
+  - Msg1a bracket: <rect x="92" y="135" width="2" height="15" fill="#666" opacity="0.7"/>
+  - Msg1a label: <text x="110" y="133">Msg1a()</text>
+  - Msg1b arrow: <line x1="100" y1="150" x2="160" y2="150" marker-end="url(#arrow)"/>
 ```
 
-### nested_self_messages.csv (All Simple, No Brackets)
+### nested_self_messages.csv (All Simple Self-Messages with Spanning Brackets)
 ```
-Msg1() at y=120:  ↩ Msg1()           (simple marker)
-Msg1a() at y=135: ↩ Msg1a()          (simple marker)
-Msg1b at y=120:   arrow to Obj2
-response at y=150: return arrow
+Msg1 at y=120:   Spanning bracket (depth 0, x=96-98) + label "Msg1()"
+Msg1a at y=135:  Spanning bracket (depth 1, x=92-94) + label "Msg1a()"
+Msg1b at y=120:  Regular arrow to Obj2
+response at y=150: Return arrow with centered label
 
-All self-messages render as minimal ↩ character since none
-are inside spanning brackets.
+All self-messages render as spanning brackets - no character markers,
+no 3-segment arrows. The bracket rectangle indicates message occurrence
+and span; label appears to the right of the lane.
 ```
 
-### Arrow Marker Comparison
-| Marker | Size | Path | Usage |
-|--------|------|------|-------|
-| `arrow` | 10×10, refX=10, refY=3 | M0,0 L0,6 L9,3 z | Regular messages, return arrows |
-| `arrow-small` | 5×5, refX=5, refY=1.5 | M0,0 L0,3 L4,1.5 z | Small 3-segment arrows in bracketed self-messages |
-
-### Design Modes in Action
-| Location | Self-Message Type | Rendering | Space Used |
-|----------|------------------|-----------|-----------|
-| Inside spanning bracket | Nested/complex | Small 3-segment arrow (12×10px) | Minimal |
-| Outside all brackets | Simple/standalone | ↩ character + label | Minimal |
-| Bracket endpoints | Complex container | Spanning rectangle only | Vertical span only |
 
 ## Design Evolution Summary
 
@@ -185,23 +187,24 @@ are inside spanning brackets.
 - Complex self-messages: left-side duration rectangles
 - Dramatic reduction in visual clutter and vertical space usage
 
-**Phase 5 (Current - Three-Tier Self-Message Optimization):**
-- Inside brackets: compact 3-segment arrow (12×10px) with message overlay arrowhead
-- Simple/standalone: minimal ↩ character
-- Bracket endpoints: skip rendering (rectangle shows scope)
-- Cleaner visual distinction between contexts
-- Optimized for readability and vertical space efficiency
+**Phase 5 (Unified Spanning Bracket Approach - Current):**
+- All self-messages use spanning brackets exclusively
+- No character markers (↩); no explicit 3-segment arrows
+- Left-side duration rectangles for all self-messages
+- Nesting depth shown through horizontal offset
+- Unified, consistent visual approach across all message types
 
 ## Key Improvements Across Phases
 
 | Aspect | Original | Phase 3 | Phase 4 | Current (Phase 5) |
 |--------|----------|---------|---------|-------------------|
-| Simple self-messages | 3-segment brackets | 3-segment brackets | ↩ char only | ↩ char only |
-| Bracketed self-messages | 3-segment brackets | 3-segment brackets | 3-seg brackets | Small 3-seg arrows |
-| Complex self-messages | 3-segment brackets | Left rectangle | Left rectangle | Left rectangle |
+| Simple self-messages | 3-segment brackets | 3-segment brackets | ↩ char only | Spanning bracket |
+| Bracketed self-messages | 3-segment brackets | 3-segment brackets | 3-seg brackets | Spanning bracket |
+| Complex self-messages | 3-segment brackets | Left rectangle | Left rectangle | Spanning bracket |
 | Message gaps | 2px | 10px | 10px | 10px |
-| Visual distinction | None | Low | Medium | High |
+| Visual distinction | None (all same) | Low | Medium | High (bracket depth) |
 | Space efficiency | Poor | Good | Very good | Excellent |
+| Rendering complexity | High | Medium | Medium | Low (unified) |
 
-## Decision Status: ✅ COMPLETE & EVOLVED
-All design decisions implemented, tested, and validated. Latest redesign improves visual clarity while maintaining backward compatibility.
+## Decision Status: ✅ COMPLETE & FINALIZED
+All design decisions implemented, tested, and validated. Final redesign unifies all self-message rendering to spanning brackets only, eliminating special character markers and explicit arrow overlays for maximum clarity and consistency.

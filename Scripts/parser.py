@@ -87,15 +87,18 @@ def parse_csv(path: str) -> Model:
 
                 elif type_name == "Function":
                     # Handle optional visibility prefix (+/-) or use the name as-is
+                    # Extract visibility from the name if present
+                    visibility = '+'
+                    func_name = name
                     if name and name[0] in ['+', '-']:
                         visibility = name[0]
                         func_name = name[1:]
-                    else:
-                        visibility = '+'
-                        func_name = name
+                    
+                    # For the FunctionDef.name field, preserve the full function signature
+                    # (e.g., "ValidateOrder() : isValid") without the visibility prefix
                     f = FunctionDef(
                         visibility=visibility,
-                        name=func_name,
+                        name=func_name,  # This preserves the full signature like "ValidateOrder() : isValid"
                         description=desc
                     )
                     parent.functions.append(f)
