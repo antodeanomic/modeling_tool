@@ -41,25 +41,13 @@
         .selector-group {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
         
         .selector-label {
             font-size: 13px;
             color: #666;
             font-weight: 500;
-            min-width: 40px;
-        }
-        
-        .diagram-selector {
-            padding: 6px 10px;
-            font-size: 14px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background-color: #fff;
-            cursor: pointer;
-            color: #333;
-            min-width: 150px;
         }
         
         .csv-selector {
@@ -70,7 +58,7 @@
             background-color: #fff;
             cursor: pointer;
             color: #333;
-            min-width: 180px;
+            min-width: 220px;
         }
         
         .diagram-selector:hover {
@@ -214,16 +202,9 @@
 <body>
     <div class="header">
         <div class="title">
-            <span>Diagrams</span>
+            <span>Diagrams:</span>
             <div class="selector-group">
-                <label class="selector-label">File:</label>
                 <select class="csv-selector" id="csvSelector">
-                    <option>Loading files...</option>
-                </select>
-            </div>
-            <div class="selector-group">
-                <label class="selector-label">Diagram:</label>
-                <select class="diagram-selector" id="diagramSelector">
                     <option>Loading diagrams...</option>
                 </select>
             </div>
@@ -258,13 +239,11 @@
             selectedLanes: [],
             allLanes: [],
             allCsvs: [],
-            allSequences: [],
             isLoading: false
         };
         
         // DOM elements
         const csvSelector = document.getElementById('csvSelector');
-        const diagramSelector = document.getElementById('diagramSelector');
         const menuButton = document.getElementById('menuButton');
         const menu = document.getElementById('menu');
         const diagramArea = document.getElementById('diagramArea');
@@ -344,36 +323,20 @@
                 }
                 
                 const data = await response.json();
-                state.allSequences = data.sequences || [];
+                const sequences = data.sequences || [];
                 state.allLanes = data.lanes || [];
                 state.selectedLanes = [...state.allLanes];
                 
-                console.log('Sequences loaded:', state.allSequences);
+                console.log('Sequences loaded:', sequences);
                 console.log('Lanes loaded:', state.allLanes);
                 
-                // Populate diagram selector
-                diagramSelector.innerHTML = '';
-                if (state.allSequences.length === 0) {
-                    console.error('No sequences found in response');
-                    diagramSelector.innerHTML = '<option>No diagrams available</option>';
-                    diagramSelector.disabled = true;
-                    return;
+                // Auto-select the first sequence (each CSV has one)
+                if (sequences.length === 0) {
+                    throw new Error('No sequences found');
                 }
                 
-                state.allSequences.forEach(seq => {
-                    const option = document.createElement('option');
-                    option.value = seq.id;
-                    option.textContent = seq.name;
-                    diagramSelector.appendChild(option);
-                });
-                
-                // Select first diagram by default
-                if (state.allSequences.length > 0) {
-                    state.sequence = state.allSequences[0].id;
-                    diagramSelector.value = state.sequence;
-                }
-                
-                diagramSelector.addEventListener('change', onDiagramChange);
+                state.sequence = sequences[0].id;
+                console.log(`Auto-selected sequence: ${state.sequence}`);
             } catch (error) {
                 console.error('Error loading sequences:', error);
                 diagramArea.innerHTML = `<div class="error">Error loading sequences: ${error.message}</div>`;
@@ -422,11 +385,6 @@
             await loadDiagram();
         }
         
-        async function onDiagramChange(e) {
-            state.sequence = e.target.value;
-            await loadDiagram();
-        }
-        
         async function onVerbosityChange(e) {
             state.verbosity = e.target.value;
             await loadDiagram();
@@ -447,7 +405,7 @@
         async function loadDiagram() {
             if (state.isLoading) return;
             if (!state.sequence || !state.csv) {
-                diagramArea.innerHTML = '<div style="color: #999;">Please select a CSV and diagram</div>';
+                diagramArea.innerHTML = '<div style="color: #999;">Loading...</div>';
                 return;
             }
             
