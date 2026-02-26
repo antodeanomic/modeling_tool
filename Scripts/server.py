@@ -20,7 +20,7 @@ from urllib.parse import urlparse, parse_qs
 from parser import parse_csv
 from svg_renderer import render_svg
 
-# Configuration - find CSV file flexibly
+# Configuration - find CSV file and HTML flexibly
 def find_csv_file():
     """Search for sample_model.csv in common locations."""
     search_paths = [
@@ -38,7 +38,29 @@ def find_csv_file():
     
     raise FileNotFoundError("Could not find sample_model.csv in any standard location")
 
+def find_html_file():
+    """Search for diagram_viewer.html relative to this script."""
+    # First try relative to the Scripts directory where this file is
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_html = os.path.join(script_dir, 'diagram_viewer.html')
+    if os.path.exists(script_html):
+        return script_html
+    
+    # Fallback search paths
+    search_paths = [
+        "Scripts/diagram_viewer.html",
+        "../Scripts/diagram_viewer.html",
+        "diagram_viewer.html",
+    ]
+    
+    for path in search_paths:
+        if os.path.exists(path):
+            return os.path.abspath(path)
+    
+    raise FileNotFoundError("Could not find diagram_viewer.html in any standard location")
+
 CSV_PATH = find_csv_file()
+HTML_PATH = find_html_file()
 SEQUENCE_ID = "SoftReq0001"
 
 def load_model_and_sequence():
@@ -65,7 +87,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
         if parsed_path.path == '/' or parsed_path.path == '':
             # Serve the HTML viewer at the root
             try:
-                with open('diagram_viewer.html', 'r', encoding='utf-8') as f:
+                with open(HTML_PATH, 'r', encoding='utf-8') as f:
                     html_content = f.read()
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
