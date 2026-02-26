@@ -161,10 +161,14 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             if not sequences:
                 sequences = [{'id': 'default', 'name': 'No sequences found'}]
             
+            print(f"[lanes] Found {len(sequences)} sequences: {[s['id'] for s in sequences]}")
+            
             # Get lanes from the first sequence (if available)
             lanes = []
             if model.sequences:
                 lanes = model.sequences[0].get_lanes()
+            
+            print(f"[lanes] Found {len(lanes)} lanes: {lanes}")
             
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
@@ -178,6 +182,9 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 "verbosity_levels": ["Low", "Normal", "High"]
             }).encode('utf-8'))
         except Exception as e:
+            print(f"[lanes] Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             self.send_response(400)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
@@ -192,8 +199,10 @@ def run_server(port=8000):
     """Run the HTTP server."""
     # Validate that CSV can be loaded on startup
     try:
-        model, sequence = load_model_and_sequence()
-        print(f"[OK] CSV loaded successfully with {len(model.classes)} classes and sequence '{sequence.seq_id}'")
+        model = load_model()
+        if not model.sequences:
+            raise ValueError("No sequences found in CSV")
+        print(f"[OK] CSV loaded successfully with {len(model.classes)} classes and {len(model.sequences)} sequence(s)")
     except Exception as e:
         print(f"Error: {str(e)}")
         sys.exit(1)

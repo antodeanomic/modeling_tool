@@ -238,17 +238,30 @@
         // Initialize
         async function init() {
             try {
+                console.log('Initializing diagram viewer...');
+                
                 // Fetch available sequences and lanes
                 const response = await fetch('/api/lanes');
+                console.log('Fetch response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                console.log('API response:', data);
                 
                 state.allSequences = data.sequences || [];
                 state.allLanes = data.lanes || [];
-                state.selectedLanes = [...state.allLanes]; // Select all by default
+                state.selectedLanes = [...state.allLanes];
+                
+                console.log('Sequences loaded:', state.allSequences);
+                console.log('Lanes loaded:', state.allLanes);
                 
                 // Populate diagram selector
                 diagramSelector.innerHTML = '';
                 if (state.allSequences.length === 0) {
+                    console.error('No sequences found in response');
                     diagramSelector.innerHTML = '<option>No diagrams available</option>';
                     diagramSelector.disabled = true;
                     return;
@@ -297,6 +310,7 @@
                 // Load initial diagram
                 loadDiagram();
             } catch (error) {
+                console.error('Initialization error:', error);
                 diagramArea.innerHTML = `<div class="error">Error loading configuration: ${error.message}</div>`;
             }
         }
