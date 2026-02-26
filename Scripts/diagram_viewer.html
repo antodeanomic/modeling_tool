@@ -33,6 +33,25 @@
             font-size: 18px;
             font-weight: bold;
             color: #333;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .diagram-selector {
+            padding: 6px 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fff;
+            cursor: pointer;
+            color: #333;
+            min-width: 200px;
+        }
+        
+        .diagram-selector:hover {
+            border-color: #999;
+            background-color: #f9f9f9;
         }
         
         .menu-button {
@@ -170,7 +189,12 @@
 </head>
 <body>
     <div class="header">
-        <div class="title">Sequence Diagram Viewer</div>
+        <div class="title">
+            <span>Sequence Diagrams</span>
+            <select class="diagram-selector" id="diagramSelector">
+                <option>Loading diagrams...</option>
+            </select>
+        </div>
         <button class="menu-button" id="menuButton">⋯</button>
     </div>
     
@@ -195,13 +219,16 @@
     <script>
         // State
         let state = {
+            sequence: '',
             verbosity: 'High',
             selectedLanes: [],
             allLanes: [],
+            allSequences: [],
             isLoading: false
         };
         
         // DOM elements
+        const diagramSelector = document.getElementById('diagramSelector');
         const menuButton = document.getElementById('menuButton');
         const menu = document.getElementById('menu');
         const diagramArea = document.getElementById('diagramArea');
@@ -211,12 +238,36 @@
         // Initialize
         async function init() {
             try {
-                // Fetch available lanes
+                // Fetch available sequences and lanes
                 const response = await fetch('/api/lanes');
                 const data = await response.json();
                 
-                state.allLanes = data.lanes;
-                state.selectedLanes = [...data.lanes]; // Select all by default
+                state.allSequences = data.sequences || [];
+                state.allLanes = data.lanes || [];
+                state.selectedLanes = [...state.allLanes]; // Select all by default
+                
+                // Populate diagram selector
+                diagramSelector.innerHTML = '';
+                if (state.allSequences.length === 0) {
+                    diagramSelector.innerHTML = '<option>No diagrams available</option>';
+                    diagramSelector.disabled = true;
+                    return;
+                }
+                
+                state.allSequences.forEach(seq => {
+                    const option = document.createElement('option');
+                    option.value = seq.id;
+                    option.textContent = seq.name;
+                    diagramSelector.appendChild(option);
+                });
+                
+                // Select first diagram by default
+                if (state.allSequences.length > 0) {
+                    state.sequence = state.allSequences[0].id;
+                    diagramSelector.value = state.sequence;
+                }
+                
+                diagramSelector.addEventListener('change', onDiagramChange);
                 
                 // Populate verbosity options
                 data.verbosity_levels.forEach(level => {
@@ -261,6 +312,11 @@
             }
         });
         
+        async function onDiagramChange(e) {
+            state.sequence = e.target.value;
+            await loadDiagram();
+        }
+        
         async function onVerbosityChange(e) {
             state.verbosity = e.target.value;
             await loadDiagram();
@@ -280,13 +336,17 @@
         
         async function loadDiagram() {
             if (state.isLoading) return;
+            if (!state.sequence) {
+                diagramArea.innerHTML = '<div style="color: #999;">Please select a diagram</div>';
+                return;
+            }
             
             state.isLoading = true;
             diagramArea.innerHTML = '<div style="color: #999;">Loading diagram...</div>';
             
             try {
                 const lanesParam = state.selectedLanes.length > 0 ? state.selectedLanes.join(',') : '';
-                const url = `/api/diagram?verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
+                const url = `/api/diagram?sequence=${encodeURIComponent(state.sequence)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
                 
                 const response = await fetch(url);
                 

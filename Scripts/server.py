@@ -61,18 +61,21 @@ def find_html_file():
 
 CSV_PATH = find_csv_file()
 HTML_PATH = find_html_file()
-SEQUENCE_ID = "SoftReq0001"
 
-def load_model_and_sequence():
+def load_model():
+    """Load model from CSV."""
+    return parse_csv(CSV_PATH)
+
+def load_model_and_sequence(sequence_id):
     """Load and return model and sequence from CSV.
     
     This is called on each request to ensure the latest CSV is loaded.
     """
     try:
-        model = parse_csv(CSV_PATH)
-        sequence = model.get_sequence(SEQUENCE_ID)
+        model = load_model()
+        sequence = model.get_sequence(sequence_id)
         if not sequence:
-            raise ValueError(f"Sequence {SEQUENCE_ID} not found")
+            raise ValueError(f"Sequence {sequence_id} not found")
         return model, sequence
     except Exception as e:
         raise RuntimeError(f"Failed to load CSV: {str(e)}")
@@ -112,8 +115,16 @@ class DiagramHandler(SimpleHTTPRequestHandler):
     def handle_diagram_request(self, query_string):
         """Generate and return an SVG diagram."""
         params = parse_qs(query_string)
+        sequence_id = params.get('sequence', [''])[0]
         verbosity = params.get('verbosity', ['High'])[0]
         lanes_str = params.get('lanes', [''])[0]
+        
+        if not sequence_id:
+            self.send_response(400)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "sequence parameter is required"}).encode('utf-8'))
+            return
         
         lanes_filter = None
         if lanes_str:
@@ -121,7 +132,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
         
         try:
             # Load model and sequence on each request (fresh from CSV)
-            model, sequence = load_model_and_sequence()
+            model, sequence = load_model_and_sequence(sequence_id)
             
             svg = render_svg(model, sequence, verbosity_level=verbosity, lanes_filter=lanes_filter)
             
@@ -140,12 +151,21 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
     
     def handle_lanes_request(self):
-        """Return available lanes."""
+        """Return available lanes and sequences."""
         try:
-            # Load model and sequence on each request (fresh from CSV)
-            model, sequence = load_model_and_sequence()
+            # Load model (don't need a specific sequence for lanes list)
+            model = load_model()
             
-            lanes = sequence.get_lanes()
+            # Get all sequences
+            sequences = [{'id': s.seq_id, 'name': s.seq_id} for s in model.sequences]
+            if not sequences:
+                sequences = [{'id': 'default', 'name': 'No sequences found'}]
+            
+            # Get lanes from the first sequence (if available)
+            lanes = []
+            if model.sequences:
+                lanes = model.sequences[0].get_lanes()
+            
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
@@ -153,6 +173,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.send_header('Expires', '0')
             self.end_headers()
             self.wfile.write(json.dumps({
+                "sequences": sequences,
                 "lanes": lanes,
                 "verbosity_levels": ["Low", "Normal", "High"]
             }).encode('utf-8'))
