@@ -8,8 +8,37 @@ from urllib.parse import urlparse, parse_qs
 from parser import parse_csv
 from svg_renderer import render_svg
 
-# Configuration
-CSV_PATH = "Source/sample_model.csv"
+#!/usr/bin/env python3
+"""Simple HTTP server for interactive sequence diagram viewer."""
+
+import json
+import sys
+import os
+from pathlib import Path
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+from parser import parse_csv
+from svg_renderer import render_svg
+
+# Configuration - find CSV file flexibly
+def find_csv_file():
+    """Search for sample_model.csv in common locations."""
+    search_paths = [
+        "Source/sample_model.csv",
+        "../Source/sample_model.csv",
+        "sample_model.csv",
+        "../sample_model.csv",
+        "Test/sample_model.csv",
+        "../Test/sample_model.csv",
+    ]
+    
+    for path in search_paths:
+        if os.path.exists(path):
+            return os.path.abspath(path)
+    
+    raise FileNotFoundError("Could not find sample_model.csv in any standard location")
+
+CSV_PATH = find_csv_file()
 SEQUENCE_ID = "SoftReq0001"
 
 def load_model_and_sequence():
