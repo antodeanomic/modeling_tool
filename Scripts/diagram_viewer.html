@@ -38,6 +38,19 @@
             gap: 15px;
         }
         
+        .selector-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .selector-label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            min-width: 40px;
+        }
+        
         .diagram-selector {
             padding: 6px 10px;
             font-size: 14px;
@@ -46,7 +59,18 @@
             background-color: #fff;
             cursor: pointer;
             color: #333;
-            min-width: 200px;
+            min-width: 150px;
+        }
+        
+        .csv-selector {
+            padding: 6px 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fff;
+            cursor: pointer;
+            color: #333;
+            min-width: 180px;
         }
         
         .diagram-selector:hover {
@@ -190,10 +214,19 @@
 <body>
     <div class="header">
         <div class="title">
-            <span>Sequence Diagrams</span>
-            <select class="diagram-selector" id="diagramSelector">
-                <option>Loading diagrams...</option>
-            </select>
+            <span>Diagrams</span>
+            <div class="selector-group">
+                <label class="selector-label">File:</label>
+                <select class="csv-selector" id="csvSelector">
+                    <option>Loading files...</option>
+                </select>
+            </div>
+            <div class="selector-group">
+                <label class="selector-label">Diagram:</label>
+                <select class="diagram-selector" id="diagramSelector">
+                    <option>Loading diagrams...</option>
+                </select>
+            </div>
         </div>
         <button class="menu-button" id="menuButton">⋯</button>
     </div>
@@ -219,15 +252,18 @@
     <script>
         // State
         let state = {
+            csv: '',
             sequence: '',
             verbosity: 'High',
             selectedLanes: [],
             allLanes: [],
+            allCsvs: [],
             allSequences: [],
             isLoading: false
         };
         
         // DOM elements
+        const csvSelector = document.getElementById('csvSelector');
         const diagramSelector = document.getElementById('diagramSelector');
         const menuButton = document.getElementById('menuButton');
         const menu = document.getElementById('menu');
@@ -240,17 +276,74 @@
             try {
                 console.log('Initializing diagram viewer...');
                 
-                // Fetch available sequences and lanes
-                const response = await fetch('/api/lanes');
-                console.log('Fetch response status:', response.status);
+                // First, fetch available CSV files
+                const csvResponse = await fetch('/api/csvs');
+                if (!csvResponse.ok) {
+                    throw new Error(`Failed to load CSV list: ${csvResponse.statusText}`);
+                }
+                const csvData = await csvResponse.json();
+                console.log('Available CSVs:', csvData.csvs);
+                
+                state.allCsvs = csvData.csvs || [];
+                if (state.allCsvs.length === 0) {
+                    diagramArea.innerHTML = '<div class="error">No CSV files found</div>';
+                    return;
+                }
+                
+                // Populate CSV selector
+                csvSelector.innerHTML = '';
+                state.allCsvs.forEach(csv => {
+                    const option = document.createElement('option');
+                    option.value = csv.id;
+                    option.textContent = csv.name;
+                    csvSelector.appendChild(option);
+                });
+                
+                // Select first CSV by default
+                state.csv = state.allCsvs[0].id;
+                csvSelector.value = state.csv;
+                csvSelector.addEventListener('change', onCsvChange);
+                
+                // Load sequences for the selected CSV
+                await loadSequences();
+                
+                // Load lanes
+                await loadLanes();
+                
+                // Populate verbosity options (only once, not CSV-dependent)
+                const lanesResponse = await fetch(`/api/lanes?csv=${encodeURIComponent(state.csv)}`);
+                const lanesData = await lanesResponse.json();
+                
+                lanesData.verbosity_levels.forEach(level => {
+                    const div = document.createElement('div');
+                    div.className = 'radio-option';
+                    div.innerHTML = `
+                        <input type="radio" id="verb_${level}" name="verbosity" value="${level}" 
+                               ${level === state.verbosity ? 'checked' : ''}>
+                        <label for="verb_${level}">${level}</label>
+                    `;
+                    div.querySelector('input').addEventListener('change', onVerbosityChange);
+                    verbosityOptions.appendChild(div);
+                });
+                
+                // Load initial diagram
+                loadDiagram();
+            } catch (error) {
+                console.error('Initialization error:', error);
+                diagramArea.innerHTML = `<div class="error">Error loading configuration: ${error.message}</div>`;
+            }
+        }
+        
+        async function loadSequences() {
+            try {
+                console.log(`Loading sequences for CSV: ${state.csv}`);
+                const response = await fetch(`/api/lanes?csv=${encodeURIComponent(state.csv)}`);
                 
                 if (!response.ok) {
                     throw new Error(`Server returned ${response.status}: ${response.statusText}`);
                 }
                 
                 const data = await response.json();
-                console.log('API response:', data);
-                
                 state.allSequences = data.sequences || [];
                 state.allLanes = data.lanes || [];
                 state.selectedLanes = [...state.allLanes];
@@ -281,22 +374,20 @@
                 }
                 
                 diagramSelector.addEventListener('change', onDiagramChange);
+            } catch (error) {
+                console.error('Error loading sequences:', error);
+                diagramArea.innerHTML = `<div class="error">Error loading sequences: ${error.message}</div>`;
+            }
+        }
+        
+        async function loadLanes() {
+            try {
+                const response = await fetch(`/api/lanes?csv=${encodeURIComponent(state.csv)}`);
+                const data = await response.json();
                 
-                // Populate verbosity options
-                data.verbosity_levels.forEach(level => {
-                    const div = document.createElement('div');
-                    div.className = 'radio-option';
-                    div.innerHTML = `
-                        <input type="radio" id="verb_${level}" name="verbosity" value="${level}" 
-                               ${level === state.verbosity ? 'checked' : ''}>
-                        <label for="verb_${level}">${level}</label>
-                    `;
-                    div.querySelector('input').addEventListener('change', onVerbosityChange);
-                    verbosityOptions.appendChild(div);
-                });
-                
-                // Populate layers checkboxes
-                state.allLanes.forEach(lane => {
+                // Clear and repopulate layer checkboxes
+                layersList.innerHTML = '';
+                data.lanes.forEach(lane => {
                     const div = document.createElement('div');
                     div.className = 'checkbox-option';
                     div.innerHTML = `
@@ -306,12 +397,8 @@
                     div.querySelector('input').addEventListener('change', onLayerChange);
                     layersList.appendChild(div);
                 });
-                
-                // Load initial diagram
-                loadDiagram();
             } catch (error) {
-                console.error('Initialization error:', error);
-                diagramArea.innerHTML = `<div class="error">Error loading configuration: ${error.message}</div>`;
+                console.error('Error loading lanes:', error);
             }
         }
         
@@ -325,6 +412,15 @@
                 menu.classList.remove('active');
             }
         });
+        
+        async function onCsvChange(e) {
+            state.csv = e.target.value;
+            console.log(`CSV changed to: ${state.csv}`);
+            // Reload sequences and lanes for this CSV
+            await loadSequences();
+            await loadLanes();
+            await loadDiagram();
+        }
         
         async function onDiagramChange(e) {
             state.sequence = e.target.value;
@@ -350,8 +446,8 @@
         
         async function loadDiagram() {
             if (state.isLoading) return;
-            if (!state.sequence) {
-                diagramArea.innerHTML = '<div style="color: #999;">Please select a diagram</div>';
+            if (!state.sequence || !state.csv) {
+                diagramArea.innerHTML = '<div style="color: #999;">Please select a CSV and diagram</div>';
                 return;
             }
             
@@ -360,7 +456,7 @@
             
             try {
                 const lanesParam = state.selectedLanes.length > 0 ? state.selectedLanes.join(',') : '';
-                const url = `/api/diagram?sequence=${encodeURIComponent(state.sequence)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
+                const url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&sequence=${encodeURIComponent(state.sequence)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
                 
                 const response = await fetch(url);
                 
