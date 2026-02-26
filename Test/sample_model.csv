@@ -142,23 +142,24 @@ Sequence,SoftReq_COMPREHENSIVE_TEST,Comprehensive multi-level nesting test with 
             Obj3,Obj4,FormatAmount,amount,formatted
                 Obj4,Obj5,RenderTemplate,templateId,html
         Obj1,Obj1,CleanupResources,resourceIds,cleaned
-    Obj1,Obj1,DeepFunc1,1,result1
-        Obj1,Obj1,DeepFunc2,2,result2
-            Obj1,Obj1,DeepFunc3,3,result3
-                Obj1,Obj1,DeepFunc4,4,result4
-                    Obj1,Obj1,DeepFunc5,5,result5
-                        Obj1,Obj1,DeepFunc6,6,result6
-                            Obj1,Obj1,DeepFunc7,7,result7
-                                Obj1,Obj1,DeepFunc8,8,result8
-                                    Obj1,Obj1,DeepFunc9,9,result9
-                                        Obj1,Obj1,DeepFunc10,10,result10
-                                            Obj1,Obj1,DeepFunc11,11,result11
-                                                Obj1,Obj1,DeepFunc12,12,result12
-                                                    Obj1,Obj1,DeepFunc13,13,result13
-                                                        Obj1,Obj1,DeepFunc14,14,result14
-                                                            Obj1,Obj1,DeepFunc15,15,result15
-                                                                Obj1,Obj1,DeepFunc16,16,result16
-                                                                    Obj1,Obj1,DeepFunc17,17,result17
-                                                                        Obj1,Obj1,DeepFunc18,18,result18
-                                                                            Obj1,Obj1,DeepFunc19,19,result19
-                                                                                Obj1,Obj1,DeepFunc20,20,result20
+        
+        Obj1,Obj1,DeepFunc1,1,result1
+            Obj1,Obj1,DeepFunc2,2,result2
+                Obj1,Obj1,DeepFunc3,3,result3
+                    Obj1,Obj1,DeepFunc4,4,result4
+                        Obj1,Obj1,DeepFunc5,5,result5
+                            Obj1,Obj1,DeepFunc6,6,result6
+                                Obj1,Obj1,DeepFunc7,7,result7
+                                    Obj1,Obj1,DeepFunc8,8,result8
+                                        Obj1,Obj1,DeepFunc9,9,result9
+                                            Obj1,Obj1,DeepFunc10,10,result10
+                                                Obj1,Obj1,DeepFunc11,11,result11
+                                                    Obj1,Obj1,DeepFunc12,12,result12
+                                                        Obj1,Obj1,DeepFunc13,13,result13
+                                                            Obj1,Obj1,DeepFunc14,14,result14
+                                                                Obj1,Obj1,DeepFunc15,15,result15
+                                                                    Obj1,Obj1,DeepFunc16,16,result16
+                                                                        Obj1,Obj1,DeepFunc17,17,result17
+                                                                            Obj1,Obj1,DeepFunc18,18,result18
+                                                                                Obj1,Obj1,DeepFunc19,19,result19
+                                                                                    Obj1,Obj1,DeepFunc20,20,result20

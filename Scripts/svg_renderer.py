@@ -2,6 +2,7 @@ from model import Model, SequenceDef, NoteDef
 
 FONT_SIZE = 12  # Font size for all text labels
 ROW_HEIGHT = FONT_SIZE * 2  # Spacing for consecutive message rows (2x font height)
+ROW_SPACING = 6  # Extra spacing between rows
 LANE_WIDTH = 200
 PARTICIPANT_BOX_WIDTH = 140
 PARTICIPANT_BOX_HEIGHT = 40
@@ -102,30 +103,33 @@ def detect_spanning_brackets(steps) -> dict:
     
     A spanning bracket represents the scope of a function call:
     - Starts when a function is called (defining row)
-    - Ends when nesting depth decreases (next row with lower depth) or at file end
+    - Ends when nesting depth decreases (next row/step with lower depth) or at file end
     
-    Returns: Dict mapping start_row to (end_row, function_name, src_obj, dst_obj, nesting_depth)
+    Returns: Dict mapping (start_row, nesting_depth) -> (end_row, function_name, src_obj, dst_obj)
     where end_row is the last row where this function's scope is active.
+    Keys use (start_row, nesting_depth) tuple to allow multiple brackets per row.
     """
     spanning_brackets = {}
-    scope_stack = []  # Stack of (row, depth, src_obj, dst_obj, function) tuples
+    scope_stack = []  # Stack of (step_index, row, depth, src_obj, dst_obj, function) tuples
     
     for i, step in enumerate(steps):
-        # Close any scopes that are deeper than current step
-        while scope_stack and scope_stack[-1][1] >= step.depth:
-            start_row, depth, src_obj, dst_obj, func_name = scope_stack.pop()
-            # Scope ends at the row before current step
+        # Close any scopes that are deeper than or equal to current step's depth
+        # (when nesting decreases, close the deeper scopes)
+        while scope_stack and scope_stack[-1][2] >= step.depth:
+            step_index, start_row, depth, src_obj, dst_obj, func_name = scope_stack.pop()
+            # Scope ends at the step before current
             end_row = steps[i-1].row if i > 0 else start_row
-            spanning_brackets[start_row] = (end_row, func_name, src_obj, dst_obj, depth)
+            # Use (start_row, depth) as key to allow multiple brackets per row
+            spanning_brackets[(start_row, depth)] = (end_row, func_name, src_obj, dst_obj)
         
         # Open new scope for current step
-        scope_stack.append((step.row, step.depth, step.src_obj, step.dst_obj, step.function))
+        scope_stack.append((i, step.row, step.depth, step.src_obj, step.dst_obj, step.function))
     
     # Close any remaining open scopes at end of sequence
     last_row = steps[-1].row if steps else 0
     while scope_stack:
-        start_row, depth, src_obj, dst_obj, func_name = scope_stack.pop()
-        spanning_brackets[start_row] = (last_row, func_name, src_obj, dst_obj, depth)
+        step_index, start_row, depth, src_obj, dst_obj, func_name = scope_stack.pop()
+        spanning_brackets[(start_row, depth)] = (last_row, func_name, src_obj, dst_obj)
     
     return spanning_brackets
 
@@ -280,7 +284,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # Assign Y positions based on unique row numbers
     sorted_rows = sorted(row_to_steps.keys())
     for row_index, row_num in enumerate(sorted_rows):
-        row_to_y[row_num] = 120 + row_index * ROW_HEIGHT
+        row_to_y[row_num] = 120 + row_index * (ROW_HEIGHT + ROW_SPACING)
     
     # Store Y position for each filtered step
     for step in filtered_steps:
@@ -369,7 +373,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     parent_scope_end_y = {}  # Maps parent bracket start_row -> final y position including return arrows
     RETURN_ARROW_SPACING = FONT_SIZE  # Space between message and return arrow (matches font height)
     
-    for start_row, (end_row, func_name, src_obj, dst_obj, nesting_depth) in spanning_brackets.items():
+    for (start_row, nesting_depth), (end_row, func_name, src_obj, dst_obj) in spanning_brackets.items():
         # Bracket appears on DESTINATION lane (where work is performed)
         bracket_lane = dst_obj
         x = lane_positions[bracket_lane]
@@ -382,46 +386,46 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         # Use the full function name from the definition (includes signature for self-messages)
         display_func_name = func_def.name if func_def else func_name
         # Store src_obj and dst_obj to determine if this is a self-message
-        bracket_render_info[start_row] = (x, y_start, y_end, display_func_name, func_tooltip, nesting_depth, src_obj, dst_obj)
+        bracket_render_info[(start_row, nesting_depth)] = (x, y_start, y_end, display_func_name, func_tooltip, nesting_depth, src_obj, dst_obj)
         
         # Track bracket end for return arrow deferral
-        bracket_end_for_start_row[start_row] = end_row
+        bracket_end_for_start_row[(start_row, nesting_depth)] = end_row
         
         # Calculate final y position including return arrow spacing
         # Return arrow appears after the last message in the bracket
-        parent_scope_end_y[start_row] = y_end + RETURN_ARROW_SPACING
+        parent_scope_end_y[(start_row, nesting_depth)] = y_end + RETURN_ARROW_SPACING
         
         # For the starting step, its return should appear at the ending row
         for step in filtered_steps:
-            if step.row == start_row and step.src_obj == src_obj and step.dst_obj == dst_obj and step.function == func_name:
+            if step.row == start_row and step.depth == nesting_depth and step.src_obj == src_obj and step.dst_obj == dst_obj and step.function == func_name:
                 step_return_row[id(step)] = end_row  # Return appears at end_row
                 break
     
     # Extend parent scopes to include child return arrow positions
     # If a message at depth N is inside a bracket from depth N-1, 
     # the parent bracket should extend to include the child's return arrow position
-    for start_row, (end_row, func_name, src_obj, dst_obj, nesting_depth) in spanning_brackets.items():
+    for (start_row, nesting_depth), (end_row, func_name, src_obj, dst_obj) in spanning_brackets.items():
         # Find all nested messages (higher depth that fall within this bracket)
-        for inner_start_row, (inner_end_row, _, _, _, inner_depth) in spanning_brackets.items():
+        for (inner_start_row, inner_depth), (inner_end_row, _, _, _) in spanning_brackets.items():
             if inner_start_row != start_row and start_row < inner_start_row <= end_row and inner_depth > nesting_depth:
                 # This inner bracket is nested within the current bracket
                 # Extend parent to include inner's return arrow position
                 inner_return_y = row_to_y[inner_end_row] + RETURN_ARROW_SPACING
-                if parent_scope_end_y[start_row] < inner_return_y:
-                    parent_scope_end_y[start_row] = inner_return_y
+                if parent_scope_end_y[(start_row, nesting_depth)] < inner_return_y:
+                    parent_scope_end_y[(start_row, nesting_depth)] = inner_return_y
     
     # Update bracket_render_info with final parent scope end positions
-    for start_row in bracket_render_info:
-        x, y_start, _, func_name, func_tooltip, nesting_depth, src_obj, dst_obj = bracket_render_info[start_row]
+    for (start_row, nesting_depth) in bracket_render_info:
+        x, y_start, _, func_name, func_tooltip, nesting_depth_val, src_obj, dst_obj = bracket_render_info[(start_row, nesting_depth)]
         # Use parent_scope_end_y for the final y_end (already includes return arrow spacing)
-        bracket_render_info[start_row] = (x, y_start, parent_scope_end_y[start_row], func_name, func_tooltip, nesting_depth, src_obj, dst_obj)
+        bracket_render_info[(start_row, nesting_depth)] = (x, y_start, parent_scope_end_y[(start_row, nesting_depth)], func_name, func_tooltip, nesting_depth_val, src_obj, dst_obj)
     
     # Render spanning brackets now that end positions are calculated
-    for start_row, (x, y_start, y_end, func_name, func_tooltip, nesting_depth, src_obj, dst_obj) in bracket_render_info.items():
+    for (start_row, nesting_depth), (x, y_start, y_end, func_name, func_tooltip, nesting_depth_val, src_obj, dst_obj) in bracket_render_info.items():
         # Only show label for self-messages (where src and dst are the same object)
         is_self_message = (src_obj == dst_obj)
         # For cross-object messages, the bracket on the destination object is depth 0 (new scope)
-        bracket_depth = nesting_depth if is_self_message else 0
+        bracket_depth = nesting_depth_val if is_self_message else 0
         bracket_elements = render_spanning_bracket(x, y_start, y_end, func_name, func_tooltip, bracket_depth, is_self_message)
         svg.extend(bracket_elements)
 

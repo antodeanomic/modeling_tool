@@ -225,31 +225,110 @@ def parse_csv(path: str) -> Model:
 
     # Post-processing: assign row numbers to steps that don't have explicit ones
     # Use direction-aware assignment: consecutive messages in same direction get same row number
+    # but prevent wrapping back (e.g., can't go A->B->C->A without crossing lines)
     for seq in model.sequences:
+        # Build a map of participant names to their left-to-right order
+        participants = []
+        for step in seq.steps:
+            if step.src_obj not in participants:
+                participants.append(step.src_obj)
+            if step.dst_obj not in participants:
+                participants.append(step.dst_obj)
+        
         next_auto_row = 1  # Start auto-numbering from 1
         prev_direction = None  # Track direction of previous step
+        prev_src_obj = None  # Track source object of previous step
+        prev_dst_obj = None  # Track destination object of previous step
+        row_min_idx = None  # Min participant index in current row
+        row_max_idx = None  # Max participant index in current row
         
         for step in seq.steps:
-            # If step has no explicit row number (None), auto-assign based on direction
+            # If step has no explicit row number (None), auto-assign based on direction and extent
             if step.row is None:
-                # Calculate direction: either left-to-right, right-to-left, or same (self-message)
-                if step.src_obj == step.dst_obj:
-                    # Self-message - can overlap with other self-messages at same depth
-                    direction = ('self', step.depth)
-                else:
-                    # Compare object names lexicographically to determine direction
-                    # This is consistent and doesn't depend on order in layout
-                    direction = ('forward' if step.src_obj < step.dst_obj else 'backward')
+                # Get participant indices
+                src_idx = participants.index(step.src_obj) if step.src_obj in participants else -1
+                dst_idx = participants.index(step.dst_obj) if step.dst_obj in participants else -1
                 
-                # If direction changed from previous step, move to next row
-                if prev_direction is not None and direction != prev_direction:
+                # Calculate direction and extent
+                if step.src_obj == step.dst_obj:
+                    direction = ('self', step.depth)
+                    extent_min, extent_max = src_idx, src_idx
+                else:
+                    # For cross-object messages, include depth in the tuple: ('forward'/'backward', depth)
+                    direction = ('forward' if src_idx < dst_idx else 'backward', step.depth)
+                    extent_min = min(src_idx, dst_idx)
+                    extent_max = max(src_idx, dst_idx)
+                
+                # Extract direction type and depth (all directions now include depth in tuple)
+                curr_dir_type = direction[0]
+                curr_depth = direction[1]
+                
+                # Check if we need a new row:
+                # 1. Direction type changed (self vs forward vs backward)
+                # 2. For self-messages: depth changed (each nesting level gets different row)
+                # 3. For cross-object messages: depth decreased (returning from deeper nesting)
+                # 4. Source changed on backward messages (context switch)
+                # 5. Would wrap around (extend beyond previous range in a way that crosses)
+                need_new_row = False
+                if prev_direction is not None:
+                    prev_dir_type = prev_direction[0]
+                    prev_depth = prev_direction[1]
+                    
+                    if curr_dir_type != prev_dir_type:
+                        need_new_row = True
+                    else:
+                        # Same direction type - check for depth changes and source changes
+                        if curr_dir_type == 'self':
+                            # For self-messages, any depth change triggers new row
+                            if prev_depth != curr_depth:
+                                need_new_row = True
+                        else:
+                            # For cross-object messages, depth decrease triggers new row
+                            if curr_depth < prev_depth:
+                                need_new_row = True
+                            # Also trigger new row if source changed on backward messages
+                            # (indicates returning from different call context)
+                            elif curr_dir_type == 'backward' and step.src_obj != prev_src_obj:
+                                need_new_row = True
+                            # For consecutive backward messages from same source, check destination
+                            # If destination changes significantly, trigger new row
+                            elif curr_dir_type == 'backward' and step.src_obj == prev_src_obj and step.dst_obj != prev_dst_obj:
+                                need_new_row = True
+                            elif row_min_idx is not None and row_max_idx is not None:
+                                # Check if this message would wrap around
+                                # Forward direction: extent_min should not go backward
+                                # Backward direction: extent_max should not go forward
+                                if curr_dir_type == 'forward' and extent_min < row_min_idx:
+                                    need_new_row = True
+                                elif curr_dir_type == 'backward' and extent_max > row_max_idx:
+                                    need_new_row = True
+                
+                if need_new_row:
                     next_auto_row += 1
+                    row_min_idx = None
+                    row_max_idx = None
                 
                 step.row = next_auto_row
+                
+                # Update row extent (for self-messages, don't expand the range)
+                if curr_dir_type != 'self':
+                    if row_min_idx is None:
+                        row_min_idx = extent_min
+                        row_max_idx = extent_max
+                    else:
+                        row_min_idx = min(row_min_idx, extent_min)
+                        row_max_idx = max(row_max_idx, extent_max)
+                
                 prev_direction = direction
+                prev_src_obj = step.src_obj
+                prev_dst_obj = step.dst_obj
             else:
                 # Explicit row number provided - reset tracking
                 prev_direction = None
+                prev_src_obj = None
+                prev_dst_obj = None
+                row_min_idx = None
+                row_max_idx = None
                 next_auto_row = max(next_auto_row, step.row + 1)
 
     return model
