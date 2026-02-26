@@ -127,12 +127,15 @@ def parse_csv(path: str) -> Model:
 
             # Inside a sequence
             if isinstance(parent, SequenceDef):
-                # Parse step: [Row#], Obj1, Obj2, Func, RetVal, ParamVal1, ..., [@NoteType, NoteContent]
-                # Or lane note: [Row#], LaneName, @NoteType, NoteContent
-                # Row# is optional - if first field (column 0, unindented) is a number, it's the row
+                # Parse step: [Obj1, Obj2, Func, RetVal, ParamVal1, ..., [@NoteType, NoteContent]]
+                # Row number is optional:
+                #   - If provided as first field: [Row#, Obj1, Obj2, Func, ...]
+                #   - If omitted: [Obj1, Obj2, Func, ...] - auto-assigned based on indentation level
+                # Lane note: [LaneName, @NoteType, NoteContent]
+                # Allows multiple messages at same indentation to overlap horizontally (saves vertical space)
                 if type_name not in ["SequenceObjects", "SequenceStep"]:
                     # Check if type_name (first field) is the row number
-                    row_num = 0
+                    row_num = None  # Will be auto-assigned if not provided
                     all_step_data = [type_name] + [clean(c) for c in row[1:] if clean(c)]
                     start_idx = 0
                     
@@ -140,8 +143,9 @@ def parse_csv(path: str) -> Model:
                         row_num = int(type_name)
                         start_idx = 1  # Skip the row number, start from Object1
                     except ValueError:
-                        # type_name is actually the source object
-                        row_num = 0
+                        # type_name is actually the source object (no explicit row number)
+                        # Auto-assign row number based on indentation level
+                        row_num = level  # Use indentation level as row number
                         start_idx = 0
                     
                     step_data = all_step_data[start_idx:]
