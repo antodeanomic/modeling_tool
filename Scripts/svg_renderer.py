@@ -1,7 +1,8 @@
 from model import Model, SequenceDef, NoteDef
 
+FONT_SIZE = 12  # Font size for all text labels
+ROW_HEIGHT = FONT_SIZE * 2  # Spacing for consecutive message rows (2x font height)
 LANE_WIDTH = 200
-ROW_HEIGHT = 20  # Minimal spacing for consecutive message rows (reduced from 60 to save vertical space)
 PARTICIPANT_BOX_WIDTH = 140
 PARTICIPANT_BOX_HEIGHT = 40
 STATE_BOX_PADDING = 6
@@ -366,7 +367,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     bracket_end_for_start_row = {}  # Maps start_row -> end_row
     step_return_row = {}  # Maps step id -> the row where its return arrow should appear
     parent_scope_end_y = {}  # Maps parent bracket start_row -> final y position including return arrows
-    RETURN_ARROW_SPACING = 10  # Space between message and return arrow
+    RETURN_ARROW_SPACING = FONT_SIZE  # Space between message and return arrow (matches font height)
     
     for start_row, (end_row, func_name, src_obj, dst_obj, nesting_depth) in spanning_brackets.items():
         # Bracket appears on DESTINATION lane (where work is performed)
@@ -496,8 +497,21 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             svg.append(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
                        f'stroke="#000" marker-end="url(#arrow)"/>')
 
-            # Forward arrow text with tooltip - positioned close to arrow (1-2px gap)
-            text_elem = f'<text x="{(x1 + x2)/2}" y="{y - 2}" text-anchor="middle" font-family="Arial" font-size="12">{label}</text>'
+            # Forward arrow text with white background box
+            # More accurate text width: ~6.2px per character for 12px Arial font
+            text_width = len(label) * 6.2
+            box_padding = 0
+            box_x = (x1 + x2) / 2 - text_width / 2 - box_padding
+            box_y = y - 7
+            box_width = text_width + (box_padding * 2)
+            box_height = 14
+            
+            # Draw white rectangle behind text (rendered first, so it goes behind)
+            svg.append(f'<rect x="{box_x}" y="{box_y}" width="{box_width}" height="{box_height}" '
+                       f'fill="white" stroke="none"/>')
+            
+            # Draw text on top of the white box, vertically centered on the arrow
+            text_elem = f'<text x="{(x1 + x2)/2}" y="{y}" text-anchor="middle" font-family="Arial" font-size="12" dominant-baseline="middle">{label}</text>'
             if func_tooltip:
                 # Escape special characters in tooltip
                 func_tooltip_escaped = func_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -522,10 +536,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             # This spacing applies to both immediate and deferred returns
             if return_row != step.row:
                 # Deferred: use the end_row's y position plus spacing
-                y_ret = row_to_y[return_row] + 10
+                y_ret = row_to_y[return_row] + 12
             else:
                 # Position below message
-                y_ret = y + 10
+                y_ret = y + 12
 
             # If deferred, store for later rendering at the end_row
             if return_row != step.row:
@@ -593,7 +607,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
 
     # Render deferred return arrows (for messages with spanning brackets)
     for end_row in sorted(deferred_return_arrows.keys()):
-        y_ret = row_to_y[end_row] + 10  # Add 10px spacing below the last message row
+        y_ret = row_to_y[end_row] + 12  # Add 12px spacing below the last message row
         for x1, x2, ret_label, ret_tooltip, _ in deferred_return_arrows[end_row]:
             svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
                        f'stroke="#000" stroke-dasharray="5,5" '
