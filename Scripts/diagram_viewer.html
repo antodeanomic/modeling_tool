@@ -101,10 +101,30 @@
             position: relative;
         }
         
+        .diagram-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
         .diagram-area svg {
-            max-width: 100%;
-            max-height: 100%;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+        }
+        
+        .zoom-indicator {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 100;
+            pointer-events: none;
         }
         
         .menu {
@@ -214,7 +234,8 @@
     
     <div class="container">
         <div class="diagram-area" id="diagramArea">
-            <div style="color: #999;">Loading diagram...</div>
+            <div class="diagram-container" id="diagramContainer"></div>
+            <div class="zoom-indicator" id="zoomIndicator" style="display:none;">100%</div>
         </div>
     </div>
     
@@ -239,6 +260,7 @@
             selectedLanes: [],
             allLanes: [],
             allCsvs: [],
+            zoomLevel: 1.0,
             isLoading: false
         };
         
@@ -247,6 +269,8 @@
         const menuButton = document.getElementById('menuButton');
         const menu = document.getElementById('menu');
         const diagramArea = document.getElementById('diagramArea');
+        const diagramContainer = document.getElementById('diagramContainer');
+        const zoomIndicator = document.getElementById('zoomIndicator');
         const verbosityOptions = document.getElementById('verbosityOptions');
         const layersList = document.getElementById('layersList');
         
@@ -376,6 +400,51 @@
             }
         });
         
+        // Add mouse wheel zoom handler
+        diagramArea.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            // Get current zoom level
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;  // Negative for scroll down (zoom out), positive for scroll up (zoom in)
+            const newZoom = Math.max(0.5, Math.min(3.0, state.zoomLevel + delta));  // Clamp between 0.5x and 3x
+            
+            if (newZoom !== state.zoomLevel) {
+                state.zoomLevel = newZoom;
+                updateZoom();
+            }
+        }, { passive: false });
+        
+        function updateZoom() {
+            const svg = diagramContainer.querySelector('svg');
+            if (svg) {
+                svg.style.transform = `scale(${state.zoomLevel})`;
+                zoomIndicator.textContent = `${Math.round(state.zoomLevel * 100)}%`;
+                zoomIndicator.style.display = state.zoomLevel !== 1.0 ? 'block' : 'none';
+            }
+        }
+        
+        // Add keyboard shortcuts for zoom
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+Plus or Ctrl+Up to zoom in
+            if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=' || e.code === 'Equal')) {
+                e.preventDefault();
+                state.zoomLevel = Math.min(3.0, state.zoomLevel + 0.1);
+                updateZoom();
+            }
+            // Ctrl+Minus or Ctrl+Down to zoom out
+            if ((e.ctrlKey || e.metaKey) && (e.key === '-' || e.code === 'Minus')) {
+                e.preventDefault();
+                state.zoomLevel = Math.max(0.5, state.zoomLevel - 0.1);
+                updateZoom();
+            }
+            // Ctrl+0 to reset zoom
+            if ((e.ctrlKey || e.metaKey) && (e.key === '0' || e.code === 'Digit0')) {
+                e.preventDefault();
+                state.zoomLevel = 1.0;
+                updateZoom();
+            }
+        });
+        
         async function onCsvChange(e) {
             state.csv = e.target.value;
             console.log(`CSV changed to: ${state.csv}`);
@@ -405,14 +474,18 @@
         async function loadDiagram() {
             if (state.isLoading) return;
             if (!state.sequence || !state.csv) {
-                diagramArea.innerHTML = '<div style="color: #999;">Loading...</div>';
+                diagramContainer.innerHTML = '<div style="color: #999;">Loading...</div>';
                 return;
             }
             
             state.isLoading = true;
-            diagramArea.innerHTML = '<div style="color: #999;">Loading diagram...</div>';
+            diagramContainer.innerHTML = '<div style="color: #999;">Loading diagram...</div>';
             
             try {
+                // Reset zoom when loading new diagram
+                state.zoomLevel = 1.0;
+                zoomIndicator.style.display = 'none';
+                
                 const lanesParam = state.selectedLanes.length > 0 ? state.selectedLanes.join(',') : '';
                 const url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&sequence=${encodeURIComponent(state.sequence)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
                 
@@ -424,9 +497,12 @@
                 }
                 
                 const svgText = await response.text();
-                diagramArea.innerHTML = svgText;
+                diagramContainer.innerHTML = svgText;
+                
+                // Apply zoom to the newly loaded SVG
+                updateZoom();
             } catch (error) {
-                diagramArea.innerHTML = `<div class="error">Error loading diagram: ${error.message}</div>`;
+                diagramContainer.innerHTML = `<div class="error">Error loading diagram: ${error.message}</div>`;
             } finally {
                 state.isLoading = false;
             }
