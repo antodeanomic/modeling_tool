@@ -68,31 +68,48 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
     svg_parts = []
     
     left = x - (NOTE_BOX_WIDTH / 2)
+    right = left + NOTE_BOX_WIDTH
     
-    # Draw main rectangle
-    rect = f'<rect x="{left}" y="{y}" width="{NOTE_BOX_WIDTH}" height="{NOTE_BOX_HEIGHT}" fill="{colors["fill"]}" stroke="{colors["stroke"]}" stroke-width="1"/>'
+    # Create note content with type prefix
+    prefixed_content = f"{note.note_type}: {note.content}" if note.content else note.note_type
+    
+    # Draw main rectangle (path that accommodates folded corner)
+    # Rectangle with top-right corner cut out for fold
+    fold_right = right
+    fold_bottom = y + NOTE_FOLD_SIZE
+    
+    # Create path: Start top-left, go right to fold start, up to fold, diagonal cut, down left side
+    rect_path = (f'<path d="M {left},{y} L {fold_right - NOTE_FOLD_SIZE},{y} '
+                 f'L {fold_right},{y + NOTE_FOLD_SIZE} L {fold_right},{y + NOTE_BOX_HEIGHT} '
+                 f'L {left},{y + NOTE_BOX_HEIGHT} Z" '
+                 f'fill="{colors["fill"]}" stroke="{colors["stroke"]}" stroke-width="1"/>')
     if note.content:
-        rect = rect.replace('/>', f'><title>{note.content}</title></rect>', 1)
-    svg_parts.append(rect)
+        rect_path = rect_path.replace('/>', f'><title>{prefixed_content}</title></path>', 1)
+    svg_parts.append(rect_path)
     
-    # Draw folded corner (small triangle in top-right)
-    fold_right = left + NOTE_BOX_WIDTH
-    fold_points = f"{fold_right - NOTE_FOLD_SIZE},{y} {fold_right},{y} {fold_right},{y + NOTE_FOLD_SIZE}"
-    fold = f'<polygon points="{fold_points}" fill="{colors["stroke"]}" opacity="0.3"/>'
-    svg_parts.append(fold)
+    # Draw folded corner (darker shade)
+    fold_left = fold_right - NOTE_FOLD_SIZE
+    fold_path = (f'<path d="M {fold_left},{y} L {fold_right},{y} L {fold_right},{y + NOTE_FOLD_SIZE} Z" '
+                 f'fill="{colors["stroke"]}" opacity="0.4"/>') 
+    svg_parts.append(fold_path)
+    
+    # Draw fold line (diagonal crease)
+    fold_line = (f'<line x1="{fold_left}" y1="{y}" x2="{fold_right}" y2="{y + NOTE_FOLD_SIZE}" '
+                 f'stroke="{colors["stroke"]}" stroke-width="0.5" opacity="0.6"/>')
+    svg_parts.append(fold_line)
     
     # Draw icon/indicator
     icon_x = left + 3
-    icon_y = y + 4
-    icon = f'<text x="{icon_x}" y="{icon_y}" font-size="5" font-weight="bold" fill="{colors["stroke"]}" text-anchor="middle">{colors["icon"]}</text>'
+    icon_y = y + 5
+    icon = f'<text x="{icon_x}" y="{icon_y}" font-size="6" font-weight="bold" fill="{colors["stroke"]}" text-anchor="middle">{colors["icon"]}</text>'
     if note.content:
-        icon = icon.replace('>', f'><title>{note.content}</title>', 1)
+        icon = icon.replace('>', f'><title>{prefixed_content}</title>', 1)
     svg_parts.append(icon)
     
     # If show_text is True, add the content text (truncated to fit)
     if show_text and note.content:
         # Truncate text to fit in the box
-        truncated = note.content[:10] + ".." if len(note.content) > 10 else note.content
+        truncated = prefixed_content[:12] + ".." if len(prefixed_content) > 12 else prefixed_content
         text = f'<text x="{x}" y="{y + NOTE_BOX_HEIGHT - 2}" font-size="5" fill="{colors["stroke"]}" text-anchor="middle">{truncated}</text>'
         svg_parts.append(text)
     
@@ -293,7 +310,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     total_rows = len(row_to_y)
     # Calculate height based on actual last row position plus padding
     max_y = max(row_to_y.values()) if row_to_y else 120
-    height = max_y + 60  # Add 60px padding after last row
+    # Account for notes at the end of the sequence: notes are positioned at y+60, note height is 13
+    height = max_y + 60 + NOTE_BOX_HEIGHT + 20  # Add space for notes plus extra padding
     width = max(lane_positions.values()) + 200
 
     svg = []
@@ -584,8 +602,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 if lane_name in lane_positions:
                     x_lane = lane_positions[lane_name]
                     note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
-                    # Never show inline text, rely on hover tooltip
-                    note_elements = create_note_box(x_lane, note_y, note, show_text=False)
+                    # Show text inline for better visibility
+                    note_elements = create_note_box(x_lane, note_y, note, show_text=True)
                     svg.extend(note_elements)
         
         # Render state changes after this step
