@@ -130,22 +130,24 @@ def parse_csv(path: str) -> Model:
                 # Parse step: [Obj1, Obj2, Func, RetVal, ParamVal1, ..., [@NoteType, NoteContent]]
                 # Row number is optional:
                 #   - If provided as first field: [Row#, Obj1, Obj2, Func, ...]
-                #   - If omitted: [Obj1, Obj2, Func, ...] - auto-assigned based on indentation level
+                #   - If omitted: [Obj1, Obj2, Func, ...] - auto-assigned later based on direction awareness
                 # Lane note: [LaneName, @NoteType, NoteContent]
-                # Allows multiple messages at same indentation to overlap horizontally (saves vertical space)
+                # Direction-aware: consecutive messages in same direction can overlap (saves vertical space)
                 if type_name not in ["SequenceObjects", "SequenceStep"]:
                     # Check if type_name (first field) is the row number
                     row_num = None  # Will be auto-assigned if not provided
                     all_step_data = [type_name] + [clean(c) for c in row[1:] if clean(c)]
                     start_idx = 0
+                    has_explicit_row = False
                     
                     try:
                         row_num = int(type_name)
                         start_idx = 1  # Skip the row number, start from Object1
+                        has_explicit_row = True
                     except ValueError:
                         # type_name is actually the source object (no explicit row number)
-                        # Auto-assign row number based on indentation level
-                        row_num = level  # Use indentation level as row number
+                        # Will auto-assign later based on direction
+                        row_num = None
                         start_idx = 0
                     
                     step_data = all_step_data[start_idx:]
@@ -220,5 +222,34 @@ def parse_csv(path: str) -> Model:
                     )
                     parent.steps.append(step)
                 continue
+
+    # Post-processing: assign row numbers to steps that don't have explicit ones
+    # Use direction-aware assignment: consecutive messages in same direction get same row number
+    for seq in model.sequences:
+        next_auto_row = 1  # Start auto-numbering from 1
+        prev_direction = None  # Track direction of previous step
+        
+        for step in seq.steps:
+            # If step has no explicit row number (None), auto-assign based on direction
+            if step.row is None:
+                # Calculate direction: either left-to-right, right-to-left, or same (self-message)
+                if step.src_obj == step.dst_obj:
+                    # Self-message - can overlap with other self-messages at same depth
+                    direction = ('self', step.depth)
+                else:
+                    # Compare object names lexicographically to determine direction
+                    # This is consistent and doesn't depend on order in layout
+                    direction = ('forward' if step.src_obj < step.dst_obj else 'backward')
+                
+                # If direction changed from previous step, move to next row
+                if prev_direction is not None and direction != prev_direction:
+                    next_auto_row += 1
+                
+                step.row = next_auto_row
+                prev_direction = direction
+            else:
+                # Explicit row number provided - reset tracking
+                prev_direction = None
+                next_auto_row = max(next_auto_row, step.row + 1)
 
     return model

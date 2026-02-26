@@ -121,9 +121,9 @@ Sequence,SoftReq_COMPREHENSIVE_TEST,Comprehensive multi-level nesting test with 
     Caller,Obj1,ProcessOrder,orderId
         Obj1,Obj1,ValidateOrder,isValid
             Obj1,Obj2,CheckInventory,itemId,available
-                Obj2,Obj3,QueryDatabase,query,result
-                    Obj3,Obj4,EncryptQuery,queryStr,encrypted
-                        Obj4,Obj5,SecureTransmit,data,receipt
+            Obj2,Obj3,QueryDatabase,query,result
+            Obj3,Obj4,EncryptQuery,queryStr,encrypted
+            Obj4,Obj5,SecureTransmit,data,receipt
         Obj1,Obj1,CalculatePrice,items,total
             Obj1,Obj2,ApplyDiscount,basePrice,discountedPrice
                 Obj2,Obj4,FormatAmount,amount,formatted

@@ -37,16 +37,16 @@ Class,AuditLog,Audit logger
         Param,query,Query type
         ReturnVal,logged,Logged
 Sequence,SoftReq_TEST_005,Multi-lane filtering
-    1,Client,APIGateway,Authenticate,token123,token123,@Info,Request received
-    2,APIGateway,AuthService,ValidateToken,token123,valid
-    3,AuthService,PermissionService,CheckPermission,user123,read,allowed
-    4,PermissionService,AuthService,CheckPermission,allowed
-    4,AuthService,@Info,Permissions verified
-    5,AuthService,AuditLog,LogAccess,user123,read,logged
-    6,AuditLog,@Info,Audit recorded
-    7,AuthService,APIGateway,ValidateToken,valid
-    8,APIGateway,UserService,FetchUsers,-,userList
-    9,UserService,AuditLog,LogQuery,user123,fetch,logged
-    10,AuditLog,@Info,Query logged
-    11,UserService,APIGateway,FetchUsers,userList
-    12,APIGateway,Client,Authenticate,userList
+    Client,APIGateway,Authenticate,token123,token123,@Info,Request received
+    APIGateway,AuthService,ValidateToken,token123,valid
+    AuthService,PermissionService,CheckPermission,user123,read,allowed
+    PermissionService,AuthService,CheckPermission,allowed
+    AuthService,@Info,Permissions verified
+    AuthService,AuditLog,LogAccess,user123,read,logged
+    AuditLog,@Info,Audit recorded
+    AuthService,APIGateway,ValidateToken,valid
+    APIGateway,UserService,FetchUsers,-,userList
+    UserService,AuditLog,LogQuery,user123,fetch,logged
+    AuditLog,@Info,Query logged
+    UserService,APIGateway,FetchUsers,userList
+    APIGateway,Client,Authenticate,userList
