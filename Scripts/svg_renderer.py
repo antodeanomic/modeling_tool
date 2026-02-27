@@ -209,7 +209,7 @@ def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str,
     
     Returns list of SVG elements as strings.
     """
-    RECTANGLE_WIDTH = 2  # 2px wide rectangle for duration indicator
+    RECTANGLE_WIDTH = 4  # 4px wide rectangle for duration indicator (doubled for visibility)
     MIN_HEIGHT = 15  # Minimum height matching text font height (12px font + padding)
     TEXT_PADDING = 5  # Space between bracket and label text
     
