@@ -12,9 +12,12 @@ NOTE_BOX_WIDTH = 17
 NOTE_BOX_HEIGHT = 13
 NOTE_FOLD_SIZE = 2
 PARTICIPANT_FONT_SIZE = 14
-PARTICIPANT_PADDING = 8  # Padding around text in participant box
+PARTICIPANT_PADDING_WIDTH = 7  # 1 character width margin (~1 char at font size 12)
+PARTICIPANT_PADDING_HEIGHT = 12  # 1 character height margin (FONT_SIZE)
 MIN_PARTICIPANT_WIDTH = 80
 MIN_PARTICIPANT_HEIGHT = 40
+MIN_GAP_BETWEEN_BOXES = 14  # Minimum 2 character wide gap between participant boxes
+MIN_ARROW_LENGTH = 35  # Minimum 5 character wide arrow space before/after function name
 
 # Note type colors
 NOTE_COLORS = {
@@ -47,12 +50,12 @@ def measure_participant_box(name: str) -> tuple:
     # Find the longest line to determine width
     max_width = max(measure_text_width(line, PARTICIPANT_FONT_SIZE) for line in lines)
     
-    # Add padding
-    box_width = max(max_width + (PARTICIPANT_PADDING * 2), MIN_PARTICIPANT_WIDTH)
+    # Add padding (separate for width and height)
+    box_width = max(max_width + (PARTICIPANT_PADDING_WIDTH * 2), MIN_PARTICIPANT_WIDTH)
     
     # Height depends on number of lines
     line_height = PARTICIPANT_FONT_SIZE + 2
-    box_height = max(len(lines) * line_height + (PARTICIPANT_PADDING * 2), MIN_PARTICIPANT_HEIGHT)
+    box_height = max(len(lines) * line_height + (PARTICIPANT_PADDING_HEIGHT * 2), MIN_PARTICIPANT_HEIGHT)
     
     return (box_width, box_height)
 
@@ -313,18 +316,43 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             text_start = center_x - text_width / 2
             text_end = center_x + text_width / 2
             
-            # Check overlap with endpoints (with 5px safety margin)
+            # Check overlap with endpoints (ensure 5 character minimum arrow space = ~35px)
             min_x = min(src_x, dst_x)
             max_x = max(src_x, dst_x)
             
-            if text_start < min_x + 5 or text_end > max_x - 5:
-                # Text overlaps, need wider lane spacing
-                required_width = text_width + 20  # 10px margin on each side
+            if text_start < min_x + MIN_ARROW_LENGTH or text_end > max_x - MIN_ARROW_LENGTH:
+                # Text overlaps arrow space, need wider lane spacing
+                required_width = text_width + (MIN_ARROW_LENGTH * 2)  # MIN_ARROW_LENGTH margin on each side
                 adjusted_lane_width = max(adjusted_lane_width, required_width)
     
     # Update LANE_WIDTH if needed (but keep minimum)
     effective_lane_width = max(LANE_WIDTH, adjusted_lane_width)
     lane_positions = {lane: i * effective_lane_width + left_margin for i, lane in enumerate(lanes)}
+    
+    # Ensure minimum gap between participant boxes (2 characters = 14px)
+    # Check consecutive pairs and increase lane width if needed
+    for i in range(len(lanes) - 1):
+        lane1, lane2 = lanes[i], lanes[i + 1]
+        box_width1, _ = measure_participant_box(lane1)
+        box_width2, _ = measure_participant_box(lane2)
+        
+        # Position of lane centers
+        pos1 = lane_positions[lane1]
+        pos2 = lane_positions[lane2]
+        
+        # Right edge of box1 and left edge of box2
+        right_edge_1 = pos1 + (box_width1 / 2)
+        left_edge_2 = pos2 - (box_width2 / 2)
+        
+        # Gap between boxes
+        gap = left_edge_2 - right_edge_1
+        
+        # If gap is less than minimum, increase lane width
+        if gap < MIN_GAP_BETWEEN_BOXES:
+            required_gap_increase = MIN_GAP_BETWEEN_BOXES - gap
+            effective_lane_width = max(effective_lane_width, effective_lane_width + required_gap_increase)
+            # Recalculate lane positions with new width
+            lane_positions = {lane: j * effective_lane_width + left_margin for j, lane in enumerate(lanes)}
 
     # Filter steps to only include those between selected lanes
     filtered_steps = []
@@ -411,7 +439,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         # Draw participant name text with multi-line support
         lines = split_participant_name(lane)
-        text_group_y = box_y + PARTICIPANT_PADDING + PARTICIPANT_FONT_SIZE
+        text_group_y = box_y + PARTICIPANT_PADDING_HEIGHT + PARTICIPANT_FONT_SIZE
         
         # Create text element with tspans for each line
         text_elem = f'<text x="{x}" y="{text_group_y}" text-anchor="middle" font-family="Arial" font-size="{PARTICIPANT_FONT_SIZE}"'
