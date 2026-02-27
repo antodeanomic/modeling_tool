@@ -269,8 +269,15 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     if not lanes:
         raise ValueError("No lanes selected after filtering.")
 
-    # Calculate lane positions with tighter left margin (2 characters ≈ 14px)
-    left_margin = 14
+    # Pre-calculate participant box widths to ensure proper margins
+    max_box_width = 0
+    for lane in lanes:
+        box_width, _ = measure_participant_box(lane)
+        max_box_width = max(max_box_width, box_width)
+    
+    # Calculate lane positions with left margin accounting for first participant box
+    # Margin must be at least half the participant box width to avoid clipping
+    left_margin = max(14, max_box_width / 2 + 5)  # 5px safety margin
     lane_positions = {lane: i * LANE_WIDTH + left_margin for i, lane in enumerate(lanes)}
 
     # Pre-calculate required lane width based on message text overlap
@@ -355,8 +362,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # Account for notes at the end of the sequence: notes are positioned at y+60, note height is 13
     # Bottom margin is 1 character height (FONT_SIZE) plus note space
     height = max_y + 60 + NOTE_BOX_HEIGHT + FONT_SIZE  # Reduced bottom padding
-    # Right margin is 2 characters (≈14px)
-    right_margin = 14
+    # Right margin must account for last participant box width
+    right_margin = max(14, max_box_width / 2 + 5)  # 5px safety margin
     width = max(lane_positions.values()) + right_margin if lane_positions else left_margin + right_margin
 
     svg = []
@@ -425,9 +432,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         text_elem += '</text>'
         svg.append(text_elem)
 
-        # Draw lifeline extending only 1 character height below the chart
+        # Draw lifeline extending only 1 character height below the last message/note
         lifeline_y_start = box_y + box_height
-        lifeline_y_end = height + top_margin - FONT_SIZE  # 1 character from bottom
+        # Lifelines extend only 1 character below the last visible content (max_y)
+        lifeline_y_end = max_y + FONT_SIZE
         svg.append(f'<line x1="{x}" y1="{lifeline_y_start}" x2="{x}" y2="{lifeline_y_end}" '
                    f'stroke="#888" stroke-dasharray="4,4"/>')
     
