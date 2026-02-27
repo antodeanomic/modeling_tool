@@ -560,12 +560,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         if verbosity_level.lower() == "low":
             label = func_name
         else:  # Normal or High
-            # Include params in parentheses
+            # Include params in parentheses (value only, no param names)
             param_labels = []
             if func_def and step.param_values:
                 for i, param_def in enumerate(func_def.params):
                     if i < len(step.param_values):
-                        param_labels.append(f"{param_def.name}={step.param_values[i]}")
+                        param_labels.append(step.param_values[i])
             elif func_def:
                 # If no values provided, just show param names
                 param_labels = [p.name for p in func_def.params]
@@ -633,7 +633,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         if x1 != x2 and verbosity_level.lower() != "low" and func_def and func_def.returns and step.return_value:
             # Use the first return value name with the provided value
             ret_name = func_def.returns[0].name if func_def.returns else "Value"
-            ret_label = f"{ret_name}={step.return_value}"
+            ret_label = step.return_value  # Just show the value, not the name
             ret_def = func_def.returns[0]
             
             # Build return value tooltip
