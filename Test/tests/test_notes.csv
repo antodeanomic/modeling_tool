@@ -16,6 +16,7 @@ Sequence,SoftReq_TEST_001,Test note types
     User,@Warning,Session timeout approaching
     Logger,NotificationService,SendNotification,123,queued,@Warning,Queue full
     User,@Info,Backup complete
+    User,@Success,Backup verified
     NotificationService,User,Notify,123,sent,@Error,Alert delivery failed
     Logger,@Error,Database offline
 

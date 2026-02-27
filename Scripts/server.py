@@ -56,7 +56,11 @@ def find_csv_files():
     return csv_files
 
 def find_default_csv(csv_files):
-    """Find the default CSV to load (prefer sample_model.csv)."""
+    """Find the default CSV to load (prefer test_notes for comprehensive testing)."""
+    if 'test_notes.csv' in csv_files:
+        return 'test_notes.csv'
+    if 'test_success_note.csv' in csv_files:
+        return 'test_success_note.csv'
     if 'sample_model.csv' in csv_files:
         return 'sample_model.csv'
     # Fall back to first test CSV
@@ -180,6 +184,20 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             model, sequence = load_model_and_sequence(csv_name, sequence_id)
             
             svg = render_svg(model, sequence, verbosity_level=verbosity, lanes_filter=lanes_filter)
+            
+            # Save SVG to disk for debugging
+            try:
+                output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'Test', 'tests')
+                os.makedirs(output_dir, exist_ok=True)
+                # Create filename from csv name (without .csv), sequence ID, and verbosity
+                csv_base = csv_name.replace('.csv', '')
+                svg_filename = f"{csv_base}_{sequence_id}_{verbosity}.svg"
+                svg_path = os.path.join(output_dir, svg_filename)
+                with open(svg_path, 'w', encoding='utf-8') as f:
+                    f.write(svg)
+                print(f"[SVG] Saved: {svg_path}")
+            except Exception as e:
+                print(f"[SVG] Failed to save: {str(e)}")
             
             self.send_response(200)
             self.send_header('Content-Type', 'image/svg+xml; charset=utf-8')

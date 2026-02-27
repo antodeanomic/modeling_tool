@@ -160,7 +160,7 @@ def parse_csv(path: str) -> Model:
                         # Reconstruct description from remaining elements
                         note_content = " ".join(step_data[2:]) if len(step_data) > 2 else ""
                         
-                        if note_type_str in ["Info", "Warning", "Error"]:
+                        if note_type_str in ["Info", "Warning", "Error", "Success"]:
                             # This is a lane note
                             if len(parent.steps) > 0:
                                 # Add to the last step
@@ -176,38 +176,51 @@ def parse_csv(path: str) -> Model:
                     dst_obj = step_data[1]
                     func = step_data[2]
                     
-                    # Optional: RetVal at index 3
+                    # Initialize values
                     return_value = ""
                     param_values = []
                     function_note = None
                     
-                    if len(step_data) > 3:
-                        return_value = step_data[3]
-                    
-                    # Check for function note at the end
+                    # Check for function note at the end of all values
                     # Function note would be: @NoteType, NoteContent
-                    remaining = step_data[4:] if len(step_data) > 4 else []
+                    all_values = step_data[3:] if len(step_data) > 3 else []
                     
                     # Look for @ marker indicating a note
                     note_start_idx = None
-                    for i, elem in enumerate(remaining):
+                    for i, elem in enumerate(all_values):
                         if elem.startswith("@"):
                             note_start_idx = i
                             break
                     
+                    # Extract values before the note (if any)
+                    values_before_note = all_values[:note_start_idx] if note_start_idx is not None else all_values
+                    
+                    # Extract note if present
                     if note_start_idx is not None:
-                        # Note found in remaining data
-                        param_values = remaining[:note_start_idx]
+                        note_type = all_values[note_start_idx][1:]  # Remove @
+                        note_content = " ".join(all_values[note_start_idx + 1:]) if note_start_idx + 1 < len(all_values) else ""
                         
-                        note_type = remaining[note_start_idx][1:]  # Remove @
-                        # Reconstruct note content from remaining elements
-                        note_content = " ".join(remaining[note_start_idx + 1:]) if note_start_idx + 1 < len(remaining) else ""
-                        
-                        if note_type in ["Info", "Warning", "Error"]:
+                        if note_type in ["Info", "Warning", "Error", "Success"]:
                             function_note = NoteDef(note_type=note_type, content=note_content)
+                    
+                    # Now assign params and return values based on function definition
+                    # Look up the function to see how many params and returns it has
+                    func_def = model.get_function(src_obj, func)
+                    
+                    if func_def:
+                        num_params = len(func_def.params)
+                        num_returns = len(func_def.returns)
+                        
+                        # Assign first N values as params, rest as returns
+                        param_values = values_before_note[:num_params]
+                        returns_start =  num_params
+                        if returns_start < len(values_before_note):
+                            return_value = values_before_note[returns_start]  # Take first return value
                     else:
-                        # No note, all remaining are param values
-                        param_values = remaining
+                        # Function not found, use default logic: first value is return, rest are params
+                        if len(values_before_note) > 0:
+                            return_value = values_before_note[0]
+                            param_values = values_before_note[1:]
                     
                     step = SequenceStep(
                         depth=level - 1,

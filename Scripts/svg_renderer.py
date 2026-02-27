@@ -20,7 +20,8 @@ MIN_PARTICIPANT_HEIGHT = 40
 NOTE_COLORS = {
     "Info": {"fill": "#E3F2FD", "stroke": "#1976D2", "icon": "ℹ"},
     "Warning": {"fill": "#FFF3E0", "stroke": "#F57C00", "icon": "⚠"},
-    "Error": {"fill": "#FFEBEE", "stroke": "#D32F2F", "icon": "✕"}
+    "Error": {"fill": "#FFEBEE", "stroke": "#D32F2F", "icon": "✕"},
+    "Success": {"fill": "#E8F5E9", "stroke": "#2E7D32", "icon": "✔"}
 }
 
 def measure_text_width(text: str, font_size: float = 11) -> float:
@@ -570,17 +571,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 param_labels = [p.name for p in func_def.params]
             
             label = func_name + "(" + ", ".join(param_labels) + ")"
-        
-        # Add note icon inline with label if present (High verbosity only)
-        if step.function_note and verbosity_level.lower() == "high":
-            note_icon = step.function_note.note_type[0].upper()  # Use first letter of note type
-            label = label + f" [{note_icon}]"
 
-        # Calculate function note position early (if present) to adjust arrow length
+        # Calculate function note position early (if present)
         function_note_x = None
         note_tooltip = None
         if step.function_note and verbosity_level.lower() == "high":
-            # Store tooltip for the label that now contains the note
+            # Store tooltip for when we render the note box
             note_tooltip = f"{step.function_note.note_type}: {step.function_note.content}"
 
         # Handle self-messages (where source and destination are the same)
@@ -620,6 +616,18 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 text_elem = text_elem.replace('>', f'><title>{note_tooltip_escaped}</title>', 1)
             svg.append(text_elem)
 
+            # Render function note box if present (High verbosity only)
+            note_box_end_x = None
+            if step.function_note and verbosity_level.lower() == "high":
+                # Position note box very close to the end of the function label
+                text_width = len(label) * 6.2
+                label_end_x = (x1 + x2) / 2 + text_width / 2  # Direct contact with label
+                note_x = label_end_x + (NOTE_BOX_WIDTH / 2)  # Center of note box
+                note_box_end_x = label_end_x + NOTE_BOX_WIDTH  # Remember where note ends for return arrow
+                note_y = y - 7  # Match the vertical center of the text
+                note_elements = create_note_box(note_x, note_y, step.function_note, show_text=False)
+                svg.extend(note_elements)
+
         # Return arrow with tooltip (only for non-self messages and Normal/High verbosity)
         # Self-messages skip the separate return arrow since the loop's return edge serves that purpose
         if x1 != x2 and verbosity_level.lower() != "low" and func_def and func_def.returns and step.return_value:
@@ -647,9 +655,11 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             if return_row != step.row:
                 if return_row not in deferred_return_arrows:
                     deferred_return_arrows[return_row] = []
+                # Return arrow always goes from x2 (source) to x1 (destination)
                 deferred_return_arrows[return_row].append((x1, x2, ret_label, ret_tooltip, y_ret))
             else:
                 # Render immediately
+                # Return arrow always goes from x2 (source) back to x1 (destination)
                 svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
                            f'stroke="#000" stroke-dasharray="5,5" '
                            f'marker-end="url(#arrow)"/>')
