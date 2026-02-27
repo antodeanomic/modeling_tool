@@ -284,9 +284,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     lane_positions = {lane: i * LANE_WIDTH + left_margin for i, lane in enumerate(lanes)}
 
     # Pre-calculate required lane width based on message text overlap
-    # If text overlaps arrow endpoints, increase LANE_WIDTH
+    # Ensure all arrows have minimum 5 characters visible on each side of text
     adjusted_lane_width = LANE_WIDTH
-    has_function_notes = any(step.function_note for step in seq.steps)
     
     for step in seq.steps:
         func_def = model.get_function(step.src_obj, step.function)
@@ -306,24 +305,23 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             if step.function_note:
                 text_width += NOTE_BOX_WIDTH + 15  # Add note width plus padding
             
-            # Check if text would overlap endpoints
-            # Text is centered, so each side extends text_width/2 from center
-            src_x = lane_positions.get(step.src_obj, 100)
-            dst_x = lane_positions.get(step.dst_obj, 100)
-            center_x = (src_x + dst_x) / 2
+            # Find lane indices
+            try:
+                src_idx = lanes.index(step.src_obj)
+                dst_idx = lanes.index(step.dst_obj)
+            except ValueError:
+                continue  # Skip if lanes not in list
             
-            # Text bounds: [center_x - text_width/2, center_x + text_width/2]
-            text_start = center_x - text_width / 2
-            text_end = center_x + text_width / 2
+            # Calculate distance between lanes in terms of lane separations
+            lane_distance = abs(dst_idx - src_idx)
+            if lane_distance == 0:
+                continue  # Self-message, skip
             
-            # Check overlap with endpoints (ensure 5 character minimum arrow space = ~35px)
-            min_x = min(src_x, dst_x)
-            max_x = max(src_x, dst_x)
-            
-            if text_start < min_x + MIN_ARROW_LENGTH or text_end > max_x - MIN_ARROW_LENGTH:
-                # Text overlaps arrow space, need wider lane spacing
-                required_width = text_width + (MIN_ARROW_LENGTH * 2)  # MIN_ARROW_LENGTH margin on each side
-                adjusted_lane_width = max(adjusted_lane_width, required_width)
+            # Total horizontal distance = lane_distance * effective_lane_width
+            # We need: total_distance >= text_width + (2 * MIN_ARROW_LENGTH)
+            # So: effective_lane_width >= (text_width + 2*MIN_ARROW_LENGTH) / lane_distance
+            min_lane_width_needed = (text_width + (2 * MIN_ARROW_LENGTH)) / lane_distance
+            adjusted_lane_width = max(adjusted_lane_width, min_lane_width_needed)
     
     # Update LANE_WIDTH if needed (but keep minimum)
     effective_lane_width = max(LANE_WIDTH, adjusted_lane_width)
