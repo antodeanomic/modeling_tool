@@ -3,7 +3,7 @@ from model import Model, SequenceDef, NoteDef
 FONT_SIZE = 12  # Font size for all text labels
 ROW_HEIGHT = FONT_SIZE * 2  # Spacing for consecutive message rows (2x font height)
 ROW_SPACING = 6  # Extra spacing between rows
-LANE_WIDTH = 200
+LANE_WIDTH = 90  # Reduced from 200 for tighter spacing (3-character arrow width)
 PARTICIPANT_BOX_WIDTH = 140
 PARTICIPANT_BOX_HEIGHT = 40
 STATE_BOX_PADDING = 6
@@ -269,7 +269,9 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     if not lanes:
         raise ValueError("No lanes selected after filtering.")
 
-    lane_positions = {lane: i * LANE_WIDTH + 100 for i, lane in enumerate(lanes)}
+    # Calculate lane positions with tighter left margin (2 characters ≈ 14px)
+    left_margin = 14
+    lane_positions = {lane: i * LANE_WIDTH + left_margin for i, lane in enumerate(lanes)}
 
     # Pre-calculate required lane width based on message text overlap
     # If text overlaps arrow endpoints, increase LANE_WIDTH
@@ -279,12 +281,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     for step in seq.steps:
         func_def = model.get_function(step.src_obj, step.function)
         if func_def and step.src_obj != step.dst_obj:
-            # Build label
+            # Build label (values only, matching the display format)
             param_labels = []
             if step.param_values:
                 for i, param_def in enumerate(func_def.params):
                     if i < len(step.param_values):
-                        param_labels.append(f"{param_def.name}={step.param_values[i]}")
+                        param_labels.append(step.param_values[i])  # Just the value, not name=value
             label = step.function + "(" + ", ".join(param_labels) + ")"
             
             # Measure text width
@@ -315,7 +317,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     
     # Update LANE_WIDTH if needed (but keep minimum)
     effective_lane_width = max(LANE_WIDTH, adjusted_lane_width)
-    lane_positions = {lane: i * effective_lane_width + 100 for i, lane in enumerate(lanes)}
+    lane_positions = {lane: i * effective_lane_width + left_margin for i, lane in enumerate(lanes)}
 
     # Filter steps to only include those between selected lanes
     filtered_steps = []
@@ -338,9 +340,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         row_to_steps[step.row].append(step)
     
     # Assign Y positions based on unique row numbers
+    # First message at y=90 (reduced from 120 to cut space between participant and first message by 1/2)
     sorted_rows = sorted(row_to_steps.keys())
     for row_index, row_num in enumerate(sorted_rows):
-        row_to_y[row_num] = 120 + row_index * (ROW_HEIGHT + ROW_SPACING)
+        row_to_y[row_num] = 90 + row_index * (ROW_HEIGHT + ROW_SPACING)
     
     # Store Y position for each filtered step
     for step in filtered_steps:
@@ -348,17 +351,22 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
 
     total_rows = len(row_to_y)
     # Calculate height based on actual last row position plus padding
-    max_y = max(row_to_y.values()) if row_to_y else 120
+    max_y = max(row_to_y.values()) if row_to_y else 90
     # Account for notes at the end of the sequence: notes are positioned at y+60, note height is 13
-    height = max_y + 60 + NOTE_BOX_HEIGHT + 20  # Add space for notes plus extra padding
-    width = max(lane_positions.values()) + 200
+    # Bottom margin is 1 character height (FONT_SIZE) plus note space
+    height = max_y + 60 + NOTE_BOX_HEIGHT + FONT_SIZE  # Reduced bottom padding
+    # Right margin is 2 characters (≈14px)
+    right_margin = 14
+    width = max(lane_positions.values()) + right_margin if lane_positions else left_margin + right_margin
 
     svg = []
-    svg.append(f'<svg width="{width}" height="{height}" '
+    # Tight top margin: 1 character height
+    top_margin = FONT_SIZE
+    svg.append(f'<svg width="{width}" height="{height + top_margin}" '
                f'xmlns="http://www.w3.org/2000/svg">')
 
     # Add white background for visibility in dark mode viewers
-    svg.append(f'<rect width="{width}" height="{height}" fill="white"/>')
+    svg.append(f'<rect width="{width}" height="{height + top_margin}" fill="white"/>')
 
     svg.append("""
     <defs>
@@ -386,9 +394,9 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         box_width, box_height = measure_participant_box(lane)
         participant_boxes[lane] = (box_width, box_height)
         
-        # Draw participant box with dynamic sizing
+        # Draw participant box with dynamic sizing (top margin = 1 character)
         box_x = x - (box_width / 2)
-        box_y = 20
+        box_y = top_margin
         box_elem = f'<rect x="{box_x}" y="{box_y}" width="{box_width}" height="{box_height}" rx="6" ry="6" fill="#e0e0e0" stroke="#000"/>'
         if class_description:
             box_elem = box_elem.replace('/>', f'><title>{class_description}</title></rect>', 1)
@@ -417,9 +425,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         text_elem += '</text>'
         svg.append(text_elem)
 
-        # Draw lifeline extending to the end of the diagram
+        # Draw lifeline extending only 1 character height below the chart
         lifeline_y_start = box_y + box_height
-        svg.append(f'<line x1="{x}" y1="{lifeline_y_start}" x2="{x}" y2="{height - 20}" '
+        lifeline_y_end = height + top_margin - FONT_SIZE  # 1 character from bottom
+        svg.append(f'<line x1="{x}" y1="{lifeline_y_start}" x2="{x}" y2="{lifeline_y_end}" '
                    f'stroke="#888" stroke-dasharray="4,4"/>')
     
     # Track and render states for each lane
