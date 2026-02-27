@@ -571,6 +571,13 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             
             label = func_name + "(" + ", ".join(param_labels) + ")"
 
+        # Calculate function note position early (if present) to adjust arrow length
+        function_note_x = None
+        if step.function_note and verbosity_level.lower() == "high":
+            text_center = (x1 + x2) / 2
+            label_width = measure_text_width(label, font_size=12)
+            function_note_x = text_center + (label_width / 2) + 8
+
         # Handle self-messages (where source and destination are the same)
         if x1 == x2:
             # All self-messages use spanning brackets
@@ -579,8 +586,18 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             pass
         else:
             # Regular message between different objects
-            # Forward arrow
-            svg.append(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
+            # Shorten arrow endpoint if there's a function note to avoid overlap
+            arrow_x2 = x2
+            if function_note_x is not None and x1 < x2:
+                # Arrow going left to right, shorten the right endpoint
+                arrow_x2 = function_note_x - 10  # 10px spacing before note
+            elif function_note_x is not None and x1 > x2:
+                # Arrow going right to left, shorten the left endpoint (x1)
+                # This is handled below when we adjust for the starting point
+                pass
+            
+            # Forward arrow (shortened if needed for function notes)
+            svg.append(f'<line x1="{x1}" y1="{y}" x2="{arrow_x2}" y2="{y}" '
                        f'stroke="#000" marker-end="url(#arrow)"/>')
 
             # Forward arrow text with white background box
@@ -649,15 +666,11 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                     ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
                 svg.append(ret_text_elem)
         
-        # Render function note if present (only in High verbosity)
+        # Render function note if present (vertically centered on arrow)
         if step.function_note and verbosity_level.lower() == "high":
-            # Position function note immediately after the function name label
-            text_center = (x1 + x2) / 2
-            label_width = measure_text_width(label, font_size=12)
-            # Position note right after the label's closing parenthesis with minimal padding
-            note_x = text_center + (label_width / 2) + 8
-            note_y = y - 15  # Slightly above the label for clarity
-            note_elements = create_note_box(note_x, note_y, step.function_note, show_text=False)
+            # Use pre-calculated note position, vertically centered on the arrow
+            note_y = y  # Vertically centered on the arrow
+            note_elements = create_note_box(function_note_x, note_y, step.function_note, show_text=False)
             svg.extend(note_elements)
         
         # Render lane notes for this step (only in High verbosity)
