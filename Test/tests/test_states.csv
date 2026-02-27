@@ -22,12 +22,12 @@ Class,AuthService,Authentication
         Param,AccountID,Account ID
         ReturnVal,Status,Current status
 Sequence,SoftReq_TEST_002,State transitions
-    1,AuthService,Account,VerifyEmail,user@test.com,verified,<AccountLifecycle,Inactive>Active
-    1,Account,@Info,Email verified
-    2,Account,AuthService,CheckStatus,ACC123,active
-    3,AuthService,Account,SuspendAccount,Suspicious,suspended,<AccountLifecycle,Active>Suspended
-    3,Account,@Warning,Suspicious activity
-    4,AuthService,Account,Reactivate,token123,active,<AccountLifecycle,Suspended>Active
-    4,Account,@Info,Reactivated
-    5,AuthService,Account,CloseAccount,User,closed,<AccountLifecycle,Active>Closed
-    5,Account,@Error,Account closed
+    AuthService,Account,VerifyEmail,user@test.com,verified,<AccountLifecycle,Inactive>Active
+    Account,@Info,Email verified
+    Account,AuthService,CheckStatus,ACC123,active
+    AuthService,Account,SuspendAccount,Suspicious,suspended,<AccountLifecycle,Active>Suspended
+    Account,@Warning,Suspicious activity
+    AuthService,Account,Reactivate,token123,active,<AccountLifecycle,Suspended>Active
+    Account,@Info,Reactivated
+    AuthService,Account,CloseAccount,User,closed,<AccountLifecycle,Active>Closed
+    Account,@Error,Account closed

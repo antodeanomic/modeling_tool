@@ -23,11 +23,11 @@ Class,EmailSvc,Email service
         ReturnVal,sent,Sent status
         ReturnVal,confirmed,Confirmed
 Sequence,SoftReq_TEST_004,Parameters and returns
-    1,UserSvc,Database,Insert,USR001,john@test.com,USR001,created
-    1,UserSvc,@Info,Creating user
-    2,Database,UserSvc,Insert,USR001,created
-    3,UserSvc,EmailSvc,SendVerification,USR001,john@test.com,sent,confirmed
-    4,EmailSvc,UserSvc,SendVerification,sent,confirmed
-    5,UserSvc,Database,Insert,USR001,john.new@test.com,success
-    5,UserSvc,@Info,Profile updated
-    6,Database,UserSvc,Insert,success
+    UserSvc,Database,Insert,USR001,john@test.com,USR001,created
+    UserSvc,@Info,Creating user
+    Database,UserSvc,Insert,USR001,created
+    UserSvc,EmailSvc,SendVerification,USR001,john@test.com,sent,confirmed
+    EmailSvc,UserSvc,SendVerification,sent,confirmed
+    UserSvc,Database,Insert,USR001,john.new@test.com,success
+    UserSvc,@Info,Profile updated
+    Database,UserSvc,Insert,success

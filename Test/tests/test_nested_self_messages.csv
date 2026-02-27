@@ -12,6 +12,6 @@ Class,Obj2,Second object
         Param,data,Data parameter
         ReturnVal,response,"Response value"
 Sequence,SoftReq_TEST_NESTED,Nested self-messages with stacking
-    1,Obj1,Obj1,Msg1,result1
-        2,Obj1,Obj1,Msg1a,result1a
-        3,Obj1,Obj2,Msg1b,data,response1b
+    Obj1,Obj1,Msg1,result1
+        Obj1,Obj1,Msg1a,result1a
+        Obj1,Obj2,Msg1b,data,response1b

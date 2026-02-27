@@ -35,8 +35,8 @@ Class,Keypad,Receives button presses
     Function,ReadKey,Returns which key was pressed       
 
 Sequence,SoftReq0001,Initialization,This sequence initializes the system
-    1,User,Keypad,ReadKey,8,@Info,Valid key pressed - TEST AUTO UPDATE
-    1,Keypad,CalculatorCore,AppendDigit,42,8
-    1,User,@Warning,Button held too long
-    2,User,CalculatorCore,Compute,42,1,Fast
-    3,User,Display,Update,Done,42,@Info,Display updated successfully
+    User,Keypad,ReadKey,8,@Info,Valid key pressed - TEST AUTO UPDATE
+    Keypad,CalculatorCore,AppendDigit,42,8
+    User,@Warning,Button held too long
+    User,CalculatorCore,Compute,42,1,Fast
+    User,Display,Update,Done,42,@Info,Display updated successfully

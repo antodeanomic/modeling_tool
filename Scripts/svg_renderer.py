@@ -130,10 +130,10 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
                  f'stroke="{colors["stroke"]}" stroke-width="0.5" opacity="0.6"/>')
     svg_parts.append(fold_line)
     
-    # Draw icon/indicator
-    icon_x = left + 3
-    icon_y = y + 5
-    icon = f'<text x="{icon_x}" y="{icon_y}" font-size="6" font-weight="bold" fill="{colors["stroke"]}" text-anchor="middle">{colors["icon"]}</text>'
+    # Draw icon/indicator (larger symbol, vertically centered)
+    icon_x = left + NOTE_BOX_WIDTH / 2
+    icon_y = y + NOTE_BOX_HEIGHT / 2
+    icon = f'<text x="{icon_x}" y="{icon_y}" font-size="11" font-weight="bold" fill="{colors["stroke"]}" text-anchor="middle" dominant-baseline="middle">{colors["icon"]}</text>'
     if note.content:
         icon = icon.replace('>', f'><title>{prefixed_content}</title>', 1)
     svg_parts.append(icon)
@@ -273,6 +273,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # Pre-calculate required lane width based on message text overlap
     # If text overlaps arrow endpoints, increase LANE_WIDTH
     adjusted_lane_width = LANE_WIDTH
+    has_function_notes = any(step.function_note for step in seq.steps)
+    
     for step in seq.steps:
         func_def = model.get_function(step.src_obj, step.function)
         if func_def and step.src_obj != step.dst_obj:
@@ -286,6 +288,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             
             # Measure text width
             text_width = measure_text_width(label, font_size=12)
+            
+            # If this step has a function note, account for note width
+            if step.function_note:
+                text_width += NOTE_BOX_WIDTH + 15  # Add note width plus padding
             
             # Check if text would overlap endpoints
             # Text is centered, so each side extends text_width/2 from center
@@ -645,11 +651,19 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         # Render function note if present (only in High verbosity)
         if step.function_note and verbosity_level.lower() == "high":
-            # Calculate text width to position note to the right of all text
-            label_width = measure_text_width(label, font_size=12)
-            text_center = (x1 + x2) / 2
-            note_x = text_center + (label_width / 2) + 15  # Position after text with padding
-            note_y = y - 20
+            # Position function note at the end of the spanning bracket (if this step starts one)
+            if (step.row, step.depth) in bracket_render_info:
+                # This step starts a spanning bracket
+                x_bracket, y_start_bracket, y_end_bracket, _, _, _, _, _ = bracket_render_info[(step.row, step.depth)]
+                # Position note to the right of destination lane at the bracket endpoint
+                note_x = x_bracket + 25  # Offset from lane to the right
+                note_y = y_end_bracket - 10  # Position above the bracket end
+            else:
+                # Fallback: position relative to message text (for non-bracketed function notes)
+                label_width = measure_text_width(label, font_size=12)
+                text_center = (x1 + x2) / 2
+                note_x = text_center + (label_width / 2) + 15  # Position after text with padding
+                note_y = y - 20
             # Show text inline (we're in high verbosity)
             note_elements = create_note_box(note_x, note_y, step.function_note, show_text=False)
             svg.extend(note_elements)
@@ -661,7 +675,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                     x_lane = lane_positions[lane_name]
                     note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
                     # Show text inline for better visibility
-                    note_elements = create_note_box(x_lane, note_y, note, show_text=True)
+                    note_elements = create_note_box(x_lane, note_y, note, show_text=False)
                     svg.extend(note_elements)
         
         # Render state changes after this step

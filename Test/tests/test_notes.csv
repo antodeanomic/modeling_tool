@@ -12,11 +12,11 @@ Class,NotificationService,Notification handler
         Param,EventID,event
         ReturnVal,Sent,Delivered
 Sequence,SoftReq_TEST_001,Test note types
-    1,User,Logger,LogEvent,123,logged,@Info,Login successful
-    1,User,@Warning,Session timeout approaching
-    2,Logger,NotificationService,SendNotification,123,queued,@Warning,Queue full
-    2,User,@Info,Backup complete
-    3,NotificationService,User,Notify,123,sent,@Error,Alert delivery failed
-    3,Logger,@Error,Database offline
+    User,Logger,LogEvent,123,logged,@Info,Login successful
+    User,@Warning,Session timeout approaching
+    Logger,NotificationService,SendNotification,123,queued,@Warning,Queue full
+    User,@Info,Backup complete
+    NotificationService,User,Notify,123,sent,@Error,Alert delivery failed
+    Logger,@Error,Database offline
 
 

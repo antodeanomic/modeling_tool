@@ -31,19 +31,19 @@ Class,AuditLog,Records user actions
         Param,userId,User identifier
         ReturnVal,recorded,Confirmation
 Sequence,SoftReq_TEST_UI_001,Complete login flow with notifications
-    1,Client,AuthService,ValidateCredentials,user1,pass123,valid
-    1,AuthService,@Info,Checking credentials in database
-    2,AuthService,SessionManager,StoreSession,token_abc,user1_data,stored
-    2,SessionManager,@Info,Session persisted to cache
-    3,Client,Client,Login,user1,pass123,token_abc
-    3,Client,@Info,Storing token locally
-    4,Client,AuditLog,RecordLogin,user1,2026-02-24_15:05:50,recorded
-    4,AuditLog,@Info,Login event recorded
-    5,AuthService,SessionManager,ValidateToken,token_abc,isValid
-    5,SessionManager,@Warning,Token expiry approaching
-    6,Client,AuthService,ValidateCredentials,user1,pass123,valid
-    6,AuthService,@Warning,Multiple login attempts detected
-    7,Client,Client,Logout
-    7,Client,@Info,Clearing local token
-    8,Client,AuditLog,RecordLogout,user1,recorded
-    8,AuditLog,@Error,Failed to write audit log
+    Client,AuthService,ValidateCredentials,user1,pass123,valid,@Info,Credentials validated
+    AuthService,@Info,Checking credentials in database
+    AuthService,SessionManager,StoreSession,token_abc,user1_data,stored,@Warning,Session cache full
+    SessionManager,@Info,Session persisted to disk
+    Client,Client,Login,user1,pass123,token_abc,@Success,Token acquired
+    Client,@Info,Storing token in localStorage
+    Client,AuditLog,RecordLogin,user1,2026-02-24_15:05:50,recorded,@Info,Audit entry created
+    AuditLog,@Info,Login event recorded successfully
+    AuthService,SessionManager,ValidateToken,token_abc,isValid,@Success,Token valid
+    SessionManager,@Warning,Token expiry approaching soon
+    Client,AuthService,ValidateCredentials,user1,pass123,valid,@Error,Rate limit exceeded
+    AuthService,@Error,Too many validation requests
+    Client,Client,Logout,@Info,Session cleanup started
+    Client,@Info,Clearing local storage
+    Client,AuditLog,RecordLogout,user1,recorded,@Warning,Logout delayed
+    AuditLog,@Error,Failed to write audit log to database

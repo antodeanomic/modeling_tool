@@ -17,12 +17,12 @@ Class,Display,Shows results
         Param,value,Result value
         ReturnVal,shown,Complete
 Sequence,SoftReq_TEST_003,Verbosity test
-    1,Display,Calculator,Add,10,5,sum
-    1,Calculator,@Info,Adding numbers
-    2,Calculator,Display,Show,sum,shown
-    3,Display,Calculator,Multiply,7,8,product
-    3,Calculator,@Info,Multiplying
-    4,Calculator,Display,Show,product,shown
-    5,Display,Calculator,Divide,100,5,quotient
-    5,Calculator,@Info,Dividing
-    6,Calculator,Display,Show,quotient,shown
+    Display,Calculator,Add,10,5,sum
+    Calculator,@Info,Adding numbers
+    Calculator,Display,Show,sum,shown
+    Display,Calculator,Multiply,7,8,product
+    Calculator,@Info,Multiplying
+    Calculator,Display,Show,product,shown
+    Display,Calculator,Divide,100,5,quotient
+    Calculator,@Info,Dividing
+    Calculator,Display,Show,quotient,shown

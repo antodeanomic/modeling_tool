@@ -11,9 +11,9 @@ Class,WebServer,Web server
         Param,type,Stat type
         ReturnVal,stats,Statistics
 Sequence,SoftReq_TEST_006,Parallel operations
-    1,WebBrowser,WebServer,GetHomepage,home,html
-    1,WebBrowser,@Info,Homepage requested
-    2,WebServer,WebServer,CheckCache,home,found
-    2,WebServer,WebServer,QueryStats,traffic,stats
-    3,WebServer,WebBrowser,GetHomepage,html
-    3,WebServer,@Info,Both completed
+    WebBrowser,WebServer,GetHomepage,home,html
+    WebBrowser,@Info,Homepage requested
+    WebServer,WebServer,CheckCache,home,found
+    WebServer,WebServer,QueryStats,traffic,stats
+    WebServer,WebBrowser,GetHomepage,html
+    WebServer,@Info,Both completed
