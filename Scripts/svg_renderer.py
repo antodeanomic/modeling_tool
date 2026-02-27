@@ -651,20 +651,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         # Render function note if present (only in High verbosity)
         if step.function_note and verbosity_level.lower() == "high":
-            # Position function note at the end of the spanning bracket (if this step starts one)
-            if (step.row, step.depth) in bracket_render_info:
-                # This step starts a spanning bracket
-                x_bracket, y_start_bracket, y_end_bracket, _, _, _, _, _ = bracket_render_info[(step.row, step.depth)]
-                # Position note to the right of destination lane at the bracket endpoint
-                note_x = x_bracket + 25  # Offset from lane to the right
-                note_y = y_end_bracket - 10  # Position above the bracket end
-            else:
-                # Fallback: position relative to message text (for non-bracketed function notes)
-                label_width = measure_text_width(label, font_size=12)
-                text_center = (x1 + x2) / 2
-                note_x = text_center + (label_width / 2) + 15  # Position after text with padding
-                note_y = y - 20
-            # Show text inline (we're in high verbosity)
+            # Position function note immediately after the function name label
+            text_center = (x1 + x2) / 2
+            label_width = measure_text_width(label, font_size=12)
+            # Position note right after the label's closing parenthesis with minimal padding
+            note_x = text_center + (label_width / 2) + 8
+            note_y = y - 15  # Slightly above the label for clarity
             note_elements = create_note_box(note_x, note_y, step.function_note, show_text=False)
             svg.extend(note_elements)
         
