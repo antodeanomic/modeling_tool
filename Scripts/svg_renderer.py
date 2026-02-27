@@ -330,28 +330,42 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     lane_positions = {lane: i * effective_lane_width + left_margin for i, lane in enumerate(lanes)}
     
     # Ensure minimum gap between participant boxes (2 characters = 14px)
-    # Check consecutive pairs and increase lane width if needed
-    for i in range(len(lanes) - 1):
-        lane1, lane2 = lanes[i], lanes[i + 1]
-        box_width1, _ = measure_participant_box(lane1)
-        box_width2, _ = measure_participant_box(lane2)
+    # Iteratively check and increase lane width until all gaps meet minimum requirement
+    gap_satisfied = False
+    iterations = 0
+    max_iterations = 10  # Prevent infinite loops
+    
+    while not gap_satisfied and iterations < max_iterations:
+        iterations += 1
+        gap_satisfied = True
+        min_required_width = effective_lane_width
         
-        # Position of lane centers
-        pos1 = lane_positions[lane1]
-        pos2 = lane_positions[lane2]
+        # Check consecutive pairs
+        for i in range(len(lanes) - 1):
+            lane1, lane2 = lanes[i], lanes[i + 1]
+            box_width1, _ = measure_participant_box(lane1)
+            box_width2, _ = measure_participant_box(lane2)
+            
+            # Position of lane centers
+            pos1 = lane_positions[lane1]
+            pos2 = lane_positions[lane2]
+            
+            # Right edge of box1 and left edge of box2
+            right_edge_1 = pos1 + (box_width1 / 2)
+            left_edge_2 = pos2 - (box_width2 / 2)
+            
+            # Gap between boxes
+            gap = left_edge_2 - right_edge_1
+            
+            # If gap is less than minimum, mark as not satisfied and calculate required width
+            if gap < MIN_GAP_BETWEEN_BOXES:
+                gap_satisfied = False
+                required_gap_increase = MIN_GAP_BETWEEN_BOXES - gap
+                min_required_width = max(min_required_width, effective_lane_width + required_gap_increase)
         
-        # Right edge of box1 and left edge of box2
-        right_edge_1 = pos1 + (box_width1 / 2)
-        left_edge_2 = pos2 - (box_width2 / 2)
-        
-        # Gap between boxes
-        gap = left_edge_2 - right_edge_1
-        
-        # If gap is less than minimum, increase lane width
-        if gap < MIN_GAP_BETWEEN_BOXES:
-            required_gap_increase = MIN_GAP_BETWEEN_BOXES - gap
-            effective_lane_width = max(effective_lane_width, effective_lane_width + required_gap_increase)
-            # Recalculate lane positions with new width
+        # If gap requirements not met, increase lane width and recalculate positions
+        if not gap_satisfied:
+            effective_lane_width = min_required_width
             lane_positions = {lane: j * effective_lane_width + left_margin for j, lane in enumerate(lanes)}
 
     # Filter steps to only include those between selected lanes
