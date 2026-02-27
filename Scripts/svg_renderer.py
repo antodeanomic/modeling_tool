@@ -17,7 +17,7 @@ PARTICIPANT_PADDING_HEIGHT = 12  # 1 character height margin (FONT_SIZE)
 MIN_PARTICIPANT_WIDTH = 80
 MIN_PARTICIPANT_HEIGHT = 40
 MIN_GAP_BETWEEN_BOXES = 14  # Minimum 2 character wide gap between participant boxes
-MIN_ARROW_LENGTH = 35  # Minimum 5 character wide arrow space before/after function name
+MIN_ARROW_LENGTH = 17  # Minimum 2.5 character wide arrow space before/after function name
 
 # Note type colors
 NOTE_COLORS = {
@@ -284,32 +284,38 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     lane_positions = {lane: i * LANE_WIDTH + left_margin for i, lane in enumerate(lanes)}
 
     # Pre-calculate required lane width based on message text overlap
-    # Ensure all arrows have minimum 5 characters visible on each side of text
+    # Ensure all arrows have exactly 5 characters (35px) visible on each side of text
     adjusted_lane_width = LANE_WIDTH
+    arrow_space_requirements = []  # Track what each message requires
+    
+    print(f"[DEBUG] Processing {len(seq.steps)} steps for arrow spacing")
     
     for step in seq.steps:
-        func_def = model.get_function(step.src_obj, step.function)
+        # Try to find function in destination object (where it's defined), not source
+        func_def = model.get_function(step.dst_obj, step.function)
         if func_def and step.src_obj != step.dst_obj:
-            # Build label (values only, matching the display format)
-            param_labels = []
-            if step.param_values:
-                for i, param_def in enumerate(func_def.params):
-                    if i < len(step.param_values):
-                        param_labels.append(step.param_values[i])  # Just the value, not name=value
-            label = step.function + "(" + ", ".join(param_labels) + ")"
+            # For arrow spacing calculation, measure the full label including parameters
+            # Get the full text that will be displayed
+            full_label = step.function
+            if step.params:
+                full_label += "(" + ", ".join(step.params) + ")"
+            else:
+                full_label += "()"
             
-            # Measure text width
-            text_width = measure_text_width(label, font_size=12)
+            full_label_width = measure_text_width(full_label, font_size=12)
             
-            # If this step has a function note, account for note width
+            # Include note width if present
+            note_width = 0
             if step.function_note:
-                text_width += NOTE_BOX_WIDTH + 15  # Add note width plus padding
+                note_width = NOTE_BOX_WIDTH + 15  # 15px padding for spacing
+            
+            total_width_for_spacing = full_label_width + note_width
             
             # Find lane indices
             try:
                 src_idx = lanes.index(step.src_obj)
                 dst_idx = lanes.index(step.dst_obj)
-            except ValueError:
+            except (ValueError, IndexError):
                 continue  # Skip if lanes not in list
             
             # Calculate distance between lanes in terms of lane separations
@@ -317,14 +323,31 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             if lane_distance == 0:
                 continue  # Self-message, skip
             
-            # Total horizontal distance = lane_distance * effective_lane_width
-            # We need: total_distance >= text_width + (2 * MIN_ARROW_LENGTH)
-            # So: effective_lane_width >= (text_width + 2*MIN_ARROW_LENGTH) / lane_distance
-            min_lane_width_needed = (text_width + (2 * MIN_ARROW_LENGTH)) / lane_distance
+            # For all messages: ensure exactly MIN_ARROW_LENGTH space on each side of text
+            # Total needed = text_width + (2 * MIN_ARROW_LENGTH)
+            # Distribute across lane_distance
+            total_needed = total_width_for_spacing + (2 * MIN_ARROW_LENGTH)
+            min_lane_width_needed = total_needed / lane_distance
+            
+            print(f"[DEBUG] {step.src_obj}->{step.dst_obj}: name={function_name_width:.0f}px, dist={lane_distance} lanes, total_needed={total_needed:.0f}px, per_lane={min_lane_width_needed:.0f}px")
+            arrow_space_requirements.append({
+                'message': f"{step.src_obj}->{step.dst_obj}: {step.function}()",
+                'text_width': function_name_width,
+                'lane_distance': lane_distance,
+                'required_width': min_lane_width_needed
+            })
             adjusted_lane_width = max(adjusted_lane_width, min_lane_width_needed)
     
     # Update LANE_WIDTH if needed (but keep minimum)
     effective_lane_width = max(LANE_WIDTH, adjusted_lane_width)
+    
+    # Debug output for arrow spacing
+    if arrow_space_requirements:
+        print(f"[Arrow Spacing] Sequence has {len(arrow_space_requirements)} messages requiring arrow space:")
+        for req in arrow_space_requirements:
+            print(f"  {req['message']}: text={req['text_width']:.0f}px, dist={req['lane_distance']} lanes, needs {req['required_width']:.0f}px lane width")
+        print(f"[Arrow Spacing] Final effective_lane_width: {effective_lane_width:.0f}px (was {LANE_WIDTH}px)")
+    
     lane_positions = {lane: i * effective_lane_width + left_margin for i, lane in enumerate(lanes)}
     
     # Ensure minimum gap between participant boxes (2 characters = 14px)
