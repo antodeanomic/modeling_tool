@@ -127,6 +127,47 @@
             pointer-events: none;
         }
         
+        .nav-toolbar {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 4px;
+            padding: 8px;
+            display: flex;
+            gap: 6px;
+            z-index: 100;
+        }
+        
+        .nav-button {
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #999;
+            border-radius: 3px;
+            padding: 6px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #333;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        
+        .nav-button:hover {
+            background-color: white;
+            border-color: #666;
+        }
+        
+        .nav-button:active {
+            background-color: #f0f0f0;
+        }
+        
+        .nav-info {
+            color: white;
+            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 3px;
+            background-color: rgba(50, 50, 50, 0.8);
+        }
+        
         .menu {
             display: none;
             position: fixed;
@@ -236,6 +277,11 @@
         <div class="diagram-area" id="diagramArea">
             <div class="diagram-container" id="diagramContainer"></div>
             <div class="zoom-indicator" id="zoomIndicator" style="display:none;">100%</div>
+            <div class="nav-toolbar">
+                <button class="nav-button" id="fitButton" title="Fit diagram to view (Shift+F)">Fit (Shift+F)</button>
+                <button class="nav-button" id="resetButton" title="Reset pan and zoom (Shift+R)">Reset (Shift+R)</button>
+                <div class="nav-info" id="panInfo" style="display:none;">Drag with Right Mouse or Middle Mouse</div>
+            </div>
         </div>
     </div>
     
@@ -261,6 +307,11 @@
             allLanes: [],
             allCsvs: [],
             zoomLevel: 1.0,
+            panX: 0,
+            panY: 0,
+            isPanning: false,
+            panStartX: 0,
+            panStartY: 0,
             isLoading: false
         };
         
@@ -271,6 +322,9 @@
         const diagramArea = document.getElementById('diagramArea');
         const diagramContainer = document.getElementById('diagramContainer');
         const zoomIndicator = document.getElementById('zoomIndicator');
+        const fitButton = document.getElementById('fitButton');
+        const resetButton = document.getElementById('resetButton');
+        const panInfo = document.getElementById('panInfo');
         const verbosityOptions = document.getElementById('verbosityOptions');
         const layersList = document.getElementById('layersList');
         
@@ -417,7 +471,7 @@
         function updateZoom() {
             const svg = diagramContainer.querySelector('svg');
             if (svg) {
-                svg.style.transform = `scale(${state.zoomLevel})`;
+                svg.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoomLevel})`;
                 zoomIndicator.textContent = `${Math.round(state.zoomLevel * 100)}%`;
                 zoomIndicator.style.display = state.zoomLevel !== 1.0 ? 'block' : 'none';
             }
@@ -443,7 +497,130 @@
                 state.zoomLevel = 1.0;
                 updateZoom();
             }
+            // Shift+F to fit diagram
+            if ((e.shiftKey) && (e.key === 'F' || e.code === 'KeyF')) {
+                e.preventDefault();
+                fitToView();
+            }
+            // Shift+R to reset pan and zoom
+            if ((e.shiftKey) && (e.key === 'R' || e.code === 'KeyR')) {
+                e.preventDefault();
+                resetPanAndZoom();
+            }
+            // Arrow keys for panning
+            const panStep = 20;
+            if (e.arrowUp || e.key === 'ArrowUp') {
+                e.preventDefault();
+                state.panY += panStep;
+                updatePan();
+            }
+            if (e.arrowDown || e.key === 'ArrowDown') {
+                e.preventDefault();
+                state.panY -= panStep;
+                updatePan();
+            }
+            if (e.arrowLeft || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                state.panX += panStep;
+                updatePan();
+            }
+            if (e.arrowRight || e.key === 'ArrowRight') {
+                e.preventDefault();
+                state.panX -= panStep;
+                updatePan();
+            }
         });
+        
+        // Add mouse panning handlers (right-click or middle-click drag)
+        diagramArea.addEventListener('mousedown', (e) => {
+            if (e.button === 2 || e.button === 1) {  // Right-click (2) or middle-click (1)
+                e.preventDefault();
+                state.isPanning = true;
+                state.panStartX = e.clientX - state.panX;
+                state.panStartY = e.clientY - state.panY;
+                panInfo.style.display = 'block';
+                diagramContainer.style.cursor = 'grabbing';
+            }
+        });
+        
+        diagramArea.addEventListener('mousemove', (e) => {
+            if (state.isPanning) {
+                state.panX = e.clientX - state.panStartX;
+                state.panY = e.clientY - state.panStartY;
+                updatePan();
+            }
+        });
+        
+        diagramArea.addEventListener('mouseup', () => {
+            if (state.isPanning) {
+                state.isPanning = false;
+                panInfo.style.display = 'none';
+                diagramContainer.style.cursor = 'default';
+            }
+        });
+        
+        diagramArea.addEventListener('mouseleave', () => {
+            if (state.isPanning) {
+                state.isPanning = false;
+                panInfo.style.display = 'none';
+                diagramContainer.style.cursor = 'default';
+            }
+        });
+        
+        // Prevent context menu on right-click (since we use it for panning)
+        diagramArea.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+        
+        function updatePan() {
+            const svg = diagramContainer.querySelector('svg');
+            if (svg) {
+                svg.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoomLevel})`;
+            }
+        }
+        
+        function fitToView() {
+            const svg = diagramContainer.querySelector('svg');
+            if (!svg) return;
+            
+            const svgWidth = svg.getAttribute('width');
+            const svgHeight = svg.getAttribute('height');
+            
+            if (!svgWidth || !svgHeight) return;
+            
+            const areaWidth = diagramArea.clientWidth - 40;
+            const areaHeight = diagramArea.clientHeight - 40;
+            
+            const zoomX = areaWidth / parseFloat(svgWidth);
+            const zoomY = areaHeight / parseFloat(svgHeight);
+            
+            state.zoomLevel = Math.min(zoomX, zoomY, 3.0);
+            state.panX = 0;
+            state.panY = 0;
+            
+            updateZoom();
+            updatePan();
+            
+            // Scroll to top of diagram
+            diagramArea.scrollTop = 0;
+            diagramArea.scrollLeft = 0;
+        }
+        
+        function resetPanAndZoom() {
+            state.zoomLevel = 1.0;
+            state.panX = 0;
+            state.panY = 0;
+            updateZoom();
+            updatePan();
+            
+            // Scroll to top of diagram
+            diagramArea.scrollTop = 0;
+            diagramArea.scrollLeft = 0;
+        }
+        
+        // Button click handlers
+        fitButton.addEventListener('click', fitToView);
+        resetButton.addEventListener('click', resetPanAndZoom);
         
         async function onCsvChange(e) {
             state.csv = e.target.value;

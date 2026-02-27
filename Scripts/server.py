@@ -12,32 +12,46 @@ from svg_renderer import render_svg
 
 # Configuration - find CSV files and HTML flexibly
 def find_csv_files():
-    """Search for all CSV files in common locations."""
+    """Search for all CSV files in common locations relative to this script."""
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Build search paths relative to script directory
     search_dirs = [
-        "Source",
-        "../Source",
-        "Test/tests",
-        "../Test/tests",
-        ".",
-        ".."
+        os.path.join(script_dir, '../Source'),     # ../Source from Scripts/
+        os.path.join(script_dir, '../Test/tests'), # ../Test/tests from Scripts/
+        os.path.join(script_dir, '../tests'),      # ../tests from Scripts/ (for Test subdir)
+        os.path.join(script_dir, '.'),             # Scripts/ itself (shouldn't have CSVs but check anyway)
+        os.path.join(script_dir, '..'),            # Parent of Scripts/
     ]
+    
+    # Also check current working directory just in case
+    search_dirs.extend([
+        "Source",
+        "tests",
+        "Test/tests",
+        ".",
+    ])
     
     csv_files = {}
     for search_dir in search_dirs:
-        if not os.path.isdir(search_dir):
+        # Normalize and check if it exists
+        normalized_dir = os.path.normpath(search_dir)
+        if not os.path.isdir(normalized_dir):
             continue
         try:
-            for file in os.listdir(search_dir):
+            for file in os.listdir(normalized_dir):
                 if file.endswith('.csv'):
-                    path = os.path.join(search_dir, file)
+                    path = os.path.join(normalized_dir, file)
                     abs_path = os.path.abspath(path)
-                    # Use filename as key (e.g., "sample_model.csv", "test_layers.csv")
-                    csv_files[file] = abs_path
+                    # Use filename as key, avoid duplicates
+                    if file not in csv_files:
+                        csv_files[file] = abs_path
         except (OSError, FileNotFoundError):
             pass
     
     if not csv_files:
-        raise FileNotFoundError("Could not find any CSV files")
+        raise FileNotFoundError(f"Could not find any CSV files in: {search_dirs}")
     
     return csv_files
 
@@ -52,8 +66,14 @@ def find_default_csv(csv_files):
     # Last resort: first available
     return list(csv_files.keys())[0]
 
-CSV_FILES = find_csv_files()
-DEFAULT_CSV = find_default_csv(CSV_FILES)
+try:
+    CSV_FILES = find_csv_files()
+    print(f"[OK] Found {len(CSV_FILES)} CSV file(s): {sorted(CSV_FILES.keys())}")
+except Exception as e:
+    print(f"[ERROR] Failed to find CSV files: {e}")
+    CSV_FILES = {}
+
+DEFAULT_CSV = find_default_csv(CSV_FILES) if CSV_FILES else None
 
 def find_html_file():
     """Search for diagram_viewer.html relative to this script."""
@@ -178,6 +198,17 @@ class DiagramHandler(SimpleHTTPRequestHandler):
     def handle_csvs_request(self):
         """Return available CSV files."""
         try:
+            if not CSV_FILES:
+                print(f"[csvs] No CSV files found in CSV_FILES dict")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
+                self.end_headers()
+                self.wfile.write(json.dumps({"csvs": [], "warning": "No CSV files found"}).encode('utf-8'))
+                return
+            
             csvs = []
             for csv_name in sorted(CSV_FILES.keys()):
                 # Create a friendly name (remove .csv, replace underscores)

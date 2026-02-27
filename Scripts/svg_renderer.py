@@ -11,6 +11,10 @@ STATE_TEXT_SIZE = 13
 NOTE_BOX_WIDTH = 17
 NOTE_BOX_HEIGHT = 13
 NOTE_FOLD_SIZE = 2
+PARTICIPANT_FONT_SIZE = 14
+PARTICIPANT_PADDING = 8  # Padding around text in participant box
+MIN_PARTICIPANT_WIDTH = 80
+MIN_PARTICIPANT_HEIGHT = 40
 
 # Note type colors
 NOTE_COLORS = {
@@ -22,6 +26,34 @@ NOTE_COLORS = {
 def measure_text_width(text: str, font_size: float = 11) -> float:
     """Rough estimate of text width in SVG (monospace-ish)."""
     return len(text) * (font_size * 0.6)
+
+def split_participant_name(name: str) -> list:
+    """Split participant name by <br> tags or newlines, return list of lines."""
+    # Handle <br> tags and line breaks
+    lines = name.replace('<br>', '\n').split('\n')
+    return [line.strip() for line in lines if line.strip()]
+
+def measure_participant_box(name: str) -> tuple:
+    """Measure required width and height for participant box based on name.
+    
+    Returns (width, height) tuple.
+    """
+    lines = split_participant_name(name)
+    
+    if not lines:
+        return (MIN_PARTICIPANT_WIDTH, MIN_PARTICIPANT_HEIGHT)
+    
+    # Find the longest line to determine width
+    max_width = max(measure_text_width(line, PARTICIPANT_FONT_SIZE) for line in lines)
+    
+    # Add padding
+    box_width = max(max_width + (PARTICIPANT_PADDING * 2), MIN_PARTICIPANT_WIDTH)
+    
+    # Height depends on number of lines
+    line_height = PARTICIPANT_FONT_SIZE + 2
+    box_height = max(len(lines) * line_height + (PARTICIPANT_PADDING * 2), MIN_PARTICIPANT_HEIGHT)
+    
+    return (box_width, box_height)
 
 def create_state_box(x: float, y: float, state_name: str, state_desc: str = "") -> str:
     """Create SVG elements for a UML state box.
@@ -330,7 +362,9 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     </defs>
     """)
 
-    # Draw participants with tooltip descriptions
+    # Draw participants with tooltip descriptions and dynamic sizing
+    participant_boxes = {}  # Store box dimensions for lifeline positioning
+    
     for lane, x in lane_positions.items():
         # Get class description if available
         class_def = None
@@ -341,20 +375,44 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         class_description = class_def.description if class_def else ""
         
-        # Draw participant box
-        box_elem = f'<rect x="{x - PARTICIPANT_BOX_WIDTH/2}" y="20" width="{PARTICIPANT_BOX_WIDTH}" height="{PARTICIPANT_BOX_HEIGHT}" rx="6" ry="6" fill="#e0e0e0" stroke="#000"/>'
+        # Measure box dimensions based on participant name
+        box_width, box_height = measure_participant_box(lane)
+        participant_boxes[lane] = (box_width, box_height)
+        
+        # Draw participant box with dynamic sizing
+        box_x = x - (box_width / 2)
+        box_y = 20
+        box_elem = f'<rect x="{box_x}" y="{box_y}" width="{box_width}" height="{box_height}" rx="6" ry="6" fill="#e0e0e0" stroke="#000"/>'
         if class_description:
             box_elem = box_elem.replace('/>', f'><title>{class_description}</title></rect>', 1)
         svg.append(box_elem)
         
-        # Draw participant name text
-        text_elem = f'<text x="{x}" y="45" text-anchor="middle" font-family="Arial" font-size="14">{lane}</text>'
+        # Draw participant name text with multi-line support
+        lines = split_participant_name(lane)
+        text_group_y = box_y + PARTICIPANT_PADDING + PARTICIPANT_FONT_SIZE
+        
+        # Create text element with tspans for each line
+        text_elem = f'<text x="{x}" y="{text_group_y}" text-anchor="middle" font-family="Arial" font-size="{PARTICIPANT_FONT_SIZE}"'
         if class_description:
-            text_elem = text_elem.replace('>', f'><title>{class_description}</title>', 1)
+            text_elem += f'><title>{class_description}</title>'
+        else:
+            text_elem += '>'
+        
+        # Add first line
+        if lines:
+            text_elem += f'<tspan x="{x}" dy="0">{lines[0]}</tspan>'
+            
+            # Add subsequent lines with proper spacing
+            for line in lines[1:]:
+                line_spacing = PARTICIPANT_FONT_SIZE + 2
+                text_elem += f'<tspan x="{x}" dy="{line_spacing}">{line}</tspan>'
+        
+        text_elem += '</text>'
         svg.append(text_elem)
 
-        # Draw lifeline extending to the end of the diagram (based on actual last row position)
-        svg.append(f'<line x1="{x}" y1="60" x2="{x}" y2="{height - 20}" '
+        # Draw lifeline extending to the end of the diagram
+        lifeline_y_start = box_y + box_height
+        svg.append(f'<line x1="{x}" y1="{lifeline_y_start}" x2="{x}" y2="{height - 20}" '
                    f'stroke="#888" stroke-dasharray="4,4"/>')
     
     # Track and render states for each lane

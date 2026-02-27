@@ -14,7 +14,8 @@ This script:
 import subprocess
 import sys
 from pathlib import Path
-import webbrowser
+import platform
+import shutil
 import time
 import os
 import signal
@@ -85,24 +86,26 @@ def launch_server():
         return False
     
     try:
-        # Start server in background
+        # Start server in background with output shown
         server_process = subprocess.Popen(
             [sys.executable, str(server_script), "8000"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1
+            bufsize=1,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
         )
         
-        # Wait for server to start
+        # Wait for server to start (increased from 3 to 5 seconds)
         print("Waiting for server to start...")
-        time.sleep(3)
+        time.sleep(5)
         
-        # Check if server is running
+        # Check if server is still running (poll returns None if running)
         if server_process.poll() is not None:
-            stdout, stderr = server_process.communicate()
-            print(f"Server failed to start:")
-            print(stderr)
+            # Server exited, try to get output
+            stdout, _ = server_process.communicate()
+            print(f"Server failed to start. Output:")
+            print(stdout)
             return False
         
         print("[OK] Server started successfully")
@@ -112,19 +115,46 @@ def launch_server():
         print(f"Error starting server: {e}")
         return False
 
+def find_vscode_executable():
+    """Find the VS Code executable path on Windows."""
+    import shutil
+    
+    # Try standard locations on Windows
+    possible_paths = [
+        shutil.which('code'),  # Try in PATH first
+        shutil.which('code.cmd'),  # Try code.cmd
+        r'C:\Users\{}\AppData\Local\Programs\Microsoft VS Code\bin\code.cmd'.format(os.getenv('USERNAME', '')),
+        r'C:\Program Files\Microsoft VS Code\bin\code.cmd',
+        r'C:\Program Files (x86)\Microsoft VS Code\bin\code.cmd',
+    ]
+    
+    for path in possible_paths:
+        if path and os.path.exists(path):
+            return path
+    
+    return None
+
 def open_browser():
-    """Open the interactive viewer in browser."""
+    """Open the interactive viewer in VS Code's Simple Browser."""
     url = "http://localhost:8000"
     
-    print(f"\nOpening browser to: {url}")
+    print(f"\nOpening in VS Code Simple Browser: {url}")
     time.sleep(1)
     
     try:
-        webbrowser.open(url)
-        print("[OK] Browser opened")
+        # Find VS Code executable
+        code_path = find_vscode_executable()
+        
+        if code_path:
+            # Open in VS Code's Simple Browser
+            subprocess.Popen([code_path, '--open-url', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("[OK] Browser opened in VS Code")
+        else:
+            print("Warning: VS Code executable not found in PATH")
+            print(f"Please manually open in VS Code Simple Browser: {url}")
     except Exception as e:
-        print(f"Warning: Could not open browser automatically ({e})")
-        print(f"Please manually open: {url}")
+        print(f"Warning: Could not open in VS Code ({e})")
+        print(f"Please manually open in VS Code Simple Browser: {url}")
     
     return True
 
