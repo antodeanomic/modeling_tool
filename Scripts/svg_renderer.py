@@ -39,10 +39,10 @@ CODE_BACKGROUND_COLOR = "#E8E8E8"  # Light grey background for code
 CODE_TEXT_COLOR = "#333333"  # Dark text for code
 
 def extract_code_segments(text: str) -> list:
-    """Parse text and extract code() segments.
+    """Parse text and extract backtick-enclosed code segments.
     
     Returns list of tuples: (content, is_code)
-    Example: "prefix code(123) suffix" -> [("prefix ", False), ("123", True), (" suffix", False)]
+    Example: "prefix `123` suffix" -> [("prefix ", False), ("123", True), (" suffix", False)]
     """
     import re
     if not text:
@@ -51,13 +51,13 @@ def extract_code_segments(text: str) -> list:
     segments = []
     last_end = 0
     
-    # Find all code(...) patterns
-    for match in re.finditer(r'code\(([^)]*)\)', text):
+    # Find all `...` patterns (backtick-enclosed)
+    for match in re.finditer(r'`([^`]*)`', text):
         # Add text before code segment
         if match.start() > last_end:
             segments.append((text[last_end:match.start()], False))
         
-        # Add code segment
+        # Add code segment (content between backticks)
         segments.append((match.group(1), True))
         last_end = match.end()
     
@@ -65,19 +65,19 @@ def extract_code_segments(text: str) -> list:
     if last_end < len(text):
         segments.append((text[last_end:], False))
     
-    # If no code() found, return original text as non-code
+    # If no backticks found, return original text as non-code
     if not segments:
         segments = [(text, False)]
     
     return segments
 
 def strip_code_wrappers(text: str) -> str:
-    """Remove code() wrappers from text, keeping the content inside.
+    """Remove backticks from text, keeping the content inside.
     
-    Example: "value: code(123)" -> "value: 123"
+    Example: "value: `123`" -> "value: 123"
     """
     import re
-    return re.sub(r'code\(([^)]*)\)', r'\1', text)
+    return re.sub(r'`([^`]*)`', r'\1', text)
 
 def measure_text_width(text: str, font_size: float = 11) -> float:
     """Rough estimate of text width in SVG (monospace-ish)."""
@@ -736,8 +736,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             if func_def and step.param_values:
                 for i, param_def in enumerate(func_def.params):
                     if i < len(step.param_values):
-                        # Check if original value has code() syntax before stripping
-                        if "code(" in step.param_values[i]:
+                        # Check if original value has backtick syntax before stripping
+                        if "`" in step.param_values[i]:
                             has_code_syntax = True
                         param_labels.append(strip_code_wrappers(step.param_values[i]))
             elif func_def:
@@ -840,8 +840,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             ret_label = step.return_value  # Just show the value, not the name
             ret_def = func_def.returns[0]
             
-            # Check if return value has code() syntax
-            has_return_code_syntax = "code(" in step.return_value
+            # Check if return value has backtick syntax
+            has_return_code_syntax = "`" in step.return_value
             
             # Build return value tooltip
             ret_tooltip = f"{ret_name}: {ret_def.description}" if ret_def else ""
@@ -921,7 +921,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         for item in deferred_return_arrows[end_row]:
             # Unpack - may have 5 or 6 elements depending on when it was stored
             x1, x2, ret_label, ret_tooltip = item[:4]
-            has_return_code_syntax = item[5] if len(item) > 5 else "code(" in ret_label
+            has_return_code_syntax = item[5] if len(item) > 5 else "`" in ret_label
             
             svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
                        f'stroke="#000" stroke-dasharray="5,5" '
