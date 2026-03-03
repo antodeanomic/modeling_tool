@@ -876,9 +876,23 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 ret_text_baseline_y = y_ret + 4  # Visual center of 12px text is roughly 4px above baseline
                 ret_label_display = strip_code_wrappers(ret_label)
                 ret_text_color = CODE_TEXT_COLOR if has_return_code_syntax else "black"
-                ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label_display}</text>'
-                # Add the actual text on top
-                ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="{ret_text_color}">{ret_label_display}</text>'
+                
+                # Draw background rectangle if backtick syntax is present
+                if has_return_code_syntax:
+                    ret_text_width = len(ret_label_display) * MONOSPACE_CHAR_WIDTH
+                    ret_box_x = (x1 + x2) / 2 - ret_text_width / 2
+                    ret_box_y = ret_text_baseline_y - 7
+                    ret_box_height = 14
+                    svg.append(f'<rect x="{ret_box_x}" y="{ret_box_y}" width="{ret_text_width}" height="{ret_box_height}" '
+                               f'fill="{CODE_BACKGROUND_COLOR}" stroke="none"/>')
+                    # With grey background, just render text directly without white stroke
+                    ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="{ret_text_color}">{ret_label_display}</text>'
+                else:
+                    # Without background, use white stroke for visibility over dashed line
+                    ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label_display}</text>'
+                    # Add the actual text on top
+                    ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="{ret_text_color}">{ret_label_display}</text>'
+                
                 if ret_tooltip:
                     ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
                     ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
@@ -931,8 +945,22 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             ret_text_baseline_y = y_ret + 4
             ret_label_display = strip_code_wrappers(ret_label)
             ret_text_color = CODE_TEXT_COLOR if has_return_code_syntax else "black"
-            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label_display}</text>'
-            ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="{ret_text_color}">{ret_label_display}</text>'
+            
+            # Draw background rectangle if backtick syntax is present
+            if has_return_code_syntax:
+                ret_text_width = len(ret_label_display) * MONOSPACE_CHAR_WIDTH
+                ret_box_x = (x1 + x2) / 2 - ret_text_width / 2
+                ret_box_y = ret_text_baseline_y - 7
+                ret_box_height = 14
+                svg.append(f'<rect x="{ret_box_x}" y="{ret_box_y}" width="{ret_text_width}" height="{ret_box_height}" '
+                           f'fill="{CODE_BACKGROUND_COLOR}" stroke="none"/>')
+                # With grey background, just render text directly without white stroke
+                ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="{ret_text_color}">{ret_label_display}</text>'
+            else:
+                # Without background, use white stroke for visibility over dashed line
+                ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label_display}</text>'
+                ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="{ret_text_color}">{ret_label_display}</text>'
+            
             if ret_tooltip:
                 ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
                 ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
