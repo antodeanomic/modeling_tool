@@ -1,6 +1,11 @@
 from model import Model, SequenceDef, NoteDef
+from datetime import datetime
+import random
 
 FONT_SIZE = 12  # Font size for all text labels
+MONOSPACE_CHAR_WIDTH = 7.2  # Width of each character in monospaced font at 12px
+MESSAGE_SPACING = 7.2  # 1 character space before message and after note for symmetric layout
+LABEL_NOTE_GAP = 0  # No gap between closing ) and note box - they should touch
 ROW_HEIGHT = FONT_SIZE * 2  # Spacing for consecutive message rows (2x font height)
 ROW_SPACING = 6  # Extra spacing between rows
 LANE_WIDTH = 90  # Reduced from 200 for tighter spacing (3-character arrow width)
@@ -8,9 +13,11 @@ PARTICIPANT_BOX_WIDTH = 140
 PARTICIPANT_BOX_HEIGHT = 40
 STATE_BOX_PADDING = 6
 STATE_TEXT_SIZE = 13
-NOTE_BOX_WIDTH = 17
+NOTE_BOX_CHARS = 2  # Note boxes are 2 characters wide
+NOTE_BOX_WIDTH = NOTE_BOX_CHARS * MONOSPACE_CHAR_WIDTH  # 14.4px
 NOTE_BOX_HEIGHT = 13
 NOTE_FOLD_SIZE = 2
+NOTE_SPACING_OFFSET = 0  # No offset needed - note positioned directly after label
 PARTICIPANT_FONT_SIZE = 14
 PARTICIPANT_PADDING_WIDTH = 7  # 1 character width margin (~1 char at font size 12)
 PARTICIPANT_PADDING_HEIGHT = 12  # 1 character height margin (FONT_SIZE)
@@ -26,6 +33,51 @@ NOTE_COLORS = {
     "Error": {"fill": "#FFEBEE", "stroke": "#D32F2F", "icon": "✕"},
     "Success": {"fill": "#E8F5E9", "stroke": "#2E7D32", "icon": "✔"}
 }
+
+# Code styling colors
+CODE_BACKGROUND_COLOR = "#E8E8E8"  # Light grey background for code
+CODE_TEXT_COLOR = "#333333"  # Dark text for code
+
+def extract_code_segments(text: str) -> list:
+    """Parse text and extract code() segments.
+    
+    Returns list of tuples: (content, is_code)
+    Example: "prefix code(123) suffix" -> [("prefix ", False), ("123", True), (" suffix", False)]
+    """
+    import re
+    if not text:
+        return [("", False)]
+    
+    segments = []
+    last_end = 0
+    
+    # Find all code(...) patterns
+    for match in re.finditer(r'code\(([^)]*)\)', text):
+        # Add text before code segment
+        if match.start() > last_end:
+            segments.append((text[last_end:match.start()], False))
+        
+        # Add code segment
+        segments.append((match.group(1), True))
+        last_end = match.end()
+    
+    # Add remaining text
+    if last_end < len(text):
+        segments.append((text[last_end:], False))
+    
+    # If no code() found, return original text as non-code
+    if not segments:
+        segments = [(text, False)]
+    
+    return segments
+
+def strip_code_wrappers(text: str) -> str:
+    """Remove code() wrappers from text, keeping the content inside.
+    
+    Example: "value: code(123)" -> "value: 123"
+    """
+    import re
+    return re.sub(r'code\(([^)]*)\)', r'\1', text)
 
 def measure_text_width(text: str, font_size: float = 11) -> float:
     """Rough estimate of text width in SVG (monospace-ish)."""
@@ -106,8 +158,8 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
     left = x - (NOTE_BOX_WIDTH / 2)
     right = left + NOTE_BOX_WIDTH
     
-    # Create note content with type prefix
-    prefixed_content = f"{note.note_type}: {note.content}" if note.content else note.note_type
+    # Create note content with type prefix (strip code() wrappers for clean display)
+    prefixed_content = f"{strip_code_wrappers(note.note_type)}: {strip_code_wrappers(note.content)}" if note.content else strip_code_wrappers(note.note_type)
     
     # Draw main rectangle (path that accommodates folded corner)
     # Rectangle with top-right corner cut out for fold
@@ -244,7 +296,7 @@ def render_spanning_bracket(x: float, y_start: float, y_end: float, label: str,
         # So baseline = y_start + ascent positions the top of text at y_start
         text_x = left_x - TEXT_PADDING
         text_baseline_y = y_start + 10  # Ascent for 12px font
-        text_elem = f'<text x="{text_x}" y="{text_baseline_y}" text-anchor="end" font-family="Arial" font-size="12" fill="#000">{label}</text>'
+        text_elem = f'<text x="{text_x}" y="{text_baseline_y}" text-anchor="end" font-family="monospace" font-size="12" fill="#000">{label}</text>'
         if tooltip:
             tooltip_escaped = tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
             text_elem = text_elem.replace('>', f'><title>{tooltip_escaped}</title>', 1)
@@ -281,113 +333,142 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # Calculate lane positions with left margin accounting for first participant box
     # Margin must be at least half the participant box width to avoid clipping
     left_margin = max(14, max_box_width / 2 + 5)  # 5px safety margin
-    lane_positions = {lane: i * LANE_WIDTH + left_margin for i, lane in enumerate(lanes)}
 
-    # Pre-calculate required lane width based on message text overlap
-    # Ensure all arrows have exactly 5 characters (35px) visible on each side of text
-    adjusted_lane_width = LANE_WIDTH
+    # UNIFIED REQUIREMENT: The lane width must satisfy BOTH criteria:
+    # 1. Minimum 2-character gap between participant box EDGES (not centers)
+    # 2. Minimum MIN_ARROW_LENGTH arrow space on each side of message labels
+    # Result = MAX of these two requirements
+    
+    # Criterion 1: Calculate minimum lane width for 2-char gap between participants
+    min_lane_width_for_gap = LANE_WIDTH  # Start with default
+    
+    for i in range(len(lanes) - 1):
+        lane1, lane2 = lanes[i], lanes[i + 1]
+        box_width1, _ = measure_participant_box(lane1)
+        box_width2, _ = measure_participant_box(lane2)
+        
+        # For adjacent lanes: distance between lane centers must accommodate both boxes + gap
+        # Required distance = (box_width1/2) + MIN_GAP_BETWEEN_BOXES + (box_width2/2)
+        required_distance = (box_width1 / 2) + MIN_GAP_BETWEEN_BOXES + (box_width2 / 2)
+        min_lane_width_for_gap = max(min_lane_width_for_gap, required_distance)
+        print(f"[Gap Calc] {lane1} + gap + {lane2}: box1={box_width1:.0f}, box2={box_width2:.0f}, required_distance={required_distance:.0f}px")
+    
+    # Criterion 2: Calculate minimum lane width for arrow spacing around message labels
+    # IMPORTANT: Must account for BOTH forward messages AND return value arrows
+    min_lane_width_for_arrows = LANE_WIDTH
     arrow_space_requirements = []  # Track what each message requires
     
+    print(f"\n[DEBUG] ========== ARROW SPACING CALCULATION ==========")
     print(f"[DEBUG] Processing {len(seq.steps)} steps for arrow spacing")
+    print(f"[DEBUG] Available lanes: {lanes}")
     
-    for step in seq.steps:
-        # Try to find function in destination object (where it's defined), not source
-        func_def = model.get_function(step.dst_obj, step.function)
+    for idx, step in enumerate(seq.steps):
+        print(f"[DEBUG] Step {idx}: {step.src_obj} -> {step.dst_obj}, func={step.function}")
+        
+        # Look up function in the SOURCE object (where the method is defined)
+        # User->Logger: LogEvent means User.LogEvent() is being called
+        func_def = model.get_function(step.src_obj, step.function)
+        print(f"[DEBUG]   func_def found: {func_def is not None}")
+        print(f"[DEBUG]   src_obj != dst_obj: {step.src_obj != step.dst_obj}")
+        
         if func_def and step.src_obj != step.dst_obj:
-            # For arrow spacing calculation, measure the full label including parameters
-            # Get the full text that will be displayed
-            full_label = step.function
-            if step.params:
-                full_label += "(" + ", ".join(step.params) + ")"
-            else:
-                full_label += "()"
-            
-            full_label_width = measure_text_width(full_label, font_size=12)
-            
-            # Include note width if present
-            note_width = 0
-            if step.function_note:
-                note_width = NOTE_BOX_WIDTH + 15  # 15px padding for spacing
-            
-            total_width_for_spacing = full_label_width + note_width
-            
             # Find lane indices
             try:
                 src_idx = lanes.index(step.src_obj)
                 dst_idx = lanes.index(step.dst_obj)
+                print(f"[DEBUG]   Lane indices: src={src_idx}, dst={dst_idx}")
             except (ValueError, IndexError):
+                print(f"[DEBUG]   Lane index error - skipping")
                 continue  # Skip if lanes not in list
             
             # Calculate distance between lanes in terms of lane separations
             lane_distance = abs(dst_idx - src_idx)
+            print(f"[DEBUG]   Lane distance: {lane_distance}")
             if lane_distance == 0:
+                print(f"[DEBUG]   Self-message, skipping")
                 continue  # Self-message, skip
             
-            # For all messages: ensure exactly MIN_ARROW_LENGTH space on each side of text
+            # ===== FORWARD MESSAGE ARROW =====
+            # Measure the full label: function name + parameters
+            full_label = step.function
+            if step.param_values:
+                full_label += "(" + ", ".join(strip_code_wrappers(v) for v in step.param_values) + ")"
+            else:
+                full_label += "()"
+            
+            # Use monospaced character width for accurate calculation
+            full_label_width = len(full_label) * MONOSPACE_CHAR_WIDTH
+            
+            # Include note width ONLY if note exists AND verbosity is High (notes only render in High)
+            note_width = 0
+            label_note_gap = 0
+            if step.function_note and verbosity_level.lower() == "high":
+                note_width = NOTE_BOX_WIDTH  # 2-char note width
+                label_note_gap = LABEL_NOTE_GAP  # Gap to prevent overlap
+            
+            total_width_for_spacing = full_label_width + label_note_gap + note_width
+            
+            # For all messages: ensure MIN_ARROW_LENGTH space on each side of text
             # Total needed = text_width + (2 * MIN_ARROW_LENGTH)
             # Distribute across lane_distance
             total_needed = total_width_for_spacing + (2 * MIN_ARROW_LENGTH)
             min_lane_width_needed = total_needed / lane_distance
             
-            print(f"[DEBUG] {step.src_obj}->{step.dst_obj}: name={function_name_width:.0f}px, dist={lane_distance} lanes, total_needed={total_needed:.0f}px, per_lane={min_lane_width_needed:.0f}px")
+            print(f"[DEBUG] {step.src_obj}->{step.dst_obj}: label={full_label_width:.0f}px, note={note_width:.0f}px, total={total_width_for_spacing:.0f}px, dist={lane_distance} lanes, total_needed={total_needed:.0f}px, per_lane={min_lane_width_needed:.0f}px")
             arrow_space_requirements.append({
-                'message': f"{step.src_obj}->{step.dst_obj}: {step.function}()",
-                'text_width': function_name_width,
+                'message': f"{step.src_obj}->{step.dst_obj}: {step.function}",
+                'type': 'forward',
+                'label_width': full_label_width,
+                'note_width': note_width,
+                'total_width': total_width_for_spacing,
                 'lane_distance': lane_distance,
                 'required_width': min_lane_width_needed
             })
-            adjusted_lane_width = max(adjusted_lane_width, min_lane_width_needed)
+            min_lane_width_for_arrows = max(min_lane_width_for_arrows, min_lane_width_needed)
+            
+            # ===== RETURN VALUE ARROW =====
+            # Only include return value if this message has one
+            if func_def.returns and step.return_value:
+                ret_label = step.return_value
+                ret_label_width = len(ret_label) * MONOSPACE_CHAR_WIDTH
+                
+                # Return values have no additional notes, just the value label
+                total_needed_return = ret_label_width + (2 * MIN_ARROW_LENGTH)
+                min_lane_width_needed_return = total_needed_return / lane_distance
+                
+                print(f"[DEBUG]   Return: {step.dst_obj}->{step.src_obj}: label={ret_label_width:.0f}px, total_needed={total_needed_return:.0f}px, per_lane={min_lane_width_needed_return:.0f}px")
+                arrow_space_requirements.append({
+                    'message': f"{step.dst_obj}->{step.src_obj}: {ret_label} (return)",
+                    'type': 'return',
+                    'label_width': ret_label_width,
+                    'note_width': 0,
+                    'total_width': ret_label_width,
+                    'lane_distance': lane_distance,
+                    'required_width': min_lane_width_needed_return
+                })
+                min_lane_width_for_arrows = max(min_lane_width_for_arrows, min_lane_width_needed_return)
     
-    # Update LANE_WIDTH if needed (but keep minimum)
-    effective_lane_width = max(LANE_WIDTH, adjusted_lane_width)
+    # UNIFIED REQUIREMENT: Use the maximum of both criteria
+    effective_lane_width = max(min_lane_width_for_gap, min_lane_width_for_arrows)
     
-    # Debug output for arrow spacing
+    # Debug output
+    print(f"\n[Gap Analysis]")
+    print(f"  Criterion 1 (Participant gap): {min_lane_width_for_gap:.0f}px")
+    print(f"  Criterion 2 (Arrow spacing): {min_lane_width_for_arrows:.0f}px")
+    print(f"  FINAL effective_lane_width: {effective_lane_width:.0f}px (was {LANE_WIDTH}px)\n")
+    
     if arrow_space_requirements:
-        print(f"[Arrow Spacing] Sequence has {len(arrow_space_requirements)} messages requiring arrow space:")
+        print(f"[Arrow Requirements Summary]:")
         for req in arrow_space_requirements:
-            print(f"  {req['message']}: text={req['text_width']:.0f}px, dist={req['lane_distance']} lanes, needs {req['required_width']:.0f}px lane width")
-        print(f"[Arrow Spacing] Final effective_lane_width: {effective_lane_width:.0f}px (was {LANE_WIDTH}px)")
+            print(f"  {req['message']}: label={req['label_width']:.0f}px + note={req['note_width']:.0f}px = {req['total_width']:.0f}px, needs {req['required_width']:.0f}px per lane")
     
+    # Calculate final lane positions using the unified effective lane width
     lane_positions = {lane: i * effective_lane_width + left_margin for i, lane in enumerate(lanes)}
     
-    # Ensure minimum gap between participant boxes (2 characters = 14px)
-    # Iteratively check and increase lane width until all gaps meet minimum requirement
-    gap_satisfied = False
-    iterations = 0
-    max_iterations = 10  # Prevent infinite loops
-    
-    while not gap_satisfied and iterations < max_iterations:
-        iterations += 1
-        gap_satisfied = True
-        min_required_width = effective_lane_width
-        
-        # Check consecutive pairs
-        for i in range(len(lanes) - 1):
-            lane1, lane2 = lanes[i], lanes[i + 1]
-            box_width1, _ = measure_participant_box(lane1)
-            box_width2, _ = measure_participant_box(lane2)
-            
-            # Position of lane centers
-            pos1 = lane_positions[lane1]
-            pos2 = lane_positions[lane2]
-            
-            # Right edge of box1 and left edge of box2
-            right_edge_1 = pos1 + (box_width1 / 2)
-            left_edge_2 = pos2 - (box_width2 / 2)
-            
-            # Gap between boxes
-            gap = left_edge_2 - right_edge_1
-            
-            # If gap is less than minimum, mark as not satisfied and calculate required width
-            if gap < MIN_GAP_BETWEEN_BOXES:
-                gap_satisfied = False
-                required_gap_increase = MIN_GAP_BETWEEN_BOXES - gap
-                min_required_width = max(min_required_width, effective_lane_width + required_gap_increase)
-        
-        # If gap requirements not met, increase lane width and recalculate positions
-        if not gap_satisfied:
-            effective_lane_width = min_required_width
-            lane_positions = {lane: j * effective_lane_width + left_margin for j, lane in enumerate(lanes)}
+    print(f"[Lane Positions]")
+    for lane, pos in lane_positions.items():
+        box_width, _ = measure_participant_box(lane)
+        print(f"  {lane}: center={pos:.0f}px, box_width={box_width:.0f}px, left_edge={pos - box_width/2:.0f}px, right_edge={pos + box_width/2:.0f}px")
 
     # Filter steps to only include those between selected lanes
     filtered_steps = []
@@ -432,8 +513,16 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     svg = []
     # Tight top margin: 1 character height
     top_margin = FONT_SIZE
+    
+    # Generate render version with timestamp and random component
+    render_time = datetime.now().isoformat().split('T')[1][:8]  # HH:MM:SS
+    render_version = f"{render_time}-{random.randint(1000, 9999)}"
+    
     svg.append(f'<svg width="{width}" height="{height + top_margin}" '
-               f'xmlns="http://www.w3.org/2000/svg">')
+               f'xmlns="http://www.w3.org/2000/svg" data-render-version="{render_version}">')
+    
+    # Add SVG comment with render version for debugging
+    svg.append(f'<!-- Render Version: {render_version} -->')
 
     # Add white background for visibility in dark mode viewers
     svg.append(f'<rect width="{width}" height="{height + top_margin}" fill="white"/>')
@@ -485,12 +574,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         
         # Add first line
         if lines:
-            text_elem += f'<tspan x="{x}" dy="0">{lines[0]}</tspan>'
+            text_elem += f'<tspan x="{x}" dy="0">{strip_code_wrappers(lines[0])}</tspan>'
             
             # Add subsequent lines with proper spacing
             for line in lines[1:]:
                 line_spacing = PARTICIPANT_FONT_SIZE + 2
-                text_elem += f'<tspan x="{x}" dy="{line_spacing}">{line}</tspan>'
+                text_elem += f'<tspan x="{x}" dy="{line_spacing}">{strip_code_wrappers(line)}</tspan>'
         
         text_elem += '</text>'
         svg.append(text_elem)
@@ -624,7 +713,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 param_descriptions = []
                 for i, param_def in enumerate(func_def.params):
                     if i < len(step.param_values):
-                        value = step.param_values[i]
+                        value = strip_code_wrappers(step.param_values[i])
                         param_descriptions.append(f"{param_def.name}={value} ({param_def.description})")
                 if param_descriptions:
                     func_tooltip += "\n\nParameters:\n" + "\n".join(param_descriptions)
@@ -639,13 +728,18 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         # High: normal + descriptions (as tooltips)
         if verbosity_level.lower() == "low":
             label = func_name
+            has_code_syntax = False
         else:  # Normal or High
             # Include params in parentheses (value only, no param names)
             param_labels = []
+            has_code_syntax = False  # Track if any param has code() syntax
             if func_def and step.param_values:
                 for i, param_def in enumerate(func_def.params):
                     if i < len(step.param_values):
-                        param_labels.append(step.param_values[i])
+                        # Check if original value has code() syntax before stripping
+                        if "code(" in step.param_values[i]:
+                            has_code_syntax = True
+                        param_labels.append(strip_code_wrappers(step.param_values[i]))
             elif func_def:
                 # If no values provided, just show param names
                 param_labels = [p.name for p in func_def.params]
@@ -672,20 +766,50 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                        f'stroke="#000" marker-end="url(#arrow)"/>')
 
             # Forward arrow text with white background box
-            # More accurate text width: ~6.2px per character for 12px Arial font
-            text_width = len(label) * 6.2
+            # Use monospaced font for accurate character width calculation
+            # Calculate total width: 1-char space + message label + gap + optional note + 1-char space
+            label_width = len(label) * MONOSPACE_CHAR_WIDTH
+            
+            # If note exists, include it with gap for centering
+            note_width = 0
+            label_note_gap = 0
+            if step.function_note and verbosity_level.lower() == "high":
+                note_width = NOTE_BOX_WIDTH  # 2-char note width
+                label_note_gap = LABEL_NOTE_GAP  # Gap to prevent overlap
+            
+            # Total width for centering: spacing + label + gap + note + spacing
+            total_width_for_centering = MESSAGE_SPACING + label_width + label_note_gap + note_width + MESSAGE_SPACING
+            
+            # Center the combined width on the arrow
+            total_left_x = (x1 + x2) / 2 - total_width_for_centering / 2
+            
+            # Label starts after initial spacing
+            box_x = total_left_x + MESSAGE_SPACING
+            text_width = label_width
+            
+            # White background box spans the entire message + gap + note (if present)
+            # This makes the note appear as part of the message
+            box_width = label_width + label_note_gap + note_width
+            
             box_padding = 0
-            box_x = (x1 + x2) / 2 - text_width / 2 - box_padding
             box_y = y - 7
-            box_width = text_width + (box_padding * 2)
             box_height = 14
             
+            # DEBUG: Add comment showing label box positioning
+            svg.append(f'<!-- Label "{label}": box_x={box_x:.1f}px, box_width={box_width:.1f}px, ends_at={box_x + box_width:.1f}px -->')
+            
             # Draw white rectangle behind text (rendered first, so it goes behind)
+            # Check if label contains code() syntax - if so, use grey background instead
+            label_display = label  # label is already stripped
+            bg_color = CODE_BACKGROUND_COLOR if has_code_syntax else "white"
             svg.append(f'<rect x="{box_x}" y="{box_y}" width="{box_width}" height="{box_height}" '
-                       f'fill="white" stroke="none"/>')
+                       f'fill="{bg_color}" stroke="none"/>')
             
             # Draw text on top of the white box, vertically centered on the arrow
-            text_elem = f'<text x="{(x1 + x2)/2}" y="{y}" text-anchor="middle" font-family="Arial" font-size="12" dominant-baseline="middle">{label}</text>'
+            # Text x position should be at the center of the label box
+            text_x = box_x + text_width / 2
+            text_color = CODE_TEXT_COLOR if has_code_syntax else "black"
+            text_elem = f'<text x="{text_x}" y="{y}" text-anchor="middle" font-family="monospace" font-size="12" dominant-baseline="middle" fill="{text_color}">{label_display}</text>'
             if func_tooltip:
                 # Escape special characters in tooltip
                 func_tooltip_escaped = func_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
@@ -699,22 +823,25 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             # Render function note box if present (High verbosity only)
             note_box_end_x = None
             if step.function_note and verbosity_level.lower() == "high":
-                # Position note box very close to the end of the function label
-                text_width = len(label) * 6.2
-                label_end_x = (x1 + x2) / 2 + text_width / 2  # Direct contact with label
-                note_x = label_end_x + (NOTE_BOX_WIDTH / 2)  # Center of note box
-                note_box_end_x = label_end_x + NOTE_BOX_WIDTH  # Remember where note ends for return arrow
+                # Position note box immediately after label with no gap
+                label_end_x = box_x + label_width
+                # Note center: label_end_x + NOTE_BOX_WIDTH/2 (directly adjacent, no LABEL_NOTE_GAP)
+                note_x = label_end_x + NOTE_BOX_WIDTH / 2
+                note_box_end_x = label_end_x + NOTE_BOX_WIDTH
                 note_y = y - 7  # Match the vertical center of the text
                 note_elements = create_note_box(note_x, note_y, step.function_note, show_text=False)
                 svg.extend(note_elements)
 
         # Return arrow with tooltip (only for non-self messages and Normal/High verbosity)
-        # Self-messages skip the separate return arrow since the loop's return edge serves that purpose
+        # Self-messages skip the separate return arrow since the loop's return edge serves that function
         if x1 != x2 and verbosity_level.lower() != "low" and func_def and func_def.returns and step.return_value:
             # Use the first return value name with the provided value
             ret_name = func_def.returns[0].name if func_def.returns else "Value"
             ret_label = step.return_value  # Just show the value, not the name
             ret_def = func_def.returns[0]
+            
+            # Check if return value has code() syntax
+            has_return_code_syntax = "code(" in step.return_value
             
             # Build return value tooltip
             ret_tooltip = f"{ret_name}: {ret_def.description}" if ret_def else ""
@@ -736,7 +863,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 if return_row not in deferred_return_arrows:
                     deferred_return_arrows[return_row] = []
                 # Return arrow always goes from x2 (source) to x1 (destination)
-                deferred_return_arrows[return_row].append((x1, x2, ret_label, ret_tooltip, y_ret))
+                deferred_return_arrows[return_row].append((x1, x2, ret_label, ret_tooltip, y_ret, has_return_code_syntax))
             else:
                 # Render immediately
                 # Return arrow always goes from x2 (source) back to x1 (destination)
@@ -747,9 +874,11 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 # Return arrow text centered over the arrow (arrow passes through text center)
                 # Text baseline positioned so arrow passes through visual center of text
                 ret_text_baseline_y = y_ret + 4  # Visual center of 12px text is roughly 4px above baseline
-                ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label}</text>'
+                ret_label_display = strip_code_wrappers(ret_label)
+                ret_text_color = CODE_TEXT_COLOR if has_return_code_syntax else "black"
+                ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label_display}</text>'
                 # Add the actual text on top
-                ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
+                ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="{ret_text_color}">{ret_label_display}</text>'
                 if ret_tooltip:
                     ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
                     ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
@@ -789,19 +918,31 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # Render deferred return arrows (for messages with spanning brackets)
     for end_row in sorted(deferred_return_arrows.keys()):
         y_ret = row_to_y[end_row] + 12  # Add 12px spacing below the last message row
-        for x1, x2, ret_label, ret_tooltip, _ in deferred_return_arrows[end_row]:
+        for item in deferred_return_arrows[end_row]:
+            # Unpack - may have 5 or 6 elements depending on when it was stored
+            x1, x2, ret_label, ret_tooltip = item[:4]
+            has_return_code_syntax = item[5] if len(item) > 5 else "code(" in ret_label
+            
             svg.append(f'<line x1="{x2}" y1="{y_ret}" x2="{x1}" y2="{y_ret}" '
                        f'stroke="#000" stroke-dasharray="5,5" '
                        f'marker-end="url(#arrow)"/>')
             
             # Return arrow text centered over the arrow
             ret_text_baseline_y = y_ret + 4
-            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label}</text>'
-            ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="Arial" font-size="12">{ret_label}</text>'
+            ret_label_display = strip_code_wrappers(ret_label)
+            ret_text_color = CODE_TEXT_COLOR if has_return_code_syntax else "black"
+            ret_text_elem = f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="white" stroke="white" stroke-width="4" paint-order="stroke">{ret_label_display}</text>'
+            ret_text_elem += f'<text x="{(x1 + x2)/2}" y="{ret_text_baseline_y}" text-anchor="middle" font-family="monospace" font-size="12" fill="{ret_text_color}">{ret_label_display}</text>'
             if ret_tooltip:
                 ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
                 ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
             svg.append(ret_text_elem)
+
+    # Add render version in bottom right corner for cache debugging
+    version_x = width - 8
+    version_y = height + top_margin - 5
+    svg.append(f'<text x="{version_x}" y="{version_y}" text-anchor="end" font-family="Arial" '
+               f'font-size="9" fill="#ccc">v:{render_version}</text>')
 
     svg.append("</svg>")
     return "\n".join(svg)

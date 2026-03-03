@@ -1,0 +1,20 @@
+Type,Name,Description
+Class,Logger,Logging service
+    Function,LogEvent,Log event to database
+        Param,eventID,Event ID
+        Param,level,Log level
+        ReturnVal,logged,Result status
+Class,Monitor,Monitoring service
+    Function,SendNotification,Send alert notification
+        Param,message,Alert message
+        Param,priority,Priority level
+        ReturnVal,sent,Delivery status
+Class,Database,Data persistence
+    Function,SaveLog,Persist to storage
+        Param,data,Event data
+        ReturnVal,saved,Saved status
+Sequence,CodeSyntax_TEST,Testing code() syntax
+    Logger,Monitor,LogEvent,code(123),code(INFO),code(true)
+    Monitor,Database,SendNotification,code(System offline),code(HIGH),code(success)
+    Database,Logger,SaveLog,code(event_data),code(rowID)
+    Logger,@Info,code(Data logged successfully)
