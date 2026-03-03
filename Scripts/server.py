@@ -150,6 +150,43 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'text/plain')
                 self.end_headers()
                 self.wfile.write(f"Error loading HTML: {str(e)}".encode('utf-8'))
+        elif parsed_path.path == '/render':
+            # Serve the HTML viewer with pre-filled parameters from query string
+            try:
+                params = parse_qs(parsed_path.query)
+                csv_name = params.get('csv', [DEFAULT_CSV])[0]
+                sequence_id = params.get('sequence', [''])[0]
+                verbosity = params.get('verbosity', ['High'])[0]
+                
+                with open(HTML_PATH, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                
+                # Inject initial parameters as JavaScript variables
+                init_script = f'''
+                <script>
+                window.initialParams = {{
+                    csv: "{csv_name}",
+                    sequence: "{sequence_id}",
+                    verbosity: "{verbosity}"
+                }};
+                </script>
+                '''
+                
+                # Insert the script before the closing body tag
+                html_content = html_content.replace('</body>', init_script + '</body>')
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
+                self.end_headers()
+                self.wfile.write(html_content.encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(f"Error loading HTML: {str(e)}".encode('utf-8'))
         elif parsed_path.path == '/api/diagram':
             self.handle_diagram_request(parsed_path.query)
         elif parsed_path.path == '/api/csvs':
@@ -321,7 +358,7 @@ def run_server(port=8000):
     httpd = HTTPServer(server_address, DiagramHandler)
     print(f"Server running at http://localhost:{port}")
     print(f"Open http://localhost:{port} in your browser")
-    print("✓ Server automatically reloads CSV on each request (no restart needed)")
+    print("[OK] Server automatically reloads CSV on each request (no restart needed)")
     httpd.serve_forever()
 
 if __name__ == '__main__':

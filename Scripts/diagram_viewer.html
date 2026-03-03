@@ -269,6 +269,7 @@
                     <option>Loading diagrams...</option>
                 </select>
             </div>
+            <div class="version-info" id="versionInfo" style="margin-left: 20px; color: #999; font-size: 12px; font-weight: normal;">Build: --</div>
         </div>
         <button class="menu-button" id="menuButton">⋯</button>
     </div>
@@ -298,6 +299,11 @@
     </div>
     
     <script>
+        // Set build version based on current timestamp
+        const now = new Date();
+        const buildVersion = now.toISOString().split('T')[0] + ' ' + now.toLocaleTimeString();
+        document.getElementById('versionInfo').textContent = 'Build: ' + buildVersion;
+        
         // State
         let state = {
             csv: '',
@@ -333,6 +339,14 @@
             try {
                 console.log('Initializing diagram viewer...');
                 
+                // Check if initial parameters were provided via window.initialParams
+                if (window.initialParams) {
+                    state.csv = window.initialParams.csv || state.csv;
+                    state.sequence = window.initialParams.sequence || state.sequence;
+                    state.verbosity = window.initialParams.verbosity || state.verbosity;
+                    console.log('Using initial parameters:', window.initialParams);
+                }
+                
                 // First, fetch available CSV files
                 const csvResponse = await fetch('/api/csvs');
                 if (!csvResponse.ok) {
@@ -356,8 +370,10 @@
                     csvSelector.appendChild(option);
                 });
                 
-                // Select first CSV by default
-                state.csv = state.allCsvs[0].id;
+                // Select CSV from initial params or first CSV by default
+                if (!state.csv) {
+                    state.csv = state.allCsvs[0].id;
+                }
                 csvSelector.value = state.csv;
                 csvSelector.addEventListener('change', onCsvChange);
                 
@@ -675,6 +691,16 @@
                 
                 const svgText = await response.text();
                 diagramContainer.innerHTML = svgText;
+                
+                // Extract and display render version from the SVG
+                const svgElement = diagramContainer.querySelector('svg');
+                if (svgElement) {
+                    const renderVersion = svgElement.getAttribute('data-render-version');
+                    if (renderVersion) {
+                        const pageVersion = document.getElementById('versionInfo').textContent.split(': ')[1];
+                        document.getElementById('versionInfo').textContent = `Build: ${pageVersion} | Render: ${renderVersion}`;
+                    }
+                }
                 
                 // Apply zoom to the newly loaded SVG
                 updateZoom();
