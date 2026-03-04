@@ -528,13 +528,11 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             # Include note width ONLY if note exists AND verbosity is High (notes only render in High)
             note_width = 0
             label_note_gap = 0
-            note_padding = 0  # Extra padding when note is present
             if step.function_note and verbosity_level.lower() == "high":
-                note_width = NOTE_BOX_WIDTH  # 2-char note width (~14px)
+                note_width = NOTE_BOX_WIDTH  # 2-char note width (~14.4px)
                 label_note_gap = LABEL_NOTE_GAP  # Gap to prevent overlap (currently 0)
-                note_padding = 8  # Extra 8px padding on right side of note for message with icon
             
-            total_width_for_spacing = full_label_width + label_note_gap + note_width + note_padding
+            total_width_for_spacing = full_label_width + label_note_gap + note_width
             
             # For all messages: ensure MIN_ARROW_LENGTH space on each side of text
             # Total needed = text_width + (2 * MIN_ARROW_LENGTH)
