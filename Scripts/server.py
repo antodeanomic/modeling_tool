@@ -134,10 +134,37 @@ class DiagramHandler(SimpleHTTPRequestHandler):
         parsed_path = urlparse(self.path)
         
         if parsed_path.path == '/' or parsed_path.path == '':
-            # Serve the HTML viewer at the root
+            # Serve the HTML viewer at the root, with support for diagram parameter
             try:
+                params = parse_qs(parsed_path.query)
+                # Handle 'diagram' parameter (e.g., diagram=tests/test_notes.csv)
+                diagram_param = params.get('diagram', [''])[0]
+                if diagram_param:
+                    # Extract just the filename from path
+                    csv_name = diagram_param.split('/')[-1] if '/' in diagram_param else diagram_param
+                else:
+                    csv_name = params.get('csv', [DEFAULT_CSV])[0]
+                
+                sequence_id = params.get('sequence', [''])[0]
+                verbosity = params.get('verbosity', ['High'])[0]
+                
                 with open(HTML_PATH, 'r', encoding='utf-8') as f:
                     html_content = f.read()
+                
+                # Inject initial parameters as JavaScript variables
+                init_script = f'''
+                <script>
+                window.initialParams = {{
+                    csv: "{csv_name}",
+                    sequence: "{sequence_id}",
+                    verbosity: "{verbosity}"
+                }};
+                </script>
+                '''
+                
+                # Insert the script before the closing body tag
+                html_content = html_content.replace('</body>', init_script + '</body>')
+                
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
                 self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
@@ -193,6 +220,49 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.handle_csvs_request()
         elif parsed_path.path == '/api/lanes':
             self.handle_lanes_request()
+        elif parsed_path.path in ['/Scripts/diagram_viewer.html', '/diagram_viewer.html']:
+            # Serve diagram viewer with parameter support
+            try:
+                params = parse_qs(parsed_path.query)
+                # Handle 'diagram' parameter
+                diagram_param = params.get('diagram', [''])[0]
+                if diagram_param:
+                    csv_name = diagram_param.split('/')[-1] if '/' in diagram_param else diagram_param
+                else:
+                    csv_name = params.get('csv', [DEFAULT_CSV])[0]
+                
+                sequence_id = params.get('sequence', [''])[0]
+                verbosity = params.get('verbosity', ['High'])[0]
+                
+                with open(HTML_PATH, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                
+                # Inject initial parameters as JavaScript variables
+                init_script = f'''
+                <script>
+                window.initialParams = {{
+                    csv: "{csv_name}",
+                    sequence: "{sequence_id}",
+                    verbosity: "{verbosity}"
+                }};
+                </script>
+                '''
+                
+                # Insert the script before the closing body tag
+                html_content = html_content.replace('</body>', init_script + '</body>')
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
+                self.end_headers()
+                self.wfile.write(html_content.encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(f"Error loading HTML: {str(e)}".encode('utf-8'))
         else:
             # Serve static files
             super().do_GET()

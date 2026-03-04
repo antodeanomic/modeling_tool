@@ -27,11 +27,13 @@ MIN_GAP_BETWEEN_BOXES = 14  # Minimum 2 character wide gap between participant b
 MIN_ARROW_LENGTH = 17  # Minimum 2.5 character wide arrow space before/after function name
 
 # Note type colors
+# REQUIREMENT: Use CORRECT unicode character for Success checkmark: ✓ (U+2713 - CHECK MARK)
+# DO NOT use ✔ (U+2714 - HEAVY CHECK MARK) - it renders incorrectly
 NOTE_COLORS = {
     "Info": {"fill": "#E3F2FD", "stroke": "#1976D2", "icon": "ℹ"},
     "Warning": {"fill": "#FFF3E0", "stroke": "#F57C00", "icon": "⚠"},
     "Error": {"fill": "#FFEBEE", "stroke": "#D32F2F", "icon": "✕"},
-    "Success": {"fill": "#E8F5E9", "stroke": "#2E7D32", "icon": "✔"}
+    "Success": {"fill": "#E8F5E9", "stroke": "#2E7D32", "icon": "✓"}  # ✓ U+2713 CHECK MARK - CORRECT
 }
 
 # Code styling colors
@@ -141,8 +143,72 @@ def create_state_box(x: float, y: float, state_name: str, state_desc: str = "") 
     
     return svg_parts
 
+def wrap_text(text: str, max_width: int = 80) -> list:
+    """Wrap text at a maximum width (character count).
+    
+    Returns list of text lines.
+    """
+    if len(text) <= max_width:
+        return [text]
+    
+    lines = []
+    words = text.split(' ')
+    current_line = ""
+    
+    for word in words:
+        if len(current_line) + len(word) + 1 <= max_width:
+            if current_line:
+                current_line += " " + word
+            else:
+                current_line = word
+        else:
+            if current_line:
+                lines.append(current_line)
+            current_line = word
+    
+    if current_line:
+        lines.append(current_line)
+    
+    return lines if lines else [text]
+
+def render_text_with_code_styling(content: str, x: float, y: float, font_size: int = 11, 
+                                   text_color: str = "black", code_bg_color: str = CODE_BACKGROUND_COLOR, 
+                                   note_bg_color: str = None, line_spacing: float = 1.3) -> tuple:
+    """Render text as plain text (code styling removed).
+    
+    Args:
+        content: Text to render
+        x, y: Starting position
+        font_size: Font size in pixels
+        text_color: Color for text
+        code_bg_color: Unused (kept for backwards compatibility)
+        note_bg_color: Unused (kept for backwards compatibility)
+        line_spacing: Line spacing multiplier
+    
+    Returns tuple (svg_elements_list, total_height, max_width)
+    """
+    svg_parts = []
+    lines = content.split('\n')
+    line_height = font_size * line_spacing
+    current_y = y
+    max_width = 0
+    char_width = font_size * 0.65
+    
+    for line_text in lines:
+        # Render line as simple text element
+        text_element = f'<text x="{x}" y="{current_y + font_size}" font-family="monospace" font-size="{font_size}" dominant-baseline="baseline" fill="{text_color}">{line_text}</text>'
+        svg_parts.append(text_element)
+        
+        max_width = max(max_width, len(line_text) * char_width)
+        current_y += line_height
+    
+    total_height = current_y - y + 4
+    return (svg_parts, total_height, max_width)
+
 def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) -> list:
     """Create SVG elements for a note box with UML note style (folded corner).
+    
+    Includes a styled tooltip that appears on hover with note content using code styling.
     
     Args:
         x: X coordinate (center of note)
@@ -158,8 +224,13 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
     left = x - (NOTE_BOX_WIDTH / 2)
     right = left + NOTE_BOX_WIDTH
     
-    # Create note content with type prefix (strip code() wrappers for clean display)
-    prefixed_content = f"{strip_code_wrappers(note.note_type)}: {strip_code_wrappers(note.content)}" if note.content else strip_code_wrappers(note.note_type)
+    # Create note content with type prefix (keep backticks for code styling)
+    prefixed_content = f"{note.note_type}: {note.content}" if note.content else note.note_type
+    
+    # Open a group for hover interaction with data attribute for note content (for easy copying)
+    # Escape quotes in note content for HTML attribute
+    escaped_content = prefixed_content.replace('"', '&quot;')
+    svg_parts.append(f'<g class="note-box-group" data-note-content="{escaped_content}">')
     
     # Draw main rectangle (path that accommodates folded corner)
     # Rectangle with top-right corner cut out for fold
@@ -171,8 +242,6 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
                  f'L {fold_right},{y + NOTE_FOLD_SIZE} L {fold_right},{y + NOTE_BOX_HEIGHT} '
                  f'L {left},{y + NOTE_BOX_HEIGHT} Z" '
                  f'fill="{colors["fill"]}" stroke="{colors["stroke"]}" stroke-width="1"/>')
-    if note.content:
-        rect_path = rect_path.replace('/>', f'><title>{prefixed_content}</title></path>', 1)
     svg_parts.append(rect_path)
     
     # Draw folded corner (darker shade)
@@ -186,12 +255,11 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
                  f'stroke="{colors["stroke"]}" stroke-width="0.5" opacity="0.6"/>')
     svg_parts.append(fold_line)
     
-    # Draw icon/indicator (larger symbol, vertically centered)
+    # Draw icon/indicator (centered both horizontally and vertically)
     icon_x = left + NOTE_BOX_WIDTH / 2
     icon_y = y + NOTE_BOX_HEIGHT / 2
-    icon = f'<text x="{icon_x}" y="{icon_y}" font-size="11" font-weight="bold" fill="{colors["stroke"]}" text-anchor="middle" dominant-baseline="middle">{colors["icon"]}</text>'
-    if note.content:
-        icon = icon.replace('>', f'><title>{prefixed_content}</title>', 1)
+    # Use baseline dominant with exact y position for proper centering
+    icon = f'<text x="{icon_x}" y="{icon_y}" font-size="11" font-weight="bold" fill="{colors["stroke"]}" text-anchor="middle" dominant-baseline="central">{colors["icon"]}</text>'
     svg_parts.append(icon)
     
     # If show_text is True, add the content text (truncated to fit)
@@ -200,6 +268,64 @@ def create_note_box(x: float, y: float, note: NoteDef, show_text: bool = False) 
         truncated = prefixed_content[:12] + ".." if len(prefixed_content) > 12 else prefixed_content
         text = f'<text x="{x}" y="{y + NOTE_BOX_HEIGHT - 2}" font-size="5" fill="{colors["stroke"]}" text-anchor="middle">{truncated}</text>'
         svg_parts.append(text)
+    
+    # Create styled tooltip that shows on hover
+    if note.content:
+        # Wrap text to max 80 characters
+        wrapped_lines = wrap_text(prefixed_content, max_width=80)
+        wrapped_text = '\n'.join(wrapped_lines)
+        
+        # Render content with code styling to get dimensions
+        text_elements, text_height, text_width = render_text_with_code_styling(
+            wrapped_text, 0, 0,  # Dummy coords, we'll position later
+            font_size=11, text_color=colors["stroke"],
+            code_bg_color=CODE_BACKGROUND_COLOR,
+            note_bg_color=colors["fill"])
+        
+        # Calculate tooltip dimensions based on content
+        tooltip_padding_h = 10
+        tooltip_padding_v = 8
+        tooltip_width = text_width + (tooltip_padding_h * 2)
+        tooltip_height = text_height + (tooltip_padding_v * 2)
+        
+        # Ensure minimum size
+        tooltip_width = max(120, tooltip_width)
+        tooltip_height = max(35, tooltip_height)
+        
+        tooltip_y = y - tooltip_height - 8  # Position above the note
+        tooltip_x = x - tooltip_width / 2
+        
+        # Clamp tooltip to visible area horizontally
+        max_x_pos = 1200  # Assume reasonable canvas width
+        if tooltip_x < 10:
+            tooltip_x = 10
+        elif tooltip_x + tooltip_width > max_x_pos:
+            tooltip_x = max_x_pos - tooltip_width
+        
+        # Create tooltip group with overflow visible
+        svg_parts.append('<g class="note-tooltip" overflow="visible">')
+        
+        # Tooltip background with rounded corners
+        tooltip_bg = (f'<rect x="{tooltip_x}" y="{tooltip_y}" width="{tooltip_width}" height="{tooltip_height}" '
+                     f'fill="{colors["fill"]}" stroke="{colors["stroke"]}" stroke-width="1.5" rx="4" ry="4"/>')
+        svg_parts.append(tooltip_bg)
+        
+        # Render tooltip text with proper positioning
+        text_start_y = tooltip_y + tooltip_padding_v
+        text_start_x = tooltip_x + tooltip_padding_h
+        
+        text_elements, _, _ = render_text_with_code_styling(
+            wrapped_text, text_start_x, text_start_y,
+            font_size=11, text_color=colors["stroke"],
+            code_bg_color=CODE_BACKGROUND_COLOR,
+            note_bg_color=colors["fill"])
+        svg_parts.extend(text_elements)
+        
+        # Close tooltip group
+        svg_parts.append('</g>')
+    
+    # Close note group
+    svg_parts.append('</g>')
     
     return svg_parts
 
@@ -503,6 +629,23 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     total_rows = len(row_to_y)
     # Calculate height based on actual last row position plus padding
     max_y = max(row_to_y.values()) if row_to_y else 90
+    
+    # Track the last activity y position for each participant (for lifeline endpoints)
+    participant_max_y = {lane: 90 for lane in lanes}  # Initialize with first message y position
+    
+    # Update participant_max_y based on steps (messages and return values)
+    for step in filtered_steps:
+        if step.src_obj in participant_max_y:
+            participant_max_y[step.src_obj] = max(participant_max_y[step.src_obj], step.y)
+        if step.dst_obj in participant_max_y:
+            participant_max_y[step.dst_obj] = max(participant_max_y[step.dst_obj], step.y)
+    
+    # Also account for lane notes - scan all steps for lane notes that come later
+    for step in filtered_steps:
+        for lane_name in step.lane_notes.keys():
+            if lane_name in participant_max_y:
+                participant_max_y[lane_name] = max(participant_max_y[lane_name], step.y)
+    
     # Account for notes at the end of the sequence: notes are positioned at y+60, note height is 13
     # Bottom margin is 1 character height (FONT_SIZE) plus note space
     height = max_y + 60 + NOTE_BOX_HEIGHT + FONT_SIZE  # Reduced bottom padding
@@ -519,7 +662,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     render_version = f"{render_time}-{random.randint(1000, 9999)}"
     
     svg.append(f'<svg width="{width}" height="{height + top_margin}" '
-               f'xmlns="http://www.w3.org/2000/svg" data-render-version="{render_version}">')
+               f'xmlns="http://www.w3.org/2000/svg" overflow="visible" data-render-version="{render_version}">')
     
     # Add SVG comment with render version for debugging
     svg.append(f'<!-- Render Version: {render_version} -->')
@@ -533,6 +676,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
               refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
         <path d="M0,0 L0,6 L9,3 z" fill="#000" />
       </marker>
+      <style>
+        .note-tooltip { display: none; pointer-events: none; }
+        .note-box-group:hover .note-tooltip { display: block; pointer-events: auto; }
+      </style>
     </defs>
     """)
 
@@ -584,10 +731,11 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         text_elem += '</text>'
         svg.append(text_elem)
 
-        # Draw lifeline extending only 1 character height below the last message/note
+        # Draw lifeline extending only 1 character height below the last message/note for this participant
         lifeline_y_start = box_y + box_height
-        # Lifelines extend only 1 character below the last visible content (max_y)
-        lifeline_y_end = max_y + FONT_SIZE
+        # Lifelines extend to the last activity for this specific participant
+        participant_last_y = participant_max_y.get(lane, 90)
+        lifeline_y_end = participant_last_y + 60 + FONT_SIZE  # 60px for note positioning + font size
         svg.append(f'<line x1="{x}" y1="{lifeline_y_start}" x2="{x}" y2="{lifeline_y_end}" '
                    f'stroke="#888" stroke-dasharray="4,4"/>')
     
@@ -623,6 +771,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     bracket_end_for_start_row = {}  # Maps start_row -> end_row
     step_return_row = {}  # Maps step id -> the row where its return arrow should appear
     parent_scope_end_y = {}  # Maps parent bracket start_row -> final y position including return arrows
+    deferred_notes = []  # Collect notes to render at the end (so they appear on top)
     RETURN_ARROW_SPACING = FONT_SIZE  # Space between message and return arrow (matches font height)
     
     for (start_row, nesting_depth), (end_row, func_name, src_obj, dst_obj) in spanning_brackets.items():
@@ -635,8 +784,28 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         # Store bracket info for rendering
         func_def = model.get_function(src_obj, func_name)
         func_tooltip = func_def.description if func_def else ""
-        # Use the full function name from the definition (includes signature for self-messages)
-        display_func_name = func_def.name if func_def else func_name
+        # Build the full function signature with parameters for display
+        display_func_name = func_name
+        if func_def:
+            # Include func_def.name (which has the proper signature) with parameters in parentheses
+            param_labels = []
+            # Get the step to access parameter values
+            step_with_params = None
+            for step in filtered_steps:
+                if step.row == start_row and step.depth == nesting_depth and step.src_obj == src_obj and step.dst_obj == dst_obj and step.function == func_name:
+                    step_with_params = step
+                    break
+            
+            if step_with_params and step_with_params.param_values:
+                for i, param_def in enumerate(func_def.params):
+                    if i < len(step_with_params.param_values):
+                        param_labels.append(strip_code_wrappers(step_with_params.param_values[i]))
+            elif func_def.params:
+                # If no values provided, just show param names
+                param_labels = [p.name for p in func_def.params]
+            
+            display_func_name = func_def.name + "(" + ", ".join(param_labels) + ")"
+        
         # Store src_obj and dst_obj to determine if this is a self-message
         bracket_render_info[(start_row, nesting_depth)] = (x, y_start, y_end, display_func_name, func_tooltip, nesting_depth, src_obj, dst_obj)
         
@@ -898,15 +1067,14 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                     ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
                 svg.append(ret_text_elem)
         
-        # Render lane notes for this step (only in High verbosity)
+        # Defer lane notes for this step to render at the end (so they appear on top)
         if verbosity_level.lower() == "high":
             for lane_name, note in step.lane_notes.items():
                 if lane_name in lane_positions:
                     x_lane = lane_positions[lane_name]
                     note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
-                    # Show text inline for better visibility
-                    note_elements = create_note_box(x_lane, note_y, note, show_text=False)
-                    svg.extend(note_elements)
+                    # Defer note rendering to later (will appear on top)
+                    deferred_notes.append((x_lane, note_y, note))
         
         # Render state changes after this step
         if step.state_changes:
@@ -965,6 +1133,11 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 ret_tooltip_escaped = ret_tooltip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
                 ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
             svg.append(ret_text_elem)
+
+    # Render deferred notes at the end so they always appear on top
+    for x_lane, note_y, note in deferred_notes:
+        note_elements = create_note_box(x_lane, note_y, note, show_text=False)
+        svg.extend(note_elements)
 
     # Add render version in bottom right corner for cache debugging
     version_x = width - 8

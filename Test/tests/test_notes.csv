@@ -19,5 +19,6 @@ Sequence,SoftReq_TEST_001,Test note types
     User,@Success,Backup verified
     NotificationService,User,Notify,123,sent,@Error,Alert delivery failed
     Logger,@Error,Database offline
+    User,@Info,Long note with `code` segments that exceeds eighty characters maximum width and should wrap to demonstrate text wrapping and code styling together
 
 

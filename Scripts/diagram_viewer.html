@@ -258,6 +258,61 @@
             background-color: #ffebee;
             border-radius: 2px;
         }
+        
+        /* Enable text selection in SVG */
+        .diagram-area svg text {
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+        
+        /* Make note boxes clickable */
+        .diagram-area svg g.note-box-group {
+            cursor: pointer;
+            transition: opacity 0.1s;
+        }
+        
+        .diagram-area svg g.note-box-group:hover {
+            opacity: 0.85;
+        }
+        
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #323232;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 2000;
+            animation: slideIn 0.3s ease-out;
+            pointer-events: none;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -334,15 +389,99 @@
         const verbosityOptions = document.getElementById('verbosityOptions');
         const layersList = document.getElementById('layersList');
         
+        // Copy to clipboard functionality
+        function showToast(message, duration = 2000) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        
+        async function copySelectedText() {
+            const selection = window.getSelection();
+            
+            if (selection.toString().length === 0) {
+                showToast('No text selected', 1500);
+                return;
+            }
+            
+            try {
+                await navigator.clipboard.writeText(selection.toString());
+                showToast('Copied to clipboard!', 2000);
+            } catch (err) {
+                showToast('Failed to copy', 1500);
+                console.error('Copy failed:', err);
+            }
+        }
+        
+        // Handle Ctrl+C for copying selected text
+        document.addEventListener('keydown', (event) => {
+            if (event.ctrlKey && event.key === 'c') {
+                const selection = window.getSelection();
+                // Only handle Ctrl+C if something in the diagram is selected
+                if (selection.toString().length > 0 && 
+                    diagramContainer.contains(selection.anchorNode)) {
+                    event.preventDefault();
+                    copySelectedText();
+                }
+            }
+        });
+        
+        // Handle copy event for selected text
+        document.addEventListener('copy', (event) => {
+            const selection = window.getSelection();
+            if (selection.toString().length > 0 && 
+                diagramContainer && diagramContainer.contains(selection.anchorNode)) {
+                // Allow native copy to work, but show toast
+                showToast('Copied to clipboard!', 2000);
+            }
+        });
+        
+        // Handle note box clicks - copy note content to clipboard
+        document.addEventListener('click', async (event) => {
+            // Check if clicked element or its parent is a note box group
+            let noteGroup = event.target.closest('.note-box-group');
+            if (noteGroup && noteGroup.hasAttribute('data-note-content')) {
+                const noteContent = noteGroup.getAttribute('data-note-content');
+                try {
+                    await navigator.clipboard.writeText(noteContent);
+                    showToast('Note copied to clipboard!', 2000);
+                    event.stopPropagation();
+                } catch (err) {
+                    showToast('Failed to copy note', 1500);
+                    console.error('Copy failed:', err);
+                }
+            }
+        }, true); // Use capture phase to intercept early
+        
         // Initialize
         async function init() {
             try {
                 console.log('Initializing diagram viewer...');
                 
+                // Check URL parameters for diagram override
+                const urlParams = new URLSearchParams(window.location.search);
+                const diagramParam = urlParams.get('diagram');
+                
                 // Check if initial parameters were provided via window.initialParams
                 if (window.initialParams) {
                     state.csv = window.initialParams.csv || state.csv;
                     state.sequence = window.initialParams.sequence || state.sequence;
+                    state.verbosity = window.initialParams.verbosity || state.verbosity;
+                } else if (diagramParam) {
+                    // Parse diagram parameter: "tests/test_notes.csv" or just "test_notes.csv"
+                    let csvPath = diagramParam;
+                    if (csvPath.includes('/')) {
+                        csvPath = csvPath.substring(csvPath.lastIndexOf('/') + 1);
+                    }
+                    state.csv = csvPath;
+                } else {
+                    // Default: will be set from first available CSV
                     state.verbosity = window.initialParams.verbosity || state.verbosity;
                     console.log('Using initial parameters:', window.initialParams);
                 }

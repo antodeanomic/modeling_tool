@@ -14,7 +14,8 @@ Class,Database,Data persistence
         Param,data,Event data
         ReturnVal,saved,Saved status
 Sequence,CodeSyntax_TEST,Testing backtick code syntax
-    Logger,Monitor,LogEvent,`123`,`INFO`,`true`
-    Monitor,Database,SendNotification,`System offline`,`HIGH`,`success`
-    Database,Logger,SaveLog,`event_data`,`rowID`
-    Logger,@Info,`Data logged successfully`
+    Logger,Monitor,LogEvent,123,INFO,true
+    Monitor,Database,SendNotification,System offline,HIGH,success
+    Database,Logger,SaveLog,event_data,rowID
+    Logger,@Info,Data logged successfully
+    Monitor,@Warning,Check status before processing
