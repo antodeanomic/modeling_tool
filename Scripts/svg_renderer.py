@@ -465,7 +465,8 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # 2. Minimum MIN_ARROW_LENGTH arrow space on each side of message labels
     # Result = MAX of these two requirements
     
-    # Criterion 1: Calculate minimum lane width for 2-char gap between participants
+    # Criterion 1: Calculate minimum lane width for spacing between participants
+    # Must account for: box sizes + minimum gap + longest message between adjacent lanes
     min_lane_width_for_gap = LANE_WIDTH  # Start with default
     
     for i in range(len(lanes) - 1):
@@ -473,11 +474,38 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         box_width1, _ = measure_participant_box(lane1)
         box_width2, _ = measure_participant_box(lane2)
         
-        # For adjacent lanes: distance between lane centers must accommodate both boxes + gap
-        # Required distance = (box_width1/2) + MIN_GAP_BETWEEN_BOXES + (box_width2/2)
+        # Base requirement: both boxes + minimum gap
         required_distance = (box_width1 / 2) + MIN_GAP_BETWEEN_BOXES + (box_width2 / 2)
+        
+        # ALSO check messages between these adjacent participants to see if any are longer than MIN_GAP_BETWEEN_BOXES
+        # Messages between adjacent lanes need room to fit in the gap
+        max_message_width_between_lanes = 0
+        for step in seq.steps:
+            # Only check messages between these two adjacent participants (in either direction)
+            if (step.src_obj == lane1 and step.dst_obj == lane2) or (step.src_obj == lane2 and step.dst_obj == lane1):
+                # Measure the message label
+                msg_label = step.function
+                if step.param_values:
+                    msg_label += "(" + ", ".join(strip_code_wrappers(v) for v in step.param_values) + ")"
+                else:
+                    msg_label += "()"
+                
+                msg_width = len(msg_label) * MONOSPACE_CHAR_WIDTH
+                
+                # Add note width if it exists and verbosity is High
+                if step.function_note and verbosity_level.lower() == "high":
+                    msg_width += NOTE_BOX_WIDTH  # Include note width in message spacing
+                
+                max_message_width_between_lanes = max(max_message_width_between_lanes, msg_width)
+        
+        # If the longest message is wider than the minimum gap, adjust the required distance
+        if max_message_width_between_lanes > MIN_GAP_BETWEEN_BOXES:
+            # The gap must be at least as wide as the longest message
+            # Required distance = (box_width1/2) + message_width + (box_width2/2)
+            required_distance = (box_width1 / 2) + max_message_width_between_lanes + (box_width2 / 2)
+        
         min_lane_width_for_gap = max(min_lane_width_for_gap, required_distance)
-        print(f"[Gap Calc] {lane1} + gap + {lane2}: box1={box_width1:.0f}, box2={box_width2:.0f}, required_distance={required_distance:.0f}px")
+        print(f"[Gap Calc] {lane1} + gap + {lane2}: box1={box_width1:.0f}, box2={box_width2:.0f}, max_msg={max_message_width_between_lanes:.0f}px, required_distance={required_distance:.0f}px")
     
     # Criterion 2: Calculate minimum lane width for arrow spacing around message labels
     # IMPORTANT: Must account for BOTH forward messages AND return value arrows
