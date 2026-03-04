@@ -1,43 +1,46 @@
 @echo off
-REM refresh.bat - Kill Python, clear cache, and restart server
-REM Usage: refresh.bat
+REM refresh.bat - Simple server restart script
+REM Only manages Python server process - leaves all terminals alone
 
 echo.
-echo === REFRESH SCRIPT ===
-echo Killing Python processes...
+echo === SEQUENCE DIAGRAM SERVER RESTART ===
+echo.
+
+echo Step 1: Stopping any existing Python server processes...
 taskkill /IM python3.13.exe /F 2>nul >nul
 taskkill /IM python.exe /F 2>nul >nul
 timeout /t 1 /nobreak >nul
+echo [OK] Python processes stopped
 echo.
-echo [OK] Python processes terminated
 
-REM Commented out: Closing extra PowerShell and Command windows interferes with execution
-REM echo.
-REM echo Closing extra PowerShell and Command windows...
-REM taskkill /IM powershell.exe /F 2>nul >nul
-REM taskkill /IM cmd.exe /F 2>nul >nul
-REM timeout /t 1 /nobreak >nul
-REM echo [OK] Extra console windows closed
-
-echo.
-echo Clearing Python cache...
+echo Step 2: Clearing Python cache...
 rmdir /s /q __pycache__ 2>nul
 rmdir /s /q Scripts\__pycache__ 2>nul
+timeout /t 1 /nobreak >nul
 echo [OK] Cache cleared
-
-echo.
-echo Starting server on port 8000...
 echo.
 
-REM Use PowerShell to launch server in true background process
-powershell -Command "Start-Process python -ArgumentList 'Scripts\server.py', '8000' -WindowStyle Hidden; Start-Sleep -Seconds 3"
-
-REM Verify server is running
-tasklist /FI "IMAGENAME eq python*" /FO TABLE 2>nul | findstr python >nul
-if %errorlevel% equ 0 (
-  echo [OK] Server started successfully and is running
-  echo Server running at http://localhost:8000
-) else (
-  echo [ERROR] Server failed to start
-)
+echo Step 3: Starting server on port 8000...
+echo Server will open in a NEW VISIBLE WINDOW below
 echo.
+echo ============================================
+echo.
+
+REM Start server in a NEW VISIBLE window so you can see output and errors
+cd Scripts
+start "Sequence Diagram Server" python server.py 8000
+cd ..
+
+REM Wait for server to fully start
+timeout /t 3 /nobreak >nul
+
+echo.
+echo ============================================
+echo.
+echo [OK] Server started!
+echo.
+echo Open in browser: http://localhost:8000
+echo.
+echo To stop the server: Close the Sequence Diagram Server window
+echo.
+
