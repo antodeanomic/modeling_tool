@@ -12,6 +12,13 @@ echo.
 echo [OK] Python processes terminated
 
 echo.
+echo Closing extra PowerShell and Command windows...
+taskkill /IM powershell.exe /F 2>nul >nul
+taskkill /IM cmd.exe /F 2>nul >nul
+timeout /t 1 /nobreak >nul
+echo [OK] Extra console windows closed
+
+echo.
 echo Clearing Python cache...
 rmdir /s /q __pycache__ 2>nul
 rmdir /s /q Scripts\__pycache__ 2>nul
@@ -19,8 +26,17 @@ echo [OK] Cache cleared
 
 echo.
 echo Starting server on port 8000...
-echo Server starting (press Ctrl+C to stop)
 echo.
 
-cd Scripts
-python server.py 8000
+REM Use PowerShell to launch server in true background process
+powershell -Command "Start-Process python -ArgumentList 'Scripts\server.py', '8000' -WindowStyle Hidden; Start-Sleep -Seconds 3"
+
+REM Verify server is running
+tasklist /FI "IMAGENAME eq python*" /FO TABLE 2>nul | findstr python >nul
+if %errorlevel% equ 0 (
+  echo [OK] Server started successfully and is running
+  echo Server running at http://localhost:8000
+) else (
+  echo [ERROR] Server failed to start
+)
+echo.
