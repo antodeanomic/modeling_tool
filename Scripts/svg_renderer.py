@@ -1073,6 +1073,21 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 if lane_name in lane_positions:
                     x_lane = lane_positions[lane_name]
                     note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
+                    
+                    # Check if this step is within any spanning bracket, and if so, position note below the bracket
+                    for (bracket_start_row, bracket_depth), (bracket_end_row, bracket_func_name, bracket_src, bracket_dst) in spanning_brackets.items():
+                        # Check if this step is within this bracket
+                        if step.row >= bracket_start_row and step.row <= bracket_end_row:
+                            # For self-messages, the bracket is on the destination object
+                            # For cross-messages, check if step is on the destination lane
+                            is_self_bracket = (bracket_src == bracket_dst)
+                            step_in_bracket_lane = (is_self_bracket and step.dst_obj == bracket_dst) or (not is_self_bracket and step.dst_obj == bracket_dst)
+                            
+                            if step_in_bracket_lane:
+                                # Position note below the bracket's end row
+                                bracket_end_y = row_to_y[bracket_end_row]
+                                note_y = max(note_y, bracket_end_y + 70)  # 70px to clear the bracket
+                    
                     # Defer note rendering to later (will appear on top)
                     deferred_notes.append((x_lane, note_y, note))
         
