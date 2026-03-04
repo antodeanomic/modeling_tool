@@ -528,11 +528,13 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             # Include note width ONLY if note exists AND verbosity is High (notes only render in High)
             note_width = 0
             label_note_gap = 0
+            note_padding = 0  # Extra padding when note is present
             if step.function_note and verbosity_level.lower() == "high":
-                note_width = NOTE_BOX_WIDTH  # 2-char note width
-                label_note_gap = LABEL_NOTE_GAP  # Gap to prevent overlap
+                note_width = NOTE_BOX_WIDTH  # 2-char note width (~14px)
+                label_note_gap = LABEL_NOTE_GAP  # Gap to prevent overlap (currently 0)
+                note_padding = 8  # Extra 8px padding on right side of note for message with icon
             
-            total_width_for_spacing = full_label_width + label_note_gap + note_width
+            total_width_for_spacing = full_label_width + label_note_gap + note_width + note_padding
             
             # For all messages: ensure MIN_ARROW_LENGTH space on each side of text
             # Total needed = text_width + (2 * MIN_ARROW_LENGTH)
@@ -1074,19 +1076,15 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                     x_lane = lane_positions[lane_name]
                     note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
                     
-                    # Check if this step is within any spanning bracket, and if so, position note below the bracket
+                    # Check if this note's lane is the destination of any spanning bracket that overlaps with this step's rows
                     for (bracket_start_row, bracket_depth), (bracket_end_row, bracket_func_name, bracket_src, bracket_dst) in spanning_brackets.items():
-                        # Check if this step is within this bracket
-                        if step.row >= bracket_start_row and step.row <= bracket_end_row:
-                            # For self-messages, the bracket is on the destination object
-                            # For cross-messages, check if step is on the destination lane
-                            is_self_bracket = (bracket_src == bracket_dst)
-                            step_in_bracket_lane = (is_self_bracket and step.dst_obj == bracket_dst) or (not is_self_bracket and step.dst_obj == bracket_dst)
-                            
-                            if step_in_bracket_lane:
-                                # Position note below the bracket's end row
+                        # Spanning brackets appear on the destination lane
+                        if lane_name == bracket_dst:
+                            # Check if this step falls within the bracket's row range
+                            if step.row >= bracket_start_row and step.row <= bracket_end_row:
+                                # Position note well below the bracket's end row to avoid overlap
                                 bracket_end_y = row_to_y[bracket_end_row]
-                                note_y = max(note_y, bracket_end_y + 70)  # 70px to clear the bracket
+                                note_y = max(note_y, bracket_end_y + 85)  # 85px to clear the bracket (increased from 70px)
                     
                     # Defer note rendering to later (will appear on top)
                     deferred_notes.append((x_lane, note_y, note))
@@ -1150,8 +1148,11 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             svg.append(ret_text_elem)
 
     # Render deferred notes at the end so they always appear on top
+    # Add 4px spacing before each note to prevent overlap with other elements
+    NOTE_VERTICAL_SPACING = 4
     for x_lane, note_y, note in deferred_notes:
-        note_elements = create_note_box(x_lane, note_y, note, show_text=False)
+        spaced_note_y = note_y + NOTE_VERTICAL_SPACING
+        note_elements = create_note_box(x_lane, spaced_note_y, note, show_text=False)
         svg.extend(note_elements)
 
     # Add render version in bottom right corner for cache debugging
