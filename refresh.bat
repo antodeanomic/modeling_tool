@@ -11,12 +11,13 @@ timeout /t 1 /nobreak >nul
 echo.
 echo [OK] Python processes terminated
 
-echo.
-echo Closing extra PowerShell and Command windows...
-taskkill /IM powershell.exe /F 2>nul >nul
-taskkill /IM cmd.exe /F 2>nul >nul
-timeout /t 1 /nobreak >nul
-echo [OK] Extra console windows closed
+REM Commented out: Closing extra PowerShell and Command windows interferes with execution
+REM echo.
+REM echo Closing extra PowerShell and Command windows...
+REM taskkill /IM powershell.exe /F 2>nul >nul
+REM taskkill /IM cmd.exe /F 2>nul >nul
+REM timeout /t 1 /nobreak >nul
+REM echo [OK] Extra console windows closed
 
 echo.
 echo Clearing Python cache...
