@@ -39,8 +39,12 @@ echo ============================================
 echo.
 echo [OK] Server started!
 echo.
-echo Open in browser: http://localhost:8000
+echo Step 4: Opening browser at http://localhost:8000
+timeout /t 1 /nobreak >nul
+start http://localhost:8000
+echo [OK] Browser opened
 echo.
 echo To stop the server: Close the Sequence Diagram Server window
 echo.
+
 
