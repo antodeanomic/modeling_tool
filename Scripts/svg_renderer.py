@@ -1128,7 +1128,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                     x_lane = lane_positions[lane_name]
                     # Position note at standard offset below the message
                     # Following messages will be positioned right after notes via Y adjustment
-                    note_y = y + 60
+                    note_y = y + 25
                     
                     
                     # Check if this note's lane is the destination of any spanning bracket that overlaps with this step's rows
