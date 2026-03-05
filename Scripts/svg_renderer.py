@@ -674,9 +674,13 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             if lane_name in participant_max_y:
                 participant_max_y[lane_name] = max(participant_max_y[lane_name], step.y)
     
-    # Account for notes at the end of the sequence: notes are positioned at y+60, note height is 13
-    # Bottom margin is 1 character height (FONT_SIZE) plus note space
-    height = max_y + 60 + NOTE_BOX_HEIGHT + FONT_SIZE  # Reduced bottom padding
+    # Find the maximum lifeline endpoint across all participants
+    # All lifelines should extend to the same length (the longest one)
+    max_lifeline_y = max(participant_max_y.values()) if participant_max_y else 90
+    
+    # Calculate canvas height to fit everything: notes at max_lifeline_y + 60, note height 13px, plus 3 char margin
+    diagram_bottom = max_lifeline_y + 60 + NOTE_BOX_HEIGHT + 3 * FONT_SIZE
+    height = diagram_bottom + FONT_SIZE  # Add extra FONT_SIZE below for visible margin
     # Right margin must account for last participant box width
     right_margin = max(14, max_box_width / 2 + 5)  # 5px safety margin
     width = max(lane_positions.values()) + right_margin if lane_positions else left_margin + right_margin
@@ -759,11 +763,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         text_elem += '</text>'
         svg.append(text_elem)
 
-        # Draw lifeline extending only 1 character height below the last message/note for this participant
+        # Draw lifeline extending to the bottom of all notes for this participant
         lifeline_y_start = box_y + box_height
-        # Lifelines extend to the last activity for this specific participant
-        participant_last_y = participant_max_y.get(lane, 90)
-        lifeline_y_end = participant_last_y + 60 + FONT_SIZE  # 60px for note positioning + font size
+        # All lifelines extend to the diagram bottom: notes at max_lifeline_y + 60, plus note height and 3 char margin
+        lifeline_y_end = max_lifeline_y + 60 + NOTE_BOX_HEIGHT + 3 * FONT_SIZE
         svg.append(f'<line x1="{x}" y1="{lifeline_y_start}" x2="{x}" y2="{lifeline_y_end}" '
                    f'stroke="#888" stroke-dasharray="4,4"/>')
     
