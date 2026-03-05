@@ -803,6 +803,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     step_return_row = {}  # Maps step id -> the row where its return arrow should appear
     parent_scope_end_y = {}  # Maps parent bracket start_row -> final y position including return arrows
     deferred_notes = []  # Collect notes to render at the end (so they appear on top)
+    step_index_map = {id(step): idx for idx, step in enumerate(filtered_steps)}  # Map step id to its index
     RETURN_ARROW_SPACING = FONT_SIZE  # Space between message and return arrow (matches font height)
     
     for (start_row, nesting_depth), (end_row, func_name, src_obj, dst_obj) in spanning_brackets.items():
@@ -1105,6 +1106,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                     x_lane = lane_positions[lane_name]
                     note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
                     
+                    
                     # Check if this note's lane is the destination of any spanning bracket that overlaps with this step's rows
                     for (bracket_start_row, bracket_depth), (bracket_end_row, bracket_func_name, bracket_src, bracket_dst) in spanning_brackets.items():
                         # Spanning brackets appear on the destination lane
@@ -1116,7 +1118,9 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                                 note_y = max(note_y, bracket_end_y + 85)  # 85px to clear the bracket (increased from 70px)
                     
                     # Defer note rendering to later (will appear on top)
-                    deferred_notes.append((x_lane, note_y, note))
+                    # Store as (step_index, note_y, x_lane, lane_name, note) to maintain step ordering
+                    step_idx = step_index_map.get(id(step), 9999)  # Get step's index in filtered_steps
+                    deferred_notes.append((step_idx, note_y, x_lane, lane_name, note))
         
         # Render state changes after this step
         if step.state_changes:
@@ -1177,13 +1181,24 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             svg.append(ret_text_elem)
 
     # Render deferred notes at the end so they always appear on top
-    # Add 4px spacing before each note to prevent overlap with other elements
+    # Sort notes by step INDEX to maintain sequence order
+    # This ensures notes appear in the same order as their corresponding steps
+    deferred_notes.sort(key=lambda x: x[0])  # Sort ONLY by step_index
+    
+    
+    # Render notes in step order, WITHOUT grouping by note_y
+    # This preserves the visual sequence order
     NOTE_VERTICAL_SPACING = 4
-    for x_lane, note_y, note in deferred_notes:
-        spaced_note_y = note_y + NOTE_VERTICAL_SPACING
+    notes_to_render = []  # List of (note_y, spacing, x_lane, note) in step order
+    
+    for step_idx, note_y, x_lane, lane_name, note in deferred_notes:
+        notes_to_render.append((note_y + NOTE_VERTICAL_SPACING, x_lane, note))
+    
+    # Render all notes in step order
+    for spaced_note_y, x_lane, note in notes_to_render:
         note_elements = create_note_box(x_lane, spaced_note_y, note, show_text=False)
         svg.extend(note_elements)
-
+    
     # Add render version in bottom right corner for cache debugging
     version_x = width - 8
     version_y = height + top_margin - 5
