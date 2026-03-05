@@ -30,3 +30,7 @@ Thumbs.db
 # Temporary files
 temp.csv
 *.tmp
+
+# Log files
+*.log
+refresh_simple.bat
