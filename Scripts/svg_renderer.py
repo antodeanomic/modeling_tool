@@ -1104,15 +1104,18 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             for lane_name, note in step.lane_notes.items():
                 if lane_name in lane_positions:
                     x_lane = lane_positions[lane_name]
-                    note_y = y + 60  # Position below state changes (which are at y+50) with space to next function
+                    # Position note immediately after the message in the same row + small offset
+                    # This allows notes to appear intermixed with messages, not all grouped below
+                    note_y = y + 25  # Small offset below the message arrow (was y+60)
                     
                     
                     # Check if this note's lane is the destination of any spanning bracket that overlaps with this step's rows
                     for (bracket_start_row, bracket_depth), (bracket_end_row, bracket_func_name, bracket_src, bracket_dst) in spanning_brackets.items():
                         # Spanning brackets appear on the destination lane
                         if lane_name == bracket_dst:
-                            # Check if this step falls within the bracket's row range
-                            if step.row >= bracket_start_row and step.row <= bracket_end_row:
+                            # Only apply clearance if the note is AFTER a bracket that hasn't ended yet
+                            # If the bracket ends at this step's row or earlier, the note can appear on the message
+                            if step.row > bracket_end_row:
                                 # Position note well below the bracket's end row to avoid overlap
                                 bracket_end_y = row_to_y[bracket_end_row]
                                 note_y = max(note_y, bracket_end_y + 85)  # 85px to clear the bracket (increased from 70px)
@@ -1183,7 +1186,53 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # Render deferred notes at the end so they always appear on top (higher Z-order)
     # BUT: Sort by Y coordinate (not step index) to maintain visual sequence order
     # This ensures notes appear at the correct vertical position, intermixed with messages
+    
+    # DEBUG: Log the rendering order before sorting
+    debug_log = [f"\n[RENDER ORDER DEBUG] Sequence: {seq.seq_id}"]
+    debug_log.append("\n=== STEPS (in sequence order) ===")
+    for i, step in enumerate(filtered_steps):
+        y = row_to_y.get(step.row, 0)
+        debug_log.append(f"  Step {i}: row={step.row}, {step.src_obj} -> {step.dst_obj} '{step.function}' @ Y={y}")
+    
+    debug_log.append("\n=== DEFERRED NOTES BEFORE SORTING ===")
+    debug_log.append("Format: (step_idx, note_y, lane, note_type)")
+    for step_idx, note_y, x_lane, lane_name, note in deferred_notes:
+        debug_log.append(f"  ({step_idx}, {note_y:.0f}, {lane_name}, {note.note_type})")
+    
+    # Sort by Y coordinate
     deferred_notes.sort(key=lambda x: x[1])  # Sort by note_y (second element)
+    
+    debug_log.append("\n=== DEFERRED NOTES AFTER SORTING BY Y ===")
+    debug_log.append("Format: (step_idx, note_y, lane, note_type)")
+    for step_idx, note_y, x_lane, lane_name, note in deferred_notes:
+        debug_log.append(f"  ({step_idx}, {note_y:.0f}, {lane_name}, {note.note_type})")
+    
+    debug_log.append("\n=== EXPECTED VISUAL RENDER ORDER (if working correctly) ===")
+    debug_log.append("Messages should alternate with their associated notes")
+    for i, step in enumerate(filtered_steps):
+        y = row_to_y.get(step.row, 0)
+        debug_log.append(f"{i}: Msg: {step.src_obj}->{step.dst_obj} '{step.function}' @ Y={y}")
+        # Show notes that belong to this step
+        for step_idx, note_y, x_lane, lane_name, note in deferred_notes:
+            if step_idx == i:
+                debug_log.append(f"   └─ {note.note_type} ({lane_name}) @ Y={note_y:.0f}")
+    
+    # Write debug log to file
+    debug_file = f'../Test/tests/{seq.seq_id}_render_order.txt'
+    with open(debug_file, 'w', encoding='utf-8') as f:
+        f.write("\n".join(debug_log))
+    
+    # Print to console for immediate feedback (safe encoding)
+    try:
+        print("\n".join(debug_log))
+    except UnicodeEncodeError:
+        print("[DEBUG] Debug log written to file - console encoding issue")
+        for line in debug_log[:10]:
+            try:
+                print(line.encode('ascii', errors='replace').decode('ascii'))
+            except:
+                pass
+    print(f"\n[DEBUG] Full render order log written to: {debug_file}")
     
     # Render notes in Y-coordinate order
     # This preserves the visual sequence where notes appear between messages
