@@ -654,7 +654,29 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     for step in filtered_steps:
         step.y = row_to_y[step.row]
 
-    total_rows = len(row_to_y)
+    # Adjust Y positions for steps that follow steps with lane notes
+    # If a step touches a lane that had a note in the previous step, position it right after that note
+    # Then maintain spacing for subsequent steps
+    prev_step = None
+    for step in filtered_steps:
+        if prev_step:
+            # First, maintain minimum spacing from previous step
+            min_y = prev_step.y + (ROW_HEIGHT + ROW_SPACING)
+            
+            # Then check if current step needs to move for a note from previous step
+            if prev_step.lane_notes:
+                # Check if current step touches any lanes that had notes
+                step_lanes = {step.src_obj, step.dst_obj}
+                for lane_with_note in prev_step.lane_notes.keys():
+                    if lane_with_note in step_lanes:
+                        # Position this step right after the previous note
+                        # Note Y = prev_step_y + 60, Note height = 13px, add 2px spacing
+                        prev_note_bottom = prev_step.y + 60 + NOTE_BOX_HEIGHT + 2
+                        min_y = max(min_y, prev_note_bottom)
+                        break
+            
+            step.y = max(step.y, min_y)
+        prev_step = step
     # Calculate height based on actual last row position plus padding
     max_y = max(row_to_y.values()) if row_to_y else 90
     
@@ -1104,9 +1126,9 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
             for lane_name, note in step.lane_notes.items():
                 if lane_name in lane_positions:
                     x_lane = lane_positions[lane_name]
-                    # Position note immediately after the message in the same row + small offset
-                    # This allows notes to appear intermixed with messages, not all grouped below
-                    note_y = y + 19  # Small offset below the message arrow (1/4 reduction from original y+25)
+                    # Position note at standard offset below the message
+                    # Following messages will be positioned right after notes via Y adjustment
+                    note_y = y + 60
                     
                     
                     # Check if this note's lane is the destination of any spanning bracket that overlaps with this step's rows
