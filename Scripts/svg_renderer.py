@@ -1180,22 +1180,17 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 ret_text_elem = ret_text_elem.replace('>', f'><title>{ret_tooltip_escaped}</title>', 1)
             svg.append(ret_text_elem)
 
-    # Render deferred notes at the end so they always appear on top
-    # Sort notes by step INDEX to maintain sequence order
-    # This ensures notes appear in the same order as their corresponding steps
-    deferred_notes.sort(key=lambda x: x[0])  # Sort ONLY by step_index
+    # Render deferred notes at the end so they always appear on top (higher Z-order)
+    # BUT: Sort by Y coordinate (not step index) to maintain visual sequence order
+    # This ensures notes appear at the correct vertical position, intermixed with messages
+    deferred_notes.sort(key=lambda x: x[1])  # Sort by note_y (second element)
     
-    
-    # Render notes in step order, WITHOUT grouping by note_y
-    # This preserves the visual sequence order
+    # Render notes in Y-coordinate order
+    # This preserves the visual sequence where notes appear between messages
     NOTE_VERTICAL_SPACING = 4
-    notes_to_render = []  # List of (note_y, spacing, x_lane, note) in step order
     
     for step_idx, note_y, x_lane, lane_name, note in deferred_notes:
-        notes_to_render.append((note_y + NOTE_VERTICAL_SPACING, x_lane, note))
-    
-    # Render all notes in step order
-    for spaced_note_y, x_lane, note in notes_to_render:
+        spaced_note_y = note_y + NOTE_VERTICAL_SPACING
         note_elements = create_note_box(x_lane, spaced_note_y, note, show_text=False)
         svg.extend(note_elements)
     
