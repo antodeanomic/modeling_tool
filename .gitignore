@@ -34,3 +34,4 @@ temp.csv
 # Log files
 *.log
 refresh_simple.bat
+*_render_order.txt

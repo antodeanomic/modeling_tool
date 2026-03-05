@@ -1106,7 +1106,7 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                     x_lane = lane_positions[lane_name]
                     # Position note immediately after the message in the same row + small offset
                     # This allows notes to appear intermixed with messages, not all grouped below
-                    note_y = y + 25  # Small offset below the message arrow (was y+60)
+                    note_y = y + 12  # Small offset below the message arrow (reduced to allow next message to exit middle of note)
                     
                     
                     # Check if this note's lane is the destination of any spanning bracket that overlaps with this step's rows
