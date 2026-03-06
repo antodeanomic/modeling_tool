@@ -653,6 +653,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
     # Store Y position for each filtered step
     for step in filtered_steps:
         step.y = row_to_y[step.row]
+    
+    # Store Y position for each filtered step
+    for step in filtered_steps:
+        step.y = row_to_y[step.row]
 
     # Calculate height based on actual last row position plus padding
     max_y = max(row_to_y.values()) if row_to_y else 90

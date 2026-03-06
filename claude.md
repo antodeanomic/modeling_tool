@@ -13,6 +13,14 @@ This file contains guidelines and rules for Claude when working in this project.
     - Open the browser to http://localhost:8000
     - Log all output to `server_output.log`
 
+## CSV File Rules
+
+- **CRITICAL**: Do NOT modify any `.csv` test files unless explicitly instructed by the user
+- CSV files define the requirements/specifications for the tool
+- Modifying CSV files changes the requirements themselves, not the implementation
+- If a test doesn't pass with the current CSV, fix the CODE, not the CSV
+- Never change test cases to match code behavior - change code to match test cases
+
 ## Project Overview
 
 This is a Sequence Diagram modeling tool that:
