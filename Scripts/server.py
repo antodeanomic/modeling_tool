@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple HTTP server for interactive sequence diagram viewer."""
+"""Simple HTTP server for interactive diagram viewer."""
 
 import json
 import sys
@@ -9,6 +9,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from parser import parse_csv
 from svg_renderer import render_svg
+from class_diagram_renderer import render_class_diagram_svg
 
 # Configuration - find CSV files and HTML flexibly
 def find_csv_files():
@@ -18,11 +19,12 @@ def find_csv_files():
     
     # Build search paths relative to script directory
     search_dirs = [
-        os.path.join(script_dir, '../Source'),     # ../Source from Scripts/
-        os.path.join(script_dir, '../Test/tests'), # ../Test/tests from Scripts/
-        os.path.join(script_dir, '../tests'),      # ../tests from Scripts/ (for Test subdir)
-        os.path.join(script_dir, '.'),             # Scripts/ itself (shouldn't have CSVs but check anyway)
-        os.path.join(script_dir, '..'),            # Parent of Scripts/
+        os.path.join(script_dir, '../Source'),              # ../Source from Scripts/
+        os.path.join(script_dir, '../Test/tests'),          # ../Test/tests from Scripts/
+        os.path.join(script_dir, '../tests'),               # ../tests from Scripts/ (for Test subdir)
+        os.path.join(script_dir, '../Process/architecture'), # ../Process/architecture from Scripts/
+        os.path.join(script_dir, '.'),                      # Scripts/ itself
+        os.path.join(script_dir, '..'),                     # Parent of Scripts/
     ]
     
     # Also check current working directory just in case
@@ -30,6 +32,7 @@ def find_csv_files():
         "Source",
         "tests",
         "Test/tests",
+        "Process/architecture",
         ".",
     ])
     
@@ -268,37 +271,59 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             super().do_GET()
     
     def handle_diagram_request(self, query_string):
-        """Generate and return an SVG diagram."""
+        """Generate and return an SVG diagram (sequence or class diagram)."""
         params = parse_qs(query_string)
         csv_name = params.get('csv', [DEFAULT_CSV])[0]
+        diagram_type = params.get('type', ['sequence'])[0]
         sequence_id = params.get('sequence', [''])[0]
+        diagram_id = params.get('diagram_id', [''])[0]
         verbosity = params.get('verbosity', ['High'])[0]
         lanes_str = params.get('lanes', [''])[0]
         
-        if not sequence_id:
-            self.send_response(400)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "sequence parameter is required"}).encode('utf-8'))
-            return
-        
-        lanes_filter = None
-        if lanes_str:
-            lanes_filter = lanes_str.split(',')
-        
         try:
-            # Load model and sequence on each request (fresh from CSV)
-            model, sequence = load_model_and_sequence(csv_name, sequence_id)
+            model = load_model(csv_name)
             
-            svg = render_svg(model, sequence, verbosity_level=verbosity, lanes_filter=lanes_filter)
+            if diagram_type == 'class_diagram':
+                if not diagram_id:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "diagram_id parameter is required for class diagrams"}).encode('utf-8'))
+                    return
+                
+                class_diagram = model.get_class_diagram(diagram_id)
+                if not class_diagram:
+                    raise ValueError(f"Class diagram '{diagram_id}' not found")
+                
+                svg = render_class_diagram_svg(model, class_diagram)
+            else:
+                # Default: sequence diagram
+                if not sequence_id:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "sequence parameter is required"}).encode('utf-8'))
+                    return
+                
+                sequence = model.get_sequence(sequence_id)
+                if not sequence:
+                    raise ValueError(f"Sequence {sequence_id} not found")
+                
+                lanes_filter = None
+                if lanes_str:
+                    lanes_filter = lanes_str.split(',')
+                
+                svg = render_svg(model, sequence, verbosity_level=verbosity, lanes_filter=lanes_filter)
             
             # Save SVG to disk for debugging
             try:
                 output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'Test', 'tests')
                 os.makedirs(output_dir, exist_ok=True)
-                # Create filename from csv name (without .csv), sequence ID, and verbosity
                 csv_base = csv_name.replace('.csv', '')
-                svg_filename = f"{csv_base}_{sequence_id}_{verbosity}.svg"
+                if diagram_type == 'class_diagram':
+                    svg_filename = f"{csv_base}_{diagram_id}.svg"
+                else:
+                    svg_filename = f"{csv_base}_{sequence_id}_{verbosity}.svg"
                 svg_path = os.path.join(output_dir, svg_filename)
                 with open(svg_path, 'w', encoding='utf-8') as f:
                     f.write(svg)
@@ -357,7 +382,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
     
     def handle_lanes_request(self):
-        """Return available lanes and sequences."""
+        """Return available lanes, sequences, and class diagrams for a CSV."""
         # Get csv from query params (default to DEFAULT_CSV)
         from urllib.parse import parse_qs, urlparse as parse_urlparse
         parsed = parse_urlparse(self.path)
@@ -370,17 +395,16 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             
             # Get all sequences
             sequences = [{'id': s.seq_id, 'name': s.seq_id} for s in model.sequences]
-            if not sequences:
-                sequences = [{'id': 'default', 'name': 'No sequences found'}]
             
-            print(f"[lanes] CSV '{csv_name}': Found {len(sequences)} sequences: {[s['id'] for s in sequences]}")
+            # Get all class diagrams
+            class_diagrams = [{'id': d.diagram_id, 'name': d.description or d.diagram_id} for d in model.class_diagrams]
+            
+            print(f"[lanes] CSV '{csv_name}': {len(sequences)} sequence(s), {len(class_diagrams)} class diagram(s)")
             
             # Get lanes from the first sequence (if available)
             lanes = []
             if model.sequences:
                 lanes = model.sequences[0].get_lanes()
-            
-            print(f"[lanes] Found {len(lanes)} lanes: {lanes}")
             
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
@@ -390,6 +414,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({
                 "sequences": sequences,
+                "class_diagrams": class_diagrams,
                 "lanes": lanes,
                 "verbosity_levels": ["Low", "Normal", "High"]
             }).encode('utf-8'))
@@ -415,11 +440,11 @@ def run_server(port=8000):
             raise ValueError("No CSV files found")
         
         model = load_model(DEFAULT_CSV)
-        if not model.sequences:
-            raise ValueError(f"No sequences found in {DEFAULT_CSV}")
+        if not model.sequences and not model.class_diagrams:
+            raise ValueError(f"No sequences or class diagrams found in {DEFAULT_CSV}")
         
         print(f"[OK] Found {len(CSV_FILES)} CSV file(s)")
-        print(f"[OK] Default CSV '{DEFAULT_CSV}' loaded: {len(model.classes)} classes, {len(model.sequences)} sequence(s)")
+        print(f"[OK] Default CSV '{DEFAULT_CSV}' loaded: {len(model.classes)} classes, {len(model.sequences)} sequence(s), {len(model.class_diagrams)} class diagram(s)")
     except Exception as e:
         print(f"Error: {str(e)}")
         sys.exit(1)
