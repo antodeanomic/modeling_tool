@@ -6,7 +6,7 @@ This script:
 1. Runs all test cases (regenerates SVG outputs)
 2. Launches the interactive server with full features:
    - Hover tooltips on diagram elements
-   - Menu button (⋯) for verbosity control and layer filtering
+   - Menu button (...) for verbosity control and layer filtering
 3. Opens the viewer in the default browser
 4. Designed to integrate with VS Code task runner
 """
@@ -194,8 +194,8 @@ def main():
     print("\n" + "=" * 70)
     print("INTERACTIVE FEATURES AVAILABLE:")
     print("=" * 70)
-    print("✓ Hover Tooltips: Hover over any diagram element for details")
-    print("✓ Menu Button (⋯): Click to access:")
+    print("[+] Hover Tooltips: Hover over any diagram element for details")
+    print("[+] Menu Button (...): Click to access:")
     print("    - Verbosity levels: Low, Normal, High")
     print("    - Layer filtering: Check/uncheck objects to show only selected ones")
     print("\nPress Ctrl+C to stop the server and exit.")
