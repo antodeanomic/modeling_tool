@@ -103,6 +103,173 @@ Markdown and Mermaid partially solve this, but have significant limitations:
 
 ---
 
+## Software Requirements
+
+### <a id="sr-001"></a>FEAT-001: CSV Parser
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-001-001"></a>[**SR-001-001**](#sr-001-001) | Parse CSV files with `Type,Name,Description` header row format | Done |
+| <a id="sr-001-002"></a>[**SR-001-002**](#sr-001-002) | Support indent-based hierarchical nesting using 4-space indentation per level | Done |
+| <a id="sr-001-003"></a>[**SR-001-003**](#sr-001-003) | Parse `Class` definitions with name and description at indent level 0 | Done |
+| <a id="sr-001-004"></a>[**SR-001-004**](#sr-001-004) | Parse `Function` definitions nested under Class, with optional visibility prefix (`+`/`-`) | Done |
+| <a id="sr-001-005"></a>[**SR-001-005**](#sr-001-005) | Parse `Param` definitions nested under Function (name + description) | Done |
+| <a id="sr-001-006"></a>[**SR-001-006**](#sr-001-006) | Parse `ReturnVal` definitions nested under Function (name + description) | Done |
+| <a id="sr-001-007"></a>[**SR-001-007**](#sr-001-007) | Parse `MemberVar` definitions nested under Class (name + description) | Done |
+| <a id="sr-001-008"></a>[**SR-001-008**](#sr-001-008) | Parse `StateMachine` definitions nested under Class (name + description) | Done |
+| <a id="sr-001-009"></a>[**SR-001-009**](#sr-001-009) | Parse `State` definitions nested under StateMachine (name + description) | Done |
+| <a id="sr-001-010"></a>[**SR-001-010**](#sr-001-010) | Parse `Sequence` definitions at indent level 0 with seq_id and headline | Done |
+| <a id="sr-001-011"></a>[**SR-001-011**](#sr-001-011) | Parse sequence steps as `Source, Destination, Function, [Values...], [@NoteType, NoteContent]` | Done |
+| <a id="sr-001-012"></a>[**SR-001-012**](#sr-001-012) | Support optional explicit row numbers as first field in a sequence step | Done |
+| <a id="sr-001-013"></a>[**SR-001-013**](#sr-001-013) | Auto-assign row numbers — consecutive messages in same direction/depth share a row | Done |
+| <a id="sr-001-014"></a>[**SR-001-014**](#sr-001-014) | Direction-aware row assignment detects forward, backward, and self-message directions; prevents wrap-around overlaps | Done |
+| <a id="sr-001-015"></a>[**SR-001-015**](#sr-001-015) | Parse lane notes in format `ParticipantName, @NoteType, NoteContent` — attached to most recent step | Done |
+| <a id="sr-001-016"></a>[**SR-001-016**](#sr-001-016) | Parse function notes — `@NoteType` marker in values portion of a step | Done |
+| <a id="sr-001-017"></a>[**SR-001-017**](#sr-001-017) | Support four note types: `@Info`, `@Warning`, `@Error`, `@Success` | Done |
+| <a id="sr-001-018"></a>[**SR-001-018**](#sr-001-018) | `Include` directive at level 0 — include another CSV file by relative path, merging classes and sequences | Done |
+| <a id="sr-001-019"></a>[**SR-001-019**](#sr-001-019) | Circular include protection — track absolute paths to prevent infinite recursion | Done |
+| <a id="sr-001-020"></a>[**SR-001-020**](#sr-001-020) | Fuzzy-match validation — suggest corrections for unknown class/function names using `difflib.get_close_matches` | Done |
+| <a id="sr-001-021"></a>[**SR-001-021**](#sr-001-021) | Validation checks source object, destination object, and function name; lists available options when no close match | Done |
+| <a id="sr-001-022"></a>[**SR-001-022**](#sr-001-022) | Strip non-breaking spaces, tabs, and leading/trailing whitespace from all fields | Done |
+| <a id="sr-001-023"></a>[**SR-001-023**](#sr-001-023) | Map parameter values to function definitions — first N values map to defined params, remaining to return | Done |
+| <a id="sr-001-024"></a>[**SR-001-024**](#sr-001-024) | Handle compound function signature format `FuncName() : RetVal` by extracting base name | Done |
+| <a id="sr-001-025"></a>[**SR-001-025**](#sr-001-025) | Print colored validation warnings to console; store in `model.warnings` for UI access | Done |
+
+### <a id="sr-002"></a>FEAT-002: Sequence Diagram Rendering
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-002-001"></a>[**SR-002-001**](#sr-002-001) | Render sequence diagram as SVG with white background and `overflow="visible"` | Done |
+| <a id="sr-002-002"></a>[**SR-002-002**](#sr-002-002) | Draw participant boxes as rounded rectangles (`rx=6, ry=6`) with grey fill and black stroke | Done |
+| <a id="sr-002-003"></a>[**SR-002-003**](#sr-002-003) | Dynamic participant box sizing based on text width measurement | Done |
+| <a id="sr-002-004"></a>[**SR-002-004**](#sr-002-004) | Multi-line participant names via `<br>` tag with `<tspan>` rendering | Done |
+| <a id="sr-002-005"></a>[**SR-002-005**](#sr-002-005) | Dashed lifelines (`stroke-dasharray="4,4"`) extending uniformly to diagram bottom | Done |
+| <a id="sr-002-006"></a>[**SR-002-006**](#sr-002-006) | Solid forward arrows with SVG `<marker>` arrowhead from source to destination | Done |
+| <a id="sr-002-007"></a>[**SR-002-007**](#sr-002-007) | Dashed return arrows (`stroke-dasharray="5,5"`) from destination back to source | Done |
+| <a id="sr-002-008"></a>[**SR-002-008**](#sr-002-008) | Message labels in monospaced font centered on arrows with white background mask | Done |
+| <a id="sr-002-009"></a>[**SR-002-009**](#sr-002-009) | Unified lane width calculation — minimum 2-char gap between boxes AND minimum arrow length on each side of labels | Done |
+| <a id="sr-002-010"></a>[**SR-002-010**](#sr-002-010) | Lane width accounts for both forward and return labels spanning multiple lanes | Done |
+| <a id="sr-002-011"></a>[**SR-002-011**](#sr-002-011) | Row-based Y positioning — steps with same row number render at the same Y coordinate | Done |
+| <a id="sr-002-012"></a>[**SR-002-012**](#sr-002-012) | Left/right margins calculated from maximum participant box width to prevent clipping | Done |
+| <a id="sr-002-013"></a>[**SR-002-013**](#sr-002-013) | Canvas height auto-calculated from last row position plus padding for notes and margins | Done |
+| <a id="sr-002-014"></a>[**SR-002-014**](#sr-002-014) | Render version tracking — SVG includes `data-render-version` attribute with timestamp | Done |
+| <a id="sr-002-015"></a>[**SR-002-015**](#sr-002-015) | Code syntax styling — backtick text gets grey background and dark text, backticks stripped | Done |
+| <a id="sr-002-016"></a>[**SR-002-016**](#sr-002-016) | Return value label visibility — white stroke behind text for readability over dashed arrows | Done |
+| <a id="sr-002-017"></a>[**SR-002-017**](#sr-002-017) | Self-messages rendered through spanning brackets with label on the bracket | Done |
+| <a id="sr-002-018"></a>[**SR-002-018**](#sr-002-018) | Lane filtering — `lanes_filter` parameter renders only specified participants and their messages | Done |
+
+### <a id="sr-003"></a>FEAT-003: Function Notes
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-003-001"></a>[**SR-003-001**](#sr-003-001) | Four note types with distinct colors: Info (blue), Warning (orange), Error (red), Success (green) | Done |
+| <a id="sr-003-002"></a>[**SR-003-002**](#sr-003-002) | UML-style note box with folded corner using `NOTE_FOLD_SIZE=2` | Done |
+| <a id="sr-003-003"></a>[**SR-003-003**](#sr-003-003) | Type-specific icon in note box: ℹ (Info), ⚠ (Warning), ✕ (Error), ✓ (Success) | Done |
+| <a id="sr-003-004"></a>[**SR-003-004**](#sr-003-004) | Hover tooltip displays prefixed content (e.g., "Info: Login successful") | Done |
+| <a id="sr-003-005"></a>[**SR-003-005**](#sr-003-005) | Tooltip text wrapping at 80 characters; clamped horizontally to visible area | Done |
+| <a id="sr-003-006"></a>[**SR-003-006**](#sr-003-006) | Function note positioned inline after the message label with no gap | Done |
+| <a id="sr-003-007"></a>[**SR-003-007**](#sr-003-007) | Function notes rendered only at High verbosity level | Done |
+| <a id="sr-003-008"></a>[**SR-003-008**](#sr-003-008) | Note content stored as `data-note-content` attribute for programmatic clipboard copy | Done |
+
+### <a id="sr-004"></a>FEAT-004: Lane Notes
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-004-001"></a>[**SR-004-001**](#sr-004-001) | Lane notes attached to specific participants via `ParticipantName, @NoteType, NoteContent` | Done |
+| <a id="sr-004-002"></a>[**SR-004-002**](#sr-004-002) | Stored on the most recent step's `lane_notes` dict, keyed by participant name | Done |
+| <a id="sr-004-003"></a>[**SR-004-003**](#sr-004-003) | Positioned 25px below the associated message step's Y coordinate | Done |
+| <a id="sr-004-004"></a>[**SR-004-004**](#sr-004-004) | Deferred rendering — notes rendered last to ensure highest Z-order | Done |
+| <a id="sr-004-005"></a>[**SR-004-005**](#sr-004-005) | Sorted by Y coordinate before rendering for correct visual sequence | Done |
+| <a id="sr-004-006"></a>[**SR-004-006**](#sr-004-006) | Multiple lane notes per step — different participants can each receive a note | Done |
+| <a id="sr-004-007"></a>[**SR-004-007**](#sr-004-007) | Same note box styling as function notes (UML fold, icon, tooltip, color scheme) | Done |
+| <a id="sr-004-008"></a>[**SR-004-008**](#sr-004-008) | Spanning bracket clearance — notes offset to avoid overlap (85px below bracket end) | Done |
+| <a id="sr-004-009"></a>[**SR-004-009**](#sr-004-009) | Lane notes rendered only at High verbosity level | Done |
+| <a id="sr-004-010"></a>[**SR-004-010**](#sr-004-010) | 4px vertical spacing between consecutive notes | Done |
+
+### <a id="sr-005"></a>FEAT-005: Spanning Brackets
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-005-001"></a>[**SR-005-001**](#sr-005-001) | Detect brackets from indentation depth via `detect_spanning_brackets()` scope stack | Done |
+| <a id="sr-005-002"></a>[**SR-005-002**](#sr-005-002) | Visual filled rectangles (`width=4px`, `fill=#666`, `opacity=0.7`) on destination lifeline | Done |
+| <a id="sr-005-003"></a>[**SR-005-003**](#sr-005-003) | Nesting offset — each depth level shifts bracket left by 4px from lifeline center | Done |
+| <a id="sr-005-004"></a>[**SR-005-004**](#sr-005-004) | Function name label positioned left of bracket for self-messages only | Done |
+| <a id="sr-005-005"></a>[**SR-005-005**](#sr-005-005) | Cross-object message brackets rendered at depth 0 without label text | Done |
+| <a id="sr-005-006"></a>[**SR-005-006**](#sr-005-006) | Minimum bracket height of 15px enforced | Done |
+| <a id="sr-005-007"></a>[**SR-005-007**](#sr-005-007) | Tooltip on bracket shows function description; name used as fallback | Done |
+| <a id="sr-005-008"></a>[**SR-005-008**](#sr-005-008) | Full function signature with parameter values displayed in bracket label | Done |
+| <a id="sr-005-009"></a>[**SR-005-009**](#sr-005-009) | Deferred return arrows rendered at bracket end row with 12px spacing | Done |
+| <a id="sr-005-010"></a>[**SR-005-010**](#sr-005-010) | Parent scope extension — parent brackets encompass nested child return positions | Done |
+| <a id="sr-005-011"></a>[**SR-005-011**](#sr-005-011) | Deep nesting support up to 20+ levels | Done |
+| <a id="sr-005-012"></a>[**SR-005-012**](#sr-005-012) | Mixed nesting of self-messages and cross-object messages within same scope | Done |
+
+### <a id="sr-006"></a>FEAT-006: Web-Based Preview Viewer
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-006-001"></a>[**SR-006-001**](#sr-006-001) | Python HTTP server with custom `DiagramHandler` on configurable port (default 8000) | Done |
+| <a id="sr-006-002"></a>[**SR-006-002**](#sr-006-002) | Hot reload — CSV re-parsed from disk on every request; no restart needed | Done |
+| <a id="sr-006-003"></a>[**SR-006-003**](#sr-006-003) | Auto-discover CSV files from `Source/`, `Test/tests/`, `Scripts/`, and current directory | Done |
+| <a id="sr-006-004"></a>[**SR-006-004**](#sr-006-004) | CSV selector dropdown via `/api/csvs` endpoint with sorted friendly names | Done |
+| <a id="sr-006-005"></a>[**SR-006-005**](#sr-006-005) | Sequence auto-selection — `/api/lanes` returns all sequences; viewer selects first | Done |
+| <a id="sr-006-006"></a>[**SR-006-006**](#sr-006-006) | `/api/diagram` endpoint accepts `csv`, `sequence`, `verbosity`, `lanes` parameters | Done |
+| <a id="sr-006-007"></a>[**SR-006-007**](#sr-006-007) | `/api/lanes` returns `sequences`, `lanes`, and `verbosity_levels` arrays | Done |
+| <a id="sr-006-008"></a>[**SR-006-008**](#sr-006-008) | No-cache headers on all responses for guaranteed fresh content | Done |
+| <a id="sr-006-009"></a>[**SR-006-009**](#sr-006-009) | SVG auto-saved to `Test/tests/` on each render for debugging | Done |
+| <a id="sr-006-010"></a>[**SR-006-010**](#sr-006-010) | URL parameter support for deep-linking to specific diagrams and views | Done |
+| <a id="sr-006-011"></a>[**SR-006-011**](#sr-006-011) | Initial parameters injected as `window.initialParams` JavaScript object | Done |
+| <a id="sr-006-012"></a>[**SR-006-012**](#sr-006-012) | JSON error responses with descriptive messages for all API failures | Done |
+| <a id="sr-006-013"></a>[**SR-006-013**](#sr-006-013) | Startup validation — verify CSV files and default CSV load before accepting connections | Done |
+| <a id="sr-006-014"></a>[**SR-006-014**](#sr-006-014) | Build version display in viewer header updated on each page load | Done |
+
+### <a id="sr-007"></a>FEAT-007: Verbosity Level Filtering
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-007-001"></a>[**SR-007-001**](#sr-007-001) | Three verbosity levels: Low, Normal, High | Done |
+| <a id="sr-007-002"></a>[**SR-007-002**](#sr-007-002) | Low — function name only (no parentheses, parameters, return values, or notes) | Done |
+| <a id="sr-007-003"></a>[**SR-007-003**](#sr-007-003) | Normal — function name with parameters and return values; no notes | Done |
+| <a id="sr-007-004"></a>[**SR-007-004**](#sr-007-004) | High — everything from Normal plus function notes and lane notes | Done |
+| <a id="sr-007-005"></a>[**SR-007-005**](#sr-007-005) | Verbosity passed as query parameter and applied in `render_svg()` | Done |
+| <a id="sr-007-006"></a>[**SR-007-006**](#sr-007-006) | Note width included in lane spacing only at High verbosity | Done |
+| <a id="sr-007-007"></a>[**SR-007-007**](#sr-007-007) | Radio button selector in hamburger menu; diagram reloads on change | Done |
+
+### <a id="sr-008"></a>FEAT-008: Interactive SVG Output
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-008-001"></a>[**SR-008-001**](#sr-008-001) | Hover tooltips on function call labels — shows description, params, values | Done |
+| <a id="sr-008-002"></a>[**SR-008-002**](#sr-008-002) | Hover tooltips on participant boxes — shows class description | Done |
+| <a id="sr-008-003"></a>[**SR-008-003**](#sr-008-003) | Hover tooltips on note boxes — displays prefixed note content | Done |
+| <a id="sr-008-004"></a>[**SR-008-004**](#sr-008-004) | Hover tooltips on state boxes and spanning bracket rectangles | Done |
+| <a id="sr-008-005"></a>[**SR-008-005**](#sr-008-005) | Click-to-copy on note boxes with toast notification | Done |
+| <a id="sr-008-006"></a>[**SR-008-006**](#sr-008-006) | Mouse wheel zoom between 0.5x and 3.0x with 0.1 increments | Done |
+| <a id="sr-008-007"></a>[**SR-008-007**](#sr-008-007) | Keyboard zoom — Ctrl+Plus, Ctrl+Minus, Ctrl+0 (reset) | Done |
+| <a id="sr-008-008"></a>[**SR-008-008**](#sr-008-008) | Pan via right-click or middle-click drag | Done |
+| <a id="sr-008-009"></a>[**SR-008-009**](#sr-008-009) | Arrow key panning (20px per press) | Done |
+| <a id="sr-008-010"></a>[**SR-008-010**](#sr-008-010) | Fit-to-view — Shift+F or button scales diagram to viewport | Done |
+| <a id="sr-008-011"></a>[**SR-008-011**](#sr-008-011) | Reset pan/zoom — Shift+R or button restores defaults | Done |
+| <a id="sr-008-012"></a>[**SR-008-012**](#sr-008-012) | Zoom percentage indicator overlay (hidden at 100%) | Done |
+| <a id="sr-008-013"></a>[**SR-008-013**](#sr-008-013) | Toast notification system for user feedback | Done |
+| <a id="sr-008-014"></a>[**SR-008-014**](#sr-008-014) | Hamburger menu housing verbosity radio buttons and layer filter checkboxes | Done |
+| <a id="sr-008-015"></a>[**SR-008-015**](#sr-008-015) | Context menu suppressed on diagram area (right-click reserved for panning) | Done |
+
+### <a id="sr-009"></a>FEAT-009: Test Specifications
+
+| ID | Requirement | Status |
+|---|---|---|
+| <a id="sr-009-001"></a>[**SR-009-001**](#sr-009-001) | Test CSV files in `Test/tests/` serve as both specifications and test cases | Done |
+| <a id="sr-009-002"></a>[**SR-009-002**](#sr-009-002) | `run_test.py` — single test runner; copies CSV, parses, renders SVG, reports validation | Done |
+| <a id="sr-009-003"></a>[**SR-009-003**](#sr-009-003) | `run_all_tests_and_view.py` — runs all registered tests then launches interactive server | Done |
+| <a id="sr-009-004"></a>[**SR-009-004**](#sr-009-004) | Render order debug logging to `{sequence_id}_render_order.txt` files | Done |
+| <a id="sr-009-005"></a>[**SR-009-005**](#sr-009-005) | SVG output files saved per render for visual inspection | Done |
+| <a id="sr-009-006"></a>[**SR-009-006**](#sr-009-006) | Test mapping CSV linking test files to requirement IDs with descriptions | Done |
+| <a id="sr-009-007"></a>[**SR-009-007**](#sr-009-007) | VS Code task integration — "Run All Tests", "Run Single Test", "View Test Results" | Done |
+| <a id="sr-009-008"></a>[**SR-009-008**](#sr-009-008) | Test runner auto-executes on folder open via `runOptions.runOn` | Done |
+| <a id="sr-009-009"></a>[**SR-009-009**](#sr-009-009) | Validation error summary at end of test run — red for errors, green for clean | Done |
+
+---
+
 ## Traceability Matrix
 
 The complete traceability matrix is maintained in [Process/traceability.csv](Process/traceability.csv) and enables:
