@@ -1,0 +1,18 @@
+Type,Name,Description
+Class,CsvParser,CSV parsing engine — module-level functions in parser.py
+    Function,+parse_csv,Main parser entrypoint — reads CSV and builds Model
+        Param,path,File path to the CSV file
+        Param,_included_paths,Set of already-included file paths (circular protection)
+        ReturnVal,model,Fully populated Model object
+    Function,+validate_model,Validate sequence steps against class/function definitions
+        Param,model,Model to validate
+        ReturnVal,warnings,List of warning strings with fuzzy-match suggestions
+    Function,+clean,Strip whitespace and non-breaking spaces from a string
+        Param,s,Input string
+        ReturnVal,cleaned,Cleaned string
+    Function,+parse_indent,Parse leading spaces to determine nesting level
+        Param,type_field,Raw type field with leading spaces
+        ReturnVal,result,Tuple of (indent_level and stripped_type_name)
+    Function,+parse_note,Parse @NoteType annotation syntax
+        Param,note_str,Raw note string starting with @
+        ReturnVal,result,Tuple of (note_type and content) or (None and None)
