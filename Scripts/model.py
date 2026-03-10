@@ -44,6 +44,41 @@ class ClassDef:
     state_machines: List[StateMachineDef] = field(default_factory=list)
 
 @dataclass
+class ClassRelationship:
+    """A relationship between two classes in a class diagram.
+    
+    Arrow types (solid line = structural):
+      --    Association
+      -->   Directed Association (left to right)
+      <--   Directed Association (right to left)
+      <-->  Bidirectional Association
+      --▷   Generalization / Inheritance (left extends right)
+      ◁--   Generalization / Inheritance (right extends left)
+      --◆   Composition (right owns left, strong)
+      ◆--   Composition (left owns right, strong)
+      --◇   Aggregation (right contains left, weak)
+      ◇--   Aggregation (left contains right, weak)
+    
+    Arrow types (dashed line = behavioral):
+      ..>   Dependency (left depends on right)
+      <..   Dependency (right depends on left)
+      ..▷   Realization / Implementation (left implements right)
+      ◁..   Realization / Implementation (right implements left)
+    """
+    source: str
+    target: str
+    arrow: str
+    src_mult: str = ""
+    tgt_mult: str = ""
+    label: str = ""
+
+@dataclass
+class ClassDiagramDef:
+    diagram_id: str
+    description: str
+    relationships: List[ClassRelationship] = field(default_factory=list)
+
+@dataclass
 class NoteDef:
     """Represents a note in a sequence diagram.
     
@@ -104,6 +139,7 @@ class SequenceDef:
 class Model:
     classes: List[ClassDef] = field(default_factory=list)
     sequences: List[SequenceDef] = field(default_factory=list)
+    class_diagrams: List[ClassDiagramDef] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
 
     def get_sequence(self, seq_id: str) -> Optional[SequenceDef]:
@@ -138,4 +174,10 @@ class Model:
         for sm in c.state_machines:
             if sm.name == sm_name:
                 return sm
+        return None
+
+    def get_class_diagram(self, diagram_id: str) -> Optional[ClassDiagramDef]:
+        for d in self.class_diagrams:
+            if d.diagram_id == diagram_id:
+                return d
         return None

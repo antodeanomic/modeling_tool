@@ -67,3 +67,14 @@ Class;StateMachineDef;Represents a state machine attached to a class
 Class;StateDef;Represents a state within a state machine
     MemberVar;name;State name
     MemberVar;description;State description
+Class;ClassRelationship;A relationship between two classes in a class diagram
+    MemberVar;source;Source class name
+    MemberVar;target;Target class name
+    MemberVar;arrow;UML arrow type (e.g. --> or ◇-- or ..>)
+    MemberVar;src_mult;Multiplicity at source side (e.g. 1 or 0..*)
+    MemberVar;tgt_mult;Multiplicity at target side
+    MemberVar;label;Optional text label on the relationship
+Class;ClassDiagramDef;Defines a class diagram with relationships between classes
+    MemberVar;diagram_id;Unique diagram identifier
+    MemberVar;description;Diagram description
+    MemberVar;relationships;List of ClassRelationship objects

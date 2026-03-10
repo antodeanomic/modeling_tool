@@ -3,7 +3,8 @@ import os
 from difflib import get_close_matches
 from model import (
     Model, ClassDef, MemberVar, FunctionDef, ParamDef, ReturnDef,
-    SequenceDef, SequenceStep, StateMachineDef, StateDef, NoteDef
+    SequenceDef, SequenceStep, StateMachineDef, StateDef, NoteDef,
+    ClassDiagramDef, ClassRelationship
 )
 
 def clean(s: str) -> str:
@@ -107,7 +108,64 @@ def validate_model(model: Model) -> list[str]:
                                 f"'{step.src_obj}'. Available functions: {', '.join(available)}"
                             )
     
+    # Validate class diagram relationships
+    for cd in model.class_diagrams:
+        for rel in cd.relationships:
+            # Check source class exists
+            if rel.source and model.get_class(rel.source) is None:
+                matches = get_close_matches(rel.source, class_names, n=3, cutoff=0.6)
+                if matches:
+                    warnings.append(
+                        f"[{cd.diagram_id}] Class '{rel.source}' not found. "
+                        f"Did you mean: {', '.join(matches)}?"
+                    )
+                else:
+                    warnings.append(
+                        f"[{cd.diagram_id}] Class '{rel.source}' not found. "
+                        f"Available classes: {', '.join(class_names) if class_names else '(none)'}"
+                    )
+            # Check target class exists
+            if rel.target and model.get_class(rel.target) is None:
+                matches = get_close_matches(rel.target, class_names, n=3, cutoff=0.6)
+                if matches:
+                    warnings.append(
+                        f"[{cd.diagram_id}] Class '{rel.target}' not found. "
+                        f"Did you mean: {', '.join(matches)}?"
+                    )
+                else:
+                    warnings.append(
+                        f"[{cd.diagram_id}] Class '{rel.target}' not found. "
+                        f"Available classes: {', '.join(class_names) if class_names else '(none)'}"
+                    )
+            # Check arrow is valid
+            if rel.arrow and rel.arrow not in VALID_ARROWS:
+                warnings.append(
+                    f"[{cd.diagram_id}] Invalid arrow '{rel.arrow}' for "
+                    f"'{rel.source}' -> '{rel.target}'. "
+                    f"Valid arrows: {', '.join(sorted(VALID_ARROWS))}"
+                )
+
     return warnings
+
+# Valid UML class diagram arrow types
+VALID_ARROWS = {
+    # Solid line (structural)
+    '--',     # Association
+    '-->',    # Directed Association (left to right)
+    '<--',    # Directed Association (right to left)
+    '<-->',   # Bidirectional Association
+    '--\u25b7',   # Generalization (left extends right)
+    '\u25c1--',   # Generalization (right extends left)
+    '--\u25c6',   # Composition (right owns left, strong)
+    '\u25c6--',   # Composition (left owns right, strong)
+    '--\u25c7',   # Aggregation (right contains left, weak)
+    '\u25c7--',   # Aggregation (left contains right, weak)
+    # Dashed line (behavioral)
+    '..>',    # Dependency (left depends on right)
+    '<..',    # Dependency (right depends on left)
+    '..\u25b7',   # Realization (left implements right)
+    '\u25c1..',   # Realization (right implements left)
+}
 
 def parse_csv(path: str, _included_paths: set = None) -> Model:
     model = Model()
@@ -152,6 +210,7 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                         included_model = parse_csv(include_path, _included_paths)
                         model.classes.extend(included_model.classes)
                         model.sequences.extend(included_model.sequences)
+                        model.class_diagrams.extend(included_model.class_diagrams)
 
                 elif type_name == "Class":
                     c = ClassDef(name=name, description=desc)
@@ -167,6 +226,11 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                     model.sequences.append(seq)
                     current_sequence = seq
                     stack.append(seq)
+
+                elif type_name == "ClassDiagram":
+                    cd = ClassDiagramDef(diagram_id=name, description=desc)
+                    model.class_diagrams.append(cd)
+                    stack.append(cd)
 
                 continue
 
@@ -213,6 +277,32 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
             if isinstance(parent, StateMachineDef):
                 if type_name == "State":
                     parent.states.append(StateDef(name=name, description=desc))
+                continue
+
+            # Inside a class diagram
+            # Row format: Source;Target;Arrow;SrcMult;TgtMult;Label
+            if isinstance(parent, ClassDiagramDef):
+                # type_name is the Source class (first column after indent)
+                source = type_name
+                target = name  # second column
+                arrow = desc   # third column
+                src_mult = clean(row[3]) if len(row) > 3 else ""
+                tgt_mult = clean(row[4]) if len(row) > 4 else ""
+                label = clean(row[5]) if len(row) > 5 else ""
+
+                if source and target and arrow:
+                    if arrow not in VALID_ARROWS:
+                        # Not a fatal error, just a warning collected later
+                        pass
+                    rel = ClassRelationship(
+                        source=source,
+                        target=target,
+                        arrow=arrow,
+                        src_mult=src_mult,
+                        tgt_mult=tgt_mult,
+                        label=label
+                    )
+                    parent.relationships.append(rel)
                 continue
 
             # Inside a sequence
