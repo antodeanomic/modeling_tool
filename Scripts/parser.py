@@ -1,4 +1,6 @@
 import csv
+import os
+from difflib import get_close_matches
 from model import (
     Model, ClassDef, MemberVar, FunctionDef, ParamDef, ReturnDef,
     SequenceDef, SequenceStep, StateMachineDef, StateDef, NoteDef
@@ -37,10 +39,89 @@ def parse_note(note_str: str) -> tuple[str, str]:
     
     return None, None
 
-def parse_csv(path: str) -> Model:
+def validate_model(model: Model) -> list[str]:
+    """Validate sequence steps against class definitions.
+    
+    Checks that all class and function references in sequence steps
+    match defined classes/functions. Returns a list of warning messages
+    with suggestions for close matches.
+    """
+    warnings = []
+    class_names = [c.name for c in model.classes]
+    
+    # Build a map of class -> function names
+    class_functions = {}
+    for c in model.classes:
+        func_names = []
+        for f in c.functions:
+            base_name = f.name.split('(')[0] if '(' in f.name else f.name
+            func_names.append(base_name)
+        class_functions[c.name] = func_names
+    
+    for seq in model.sequences:
+        for step in seq.steps:
+            # Check source object
+            if step.src_obj and model.get_class(step.src_obj) is None:
+                matches = get_close_matches(step.src_obj, class_names, n=3, cutoff=0.6)
+                if matches:
+                    warnings.append(
+                        f"[{seq.seq_id}] Class '{step.src_obj}' not found. "
+                        f"Did you mean: {', '.join(matches)}?"
+                    )
+                else:
+                    warnings.append(
+                        f"[{seq.seq_id}] Class '{step.src_obj}' not found. "
+                        f"Available classes: {', '.join(class_names) if class_names else '(none)'}"
+                    )
+            
+            # Check destination object
+            if step.dst_obj and step.dst_obj != step.src_obj and model.get_class(step.dst_obj) is None:
+                matches = get_close_matches(step.dst_obj, class_names, n=3, cutoff=0.6)
+                if matches:
+                    warnings.append(
+                        f"[{seq.seq_id}] Class '{step.dst_obj}' not found. "
+                        f"Did you mean: {', '.join(matches)}?"
+                    )
+                else:
+                    warnings.append(
+                        f"[{seq.seq_id}] Class '{step.dst_obj}' not found. "
+                        f"Available classes: {', '.join(class_names) if class_names else '(none)'}"
+                    )
+            
+            # Check function exists on source class (caller owns the function)
+            if step.function and step.src_obj:
+                src_class = model.get_class(step.src_obj)
+                if src_class:
+                    func_found = model.get_function(step.src_obj, step.function)
+                    if not func_found:
+                        available = class_functions.get(step.src_obj, [])
+                        matches = get_close_matches(step.function, available, n=3, cutoff=0.6)
+                        if matches:
+                            warnings.append(
+                                f"[{seq.seq_id}] Function '{step.function}' not found in class "
+                                f"'{step.src_obj}'. Did you mean: {', '.join(matches)}?"
+                            )
+                        elif available:
+                            warnings.append(
+                                f"[{seq.seq_id}] Function '{step.function}' not found in class "
+                                f"'{step.src_obj}'. Available functions: {', '.join(available)}"
+                            )
+    
+    return warnings
+
+def parse_csv(path: str, _included_paths: set = None) -> Model:
     model = Model()
     stack = []
     current_sequence = None
+
+    # Track included files to prevent circular includes
+    abs_path = os.path.abspath(path)
+    is_top_level = _included_paths is None
+    if _included_paths is None:
+        _included_paths = set()
+    if abs_path in _included_paths:
+        return model  # Skip circular include
+    _included_paths.add(abs_path)
 
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
@@ -63,7 +144,16 @@ def parse_csv(path: str) -> Model:
 
             # Top-level
             if level == 0:
-                if type_name == "Class":
+                if type_name == "Include":
+                    # Include another CSV file - resolve path relative to current file
+                    include_path = os.path.join(os.path.dirname(abs_path), name)
+                    include_path = os.path.normpath(include_path)
+                    if os.path.isfile(include_path):
+                        included_model = parse_csv(include_path, _included_paths)
+                        model.classes.extend(included_model.classes)
+                        model.sequences.extend(included_model.sequences)
+
+                elif type_name == "Class":
                     c = ClassDef(name=name, description=desc)
                     model.classes.append(c)
                     stack.append(c)
@@ -343,5 +433,11 @@ def parse_csv(path: str) -> Model:
                 row_min_idx = None
                 row_max_idx = None
                 next_auto_row = max(next_auto_row, step.row + 1)
+
+    # Only validate at the top-level call (not during #include processing)
+    if is_top_level:
+        model.warnings = validate_model(model)
+        for w in model.warnings:
+            print(f"\033[91m  ⚠ {w}\033[0m")
 
     return model

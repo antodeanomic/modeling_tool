@@ -104,6 +104,7 @@ class SequenceDef:
 class Model:
     classes: List[ClassDef] = field(default_factory=list)
     sequences: List[SequenceDef] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
 
     def get_sequence(self, seq_id: str) -> Optional[SequenceDef]:
         for s in self.sequences:

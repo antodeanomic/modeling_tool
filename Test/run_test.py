@@ -56,7 +56,7 @@ def run_test(test_name):
         from parser import parse_csv
         from svg_renderer import render_svg
         
-        model = parse_csv("sample_model.csv")
+        model = parse_csv(str(test_file))
         
         # Get the first sequence (all test files should have one)
         seq = None
@@ -76,6 +76,16 @@ def run_test(test_name):
         print(f"Output: {output_file}")
         print(f"\nTest diagram generated successfully!")
         print(f"This test file will be used when you set the SEQUENCE_ID in server.py")
+        
+        # Report validation warnings
+        if model.warnings:
+            print(f"\n\033[91m{'='*60}")
+            print(f"VALIDATION ERRORS: {len(model.warnings)} issue(s) found")
+            print(f"{'='*60}\033[0m")
+            for w in model.warnings:
+                print(f"\033[91m  ⚠ {w}\033[0m")
+        else:
+            print(f"\n\033[92m[OK] No validation errors\033[0m")
         
     except Exception as e:
         print(f"Error generating diagram: {str(e)}")
