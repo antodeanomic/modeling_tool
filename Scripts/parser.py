@@ -124,7 +124,7 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
     _included_paths.add(abs_path)
 
     with open(path, newline="", encoding="utf-8") as f:
-        reader = csv.reader(f)
+        reader = csv.reader(f, delimiter=';')
         header = next(reader, None)
 
         for row in reader:

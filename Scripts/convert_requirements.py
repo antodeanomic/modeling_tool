@@ -11,7 +11,7 @@ def read_requirements(csv_file):
     """Read requirements from CSV file."""
     requirements = []
     with open(csv_file, 'r', encoding='utf-8-sig') as f:  # utf-8-sig removes BOM
-        reader = csv.DictReader(f)
+        reader = csv.DictReader(f, delimiter=';')
         for row in reader:
             if row and row.get('ID'):
                 requirements.append(row)

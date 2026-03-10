@@ -1,6 +1,6 @@
-Type,Name,Description
-Include,test_include_classes.csv,Shared class definitions
-Sequence,IncludeTest,Test Include feature
-    User,Logger,LogEvent,123,logged
-    Logger,NotificationService,SendNotification,123,queued
-    NotificationService,User,Notify,123,sent
+Type;Name;Description
+Include;test_include_classes.csv;Shared class definitions
+Sequence;IncludeTest;Test Include feature
+    User;Logger;LogEvent;123;logged
+    Logger;NotificationService;SendNotification;123;queued
+    NotificationService;User;Notify;123;sent

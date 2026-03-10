@@ -1,46 +1,46 @@
-﻿ID,Level,Type,Description,Linked From,Linked To,Status
-Architecture_0001,System,Requirement,"Create a CSV-based DSL for visual sequence diagrams enabling humans to work iteratively with AI",UserStory_0001,UserInterface_0001,Implemented
-Sequence_0001,Component,Requirement,"Parse and render sequence diagrams from CSV format",UserStory_0001,"Parser_0001;Rendering_0001",Implemented
-Parser_0001,Feature,Requirement,"Parse CSV hierarchical format with indentation into model objects",-,"Architecture_0001;Sequence_0001",Implemented
-Parser_0002,Feature,Requirement,"Extract sequence steps with source, destination, function name, return value, parameters",-,Sequence_0001,Implemented
-Parser_0003,Feature,Requirement,"Support function calls with parameters and return values",-,Sequence_0001,Implemented
-Rendering_0001,Feature,Requirement,"Render sequence diagrams as SVG with lanes and arrows",-,Sequence_0001,Implemented
-Rendering_0002,Feature,Requirement,"Display function calls with solid arrows and labels",-,Sequence_0001,Implemented
-Rendering_0003,Feature,Requirement,"Display return values with dashed arrows and labels",-,Sequence_0001,Implemented
-Rendering_0004,Feature,Requirement,"Support multiple sequence steps on same row",-,Sequence_0001,Implemented
-Rendering_0005,Feature,Requirement,"Add parameter and return descriptions as tooltips",-,Sequence_0001,Implemented
-Rendering_0006,Feature,Requirement,"Add participant descriptions as tooltips",-,Sequence_0001,Implemented
-State_0001,Component,Requirement,"Implement UML state machine support with rendering",UserStory_0002,"Parser_0004;Rendering_0007",Implemented
-Parser_0004,Feature,Requirement,"Parse StateMachine definitions with indentation",-,State_0001,Implemented
-Parser_0005,Feature,Requirement,"Parse State definitions nested within StateMachine",-,State_0001,Implemented
-Rendering_0007,Feature,Requirement,"Render UML state boxes with rounded corners",-,State_0001,Implemented
-Rendering_0008,Feature,Requirement,"Display initial states below participant names",-,State_0001,Implemented
-Rendering_0009,Feature,Requirement,"Display state transitions after sequence steps",-,State_0001,Implemented
-Rendering_0010,Feature,Requirement,"Add state descriptions as tooltips",-,State_0001,Implemented
-Note_0001,Component,Requirement,"Implement note system with Info, Warning, Error types",UserStory_0003,"Parser_0006;Rendering_0011",Implemented
-Parser_0006,Feature,Requirement,"Parse note syntax ""@Type, Description"" format",-,Note_0001,Implemented
-Parser_0007,Feature,Requirement,"Support lane notes attached to participant lanes",-,Note_0001,Implemented
-Parser_0008,Feature,Requirement,"Support function notes attached to calls",-,Note_0001,Implemented
-Rendering_0011,Feature,Requirement,"Render notes as UML boxes with folded corner",-,Note_0001,Implemented
-Rendering_0012,Feature,Requirement,"Apply distinct colors: Info blue, Warning orange, Error red",-,Note_0001,Implemented
-Rendering_0013,Feature,Requirement,"Display note content via hover tooltip",-,Note_0001,Implemented
-Rendering_0014,Feature,Requirement,"Position lane notes below state boxes",-,Note_0001,Implemented
-Rendering_0015,Feature,Requirement,"Position function notes right of parameter text",-,Note_0001,Implemented
-Rendering_0016,Feature,Requirement,"Hide notes in Low/Normal, show in High verbosity",-,Note_0001,Implemented
-Rendering_0017,Feature,Requirement,"Never display note text inline, use tooltip only",-,Note_0001,Implemented
-UserInterface_0001,Component,Requirement,"Provide interactive web-based viewer",UserStory_0004,"UserInterface_0002;UserInterface_0003;UserInterface_0004",Implemented
-UserInterface_0002,Feature,Requirement,"Create menu button with ellipsis in upper-right",-,UserInterface_0001,Implemented
-UserInterface_0003,Feature,Requirement,"Implement verbosity selector Low/Normal/High",-,UserInterface_0001,Implemented
-UserInterface_0004,Feature,Requirement,"Implement layer filtering checkboxes",-,UserInterface_0001,Implemented
-UserInterface_0005,Feature,Requirement,"Enable live CSV reloading without restart",-,UserInterface_0001,Implemented
-UserInterface_0006,Feature,Requirement,"Add cache-busting headers to prevent caching",-,UserInterface_0001,Implemented
-Infrastructure_0001,Component,Requirement,"Build HTTP server for dynamic generation",-,Architecture_0002,Implemented
-Architecture_0002,Feature,Requirement,"Create api/diagram endpoint with parameters",-,Infrastructure_0001,Implemented
-Architecture_0003,Feature,Requirement,"Create api/lanes endpoint returning participants",-,Infrastructure_0001,Implemented
-Architecture_0004,Feature,Requirement,"Serve HTML viewer at root without listing",-,Infrastructure_0001,Implemented
-Architecture_0005,Feature,Requirement,"Load CSV on request for live updates",-,Infrastructure_0001,Implemented
-Rendering_0018,Component,Constraint,"Note boxes approximately 17x13 pixels size",-,Note_0001,Implemented
-Rendering_0019,Component,Constraint,"Function arrows without overlapping lanes",-,"Sequence_0001;Rendering_0002",Implemented
-Parser_0009,Component,Assumption,"CSV file at sample_model.csv in work directory",-,Architecture_0001,Implemented
-Parser_0010,Component,Assumption,"Sequence ID defaults to SoftReq0001",UserStory_0001,Architecture_0001,Implemented
-Architecture_0006,Component,Assumption,"Server uses port 8000 by default",-,Infrastructure_0001,Implemented
+﻿ID;Level;Type;Description;Linked From;Linked To;Status
+Architecture_0001;System;Requirement;Create a CSV-based DSL for visual sequence diagrams enabling humans to work iteratively with AI;UserStory_0001;UserInterface_0001;Implemented
+Sequence_0001;Component;Requirement;Parse and render sequence diagrams from CSV format;UserStory_0001;"Parser_0001;Rendering_0001";Implemented
+Parser_0001;Feature;Requirement;Parse CSV hierarchical format with indentation into model objects;-;"Architecture_0001;Sequence_0001";Implemented
+Parser_0002;Feature;Requirement;Extract sequence steps with source, destination, function name, return value, parameters;-;Sequence_0001;Implemented
+Parser_0003;Feature;Requirement;Support function calls with parameters and return values;-;Sequence_0001;Implemented
+Rendering_0001;Feature;Requirement;Render sequence diagrams as SVG with lanes and arrows;-;Sequence_0001;Implemented
+Rendering_0002;Feature;Requirement;Display function calls with solid arrows and labels;-;Sequence_0001;Implemented
+Rendering_0003;Feature;Requirement;Display return values with dashed arrows and labels;-;Sequence_0001;Implemented
+Rendering_0004;Feature;Requirement;Support multiple sequence steps on same row;-;Sequence_0001;Implemented
+Rendering_0005;Feature;Requirement;Add parameter and return descriptions as tooltips;-;Sequence_0001;Implemented
+Rendering_0006;Feature;Requirement;Add participant descriptions as tooltips;-;Sequence_0001;Implemented
+State_0001;Component;Requirement;Implement UML state machine support with rendering;UserStory_0002;"Parser_0004;Rendering_0007";Implemented
+Parser_0004;Feature;Requirement;Parse StateMachine definitions with indentation;-;State_0001;Implemented
+Parser_0005;Feature;Requirement;Parse State definitions nested within StateMachine;-;State_0001;Implemented
+Rendering_0007;Feature;Requirement;Render UML state boxes with rounded corners;-;State_0001;Implemented
+Rendering_0008;Feature;Requirement;Display initial states below participant names;-;State_0001;Implemented
+Rendering_0009;Feature;Requirement;Display state transitions after sequence steps;-;State_0001;Implemented
+Rendering_0010;Feature;Requirement;Add state descriptions as tooltips;-;State_0001;Implemented
+Note_0001;Component;Requirement;Implement note system with Info, Warning, Error types;UserStory_0003;"Parser_0006;Rendering_0011";Implemented
+Parser_0006;Feature;Requirement;"Parse note syntax ""@Type, Description"" format";-;Note_0001;Implemented
+Parser_0007;Feature;Requirement;Support lane notes attached to participant lanes;-;Note_0001;Implemented
+Parser_0008;Feature;Requirement;Support function notes attached to calls;-;Note_0001;Implemented
+Rendering_0011;Feature;Requirement;Render notes as UML boxes with folded corner;-;Note_0001;Implemented
+Rendering_0012;Feature;Requirement;Apply distinct colors: Info blue, Warning orange, Error red;-;Note_0001;Implemented
+Rendering_0013;Feature;Requirement;Display note content via hover tooltip;-;Note_0001;Implemented
+Rendering_0014;Feature;Requirement;Position lane notes below state boxes;-;Note_0001;Implemented
+Rendering_0015;Feature;Requirement;Position function notes right of parameter text;-;Note_0001;Implemented
+Rendering_0016;Feature;Requirement;Hide notes in Low/Normal, show in High verbosity;-;Note_0001;Implemented
+Rendering_0017;Feature;Requirement;Never display note text inline, use tooltip only;-;Note_0001;Implemented
+UserInterface_0001;Component;Requirement;Provide interactive web-based viewer;UserStory_0004;"UserInterface_0002;UserInterface_0003;UserInterface_0004";Implemented
+UserInterface_0002;Feature;Requirement;Create menu button with ellipsis in upper-right;-;UserInterface_0001;Implemented
+UserInterface_0003;Feature;Requirement;Implement verbosity selector Low/Normal/High;-;UserInterface_0001;Implemented
+UserInterface_0004;Feature;Requirement;Implement layer filtering checkboxes;-;UserInterface_0001;Implemented
+UserInterface_0005;Feature;Requirement;Enable live CSV reloading without restart;-;UserInterface_0001;Implemented
+UserInterface_0006;Feature;Requirement;Add cache-busting headers to prevent caching;-;UserInterface_0001;Implemented
+Infrastructure_0001;Component;Requirement;Build HTTP server for dynamic generation;-;Architecture_0002;Implemented
+Architecture_0002;Feature;Requirement;Create api/diagram endpoint with parameters;-;Infrastructure_0001;Implemented
+Architecture_0003;Feature;Requirement;Create api/lanes endpoint returning participants;-;Infrastructure_0001;Implemented
+Architecture_0004;Feature;Requirement;Serve HTML viewer at root without listing;-;Infrastructure_0001;Implemented
+Architecture_0005;Feature;Requirement;Load CSV on request for live updates;-;Infrastructure_0001;Implemented
+Rendering_0018;Component;Constraint;Note boxes approximately 17x13 pixels size;-;Note_0001;Implemented
+Rendering_0019;Component;Constraint;Function arrows without overlapping lanes;-;"Sequence_0001;Rendering_0002";Implemented
+Parser_0009;Component;Assumption;CSV file at sample_model.csv in work directory;-;Architecture_0001;Implemented
+Parser_0010;Component;Assumption;Sequence ID defaults to SoftReq0001;UserStory_0001;Architecture_0001;Implemented
+Architecture_0006;Component;Assumption;Server uses port 8000 by default;-;Infrastructure_0001;Implemented

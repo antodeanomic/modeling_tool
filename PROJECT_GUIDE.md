@@ -100,6 +100,7 @@ Markdown and Mermaid partially solve this, but have significant limitations:
 | <a id="feat-014"></a>[**FEAT-014**](#feat-014) | **Export Features** | [US-001](#us-001), [US-002](#us-002), [US-003](#us-003) | Export diagrams as standalone SVG, PNG, or PDF. Export project documentation with embedded diagrams. |
 | <a id="feat-015"></a>[**FEAT-015**](#feat-015) | **Spreadsheet Integration** | [US-001](#us-001), [US-002](#us-002) | Seamless export to and import from Excel/Google Sheets for CSV editing with UI polish (validation, dropdowns, etc.). |
 | <a id="feat-016"></a>[**FEAT-016**](#feat-016) | **Collaborative Comments** | [US-001](#us-001), [US-002](#us-002) | Attach comments to diagram elements for team collaboration and design discussions. |
+| <a id="feat-017"></a>[**FEAT-017**](#feat-017) | **VS Code CSV Language Extension** | [US-001](#us-001), [US-002](#us-002) | A lightweight VS Code extension that reads the CSV grammar and provides auto-complete for class/function names, keyword highlighting for Type column values, and inline validation. |
 
 ---
 

@@ -1,42 +1,42 @@
-Type,Name,Description
-Class,User,User interface
-    Function,ReadKey,Reads a key
-        ReturnVal,Key,Key read from hardware
+Type;Name;Description
+Class;User;User interface
+    Function;ReadKey;Reads a key
+        ReturnVal;Key;Key read from hardware
 
-    Function,AppendDigit,Adds a digit
-        Param,Digit,Digit pressed
-        ReturnVal,UpdatedValue,New value
+    Function;AppendDigit;Adds a digit
+        Param;Digit;Digit pressed
+        ReturnVal;UpdatedValue;New value
 
-    Function,Compute,Performs calculation
-        Param,ID,Unique ID
-        Param,Mode,Mode
-        ReturnVal,Result,Computed result
+    Function;Compute;Performs calculation
+        Param;ID;Unique ID
+        Param;Mode;Mode
+        ReturnVal;Result;Computed result
 
-    Function,Update,Updates display
-        Param,Value,Value to display
-        ReturnVal,Done,Display updated
+    Function;Update;Updates display
+        Param;Value;Value to display
+        ReturnVal;Done;Display updated
 
-    StateMachine,MainSM,Primary user interaction state machine
-        State,Idle,Waiting for user input
-        State,EnteringNumber,User is typing digits
-        State,OperationPending,Operator selected and waiting for next value
-        State,Error,Invalid input or calculation error
+    StateMachine;MainSM;Primary user interaction state machine
+        State;Idle;Waiting for user input
+        State;EnteringNumber;User is typing digits
+        State;OperationPending;Operator selected and waiting for next value
+        State;Error;Invalid input or calculation error
 
-Class,Display,Shows current value and results
-    MemberVar,text,Current text displayed
-    Function,Update,Updates the display with new text
+Class;Display;Shows current value and results
+    MemberVar;text;Current text displayed
+    Function;Update;Updates the display with new text
     
-    StateMachine,DisplaySM,Display state transitions
-        State,Empty,No value displayed
-        State,ShowingValue,Displaying numeric value
-        State,ShowingResult,Displaying result
+    StateMachine;DisplaySM;Display state transitions
+        State;Empty;No value displayed
+        State;ShowingValue;Displaying numeric value
+        State;ShowingResult;Displaying result
 
-Class,Keypad,Receives button presses
-    Function,ReadKey,Returns which key was pressed       
+Class;Keypad;Receives button presses
+    Function;ReadKey;Returns which key was pressed       
 
-Sequence,SoftReq0001,Initialization,This sequence initializes the system
-    User,Keypad,ReadKey,8,@Info,Valid key pressed - TEST AUTO UPDATE
-    Keypad,CalculatorCore,AppendDigit,42,8
-    User,@Warning,Button held too long
-    User,CalculatorCore,Compute,42,1,Fast
-    User,Display,Update,Done,42,@Info,Display updated successfully
+Sequence;SoftReq0001;Initialization;This sequence initializes the system
+    User;Keypad;ReadKey;8;@Info;Valid key pressed - TEST AUTO UPDATE
+    Keypad;CalculatorCore;AppendDigit;42;8
+    User;@Warning;Button held too long
+    User;CalculatorCore;Compute;42;1;Fast
+    User;Display;Update;Done;42;@Info;Display updated successfully

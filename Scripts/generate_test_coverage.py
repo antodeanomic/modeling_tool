@@ -19,7 +19,7 @@ def read_test_mapping(csv_file):
     requirements_coverage = defaultdict(list)
     
     with open(csv_file, 'r', encoding='utf-8-sig') as f:
-        reader = csv.DictReader(f)
+        reader = csv.DictReader(f, delimiter=';')
         for row in reader:
             if row and row.get('TestFile'):
                 test_file = row['TestFile'].strip()
@@ -40,7 +40,7 @@ def read_requirements(csv_file):
     requirements = {}
     
     with open(csv_file, 'r', encoding='utf-8-sig') as f:
-        reader = csv.DictReader(f)
+        reader = csv.DictReader(f, delimiter=';')
         for row in reader:
             if row and row.get('ID'):
                 req_id = row['ID'].strip()
