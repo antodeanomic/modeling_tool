@@ -1,6 +1,14 @@
 # Claude Project Configuration
 
-This file contains guidelines and rules for Claude when working in this project.
+**📖 START HERE**: Before working on this project, read [PROJECT_GUIDE.md](PROJECT_GUIDE.md) for comprehensive context on:
+- What this project does and why it exists
+- How the code architecture works
+- How to relearn the project after session breaks
+- Development workflow and best practices
+
+This file focuses on specific rules and constraints. The guide covers the broader picture.
+
+---
 
 ## Execution Rules
 
@@ -40,3 +48,11 @@ This is a Sequence Diagram modeling tool that:
 1. Make changes to code or CSV test files
 2. Run `refresh.bat` to see changes reflected immediately
 3. Server automatically reloads CSV files on each request (no restart needed for CSV changes)
+
+## Troubleshooting Agent Behavior
+
+If the agent is behaving unexpectedly (ignoring rules, not loading customizations, consuming too many tokens):
+1. Type `#debugEventsSnapshot` in the chat to attach a snapshot of agent debug events
+2. Ask the agent to analyze the snapshot for loaded customizations, token usage, or errors
+3. Open the **Agent Debug** panel (sparkle icon top-right) to see detailed logs
+4. Use snapshots to verify that `claude.md` rules and `PROJECT_GUIDE.md` context are being loaded correctly
