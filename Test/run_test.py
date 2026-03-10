@@ -83,7 +83,7 @@ def run_test(test_name):
             print(f"VALIDATION ERRORS: {len(model.warnings)} issue(s) found")
             print(f"{'='*60}\033[0m")
             for w in model.warnings:
-                print(f"\033[91m  ⚠ {w}\033[0m")
+                print(f"\033[91m  [!] {w}\033[0m")
         else:
             print(f"\n\033[92m[OK] No validation errors\033[0m")
         

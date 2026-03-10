@@ -438,6 +438,6 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
     if is_top_level:
         model.warnings = validate_model(model)
         for w in model.warnings:
-            print(f"\033[91m  ⚠ {w}\033[0m")
+            print(f"\033[91m  [!] {w}\033[0m")
 
     return model
