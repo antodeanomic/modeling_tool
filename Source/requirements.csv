@@ -39,6 +39,21 @@ Architecture_0002;Feature;Requirement;Create api/diagram endpoint with parameter
 Architecture_0003;Feature;Requirement;Create api/lanes endpoint returning participants;-;Infrastructure_0001;Implemented
 Architecture_0004;Feature;Requirement;Serve HTML viewer at root without listing;-;Infrastructure_0001;Implemented
 Architecture_0005;Feature;Requirement;Load CSV on request for live updates;-;Infrastructure_0001;Implemented
+Diagram_0001;System;Requirement;All diagram types must support layer filtering to show/hide elements;-;"UserInterface_0004;Diagram_0002;Diagram_0003";Proposed
+Diagram_0002;Feature;Requirement;All diagram types must support verbosity levels (Low/Normal/High);-;"UserInterface_0003;Diagram_0001";Proposed
+Diagram_0003;Feature;Requirement;All diagram types must support zoom and fit-to-view;-;Diagram_0001;Implemented
+Structure_0001;System;Requirement;Implement a unified Structure diagram supporting multiple UML structural element types;-;"Structure_0002;Structure_0003;Structure_0004;Structure_0005;Connector_0001";Proposed
+Structure_0002;Feature;Requirement;Render UML Class elements with name/attributes/operations compartments;-;Structure_0001;Implemented
+Structure_0003;Feature;Requirement;Render UML Component elements with component stereotype and ports;-;Structure_0001;Proposed
+Structure_0004;Feature;Requirement;Render UML Package elements as tabbed folders containing other elements;-;Structure_0001;Proposed
+Structure_0005;Feature;Requirement;Render UML Object elements with name:Type underlined header and slot values;-;Structure_0001;Proposed
+Structure_0006;Feature;Requirement;Support layer filtering by element type or custom grouping in Structure diagrams;-;"Structure_0001;Diagram_0001";Proposed
+Structure_0007;Feature;Requirement;Support verbosity levels in Structure diagrams controlling attribute/operation visibility;-;"Structure_0001;Diagram_0002";Proposed
+Connector_0001;System;Requirement;Support configurable connector routing styles for relationship lines;-;"Connector_0002;Connector_0003;Connector_0004";Proposed
+Connector_0002;Feature;Requirement;Support diagonal (straight-line) connectors between elements;-;Connector_0001;Implemented
+Connector_0003;Feature;Requirement;Support orthogonal (right-angle multi-segment) connectors between elements;-;Connector_0001;Proposed
+Connector_0004;Feature;Requirement;Support mixed routing where connector style varies by relationship type;-;Connector_0001;Proposed
+Connector_0005;Feature;Requirement;All 14 UML relationship arrow types rendered correctly with SVG markers;-;"Connector_0001;Structure_0001";Implemented
 Rendering_0018;Component;Constraint;Note boxes approximately 17x13 pixels size;-;Note_0001;Implemented
 Rendering_0019;Component;Constraint;Function arrows without overlapping lanes;-;"Sequence_0001;Rendering_0002";Implemented
 Parser_0009;Component;Assumption;CSV file at sample_model.csv in work directory;-;Architecture_0001;Implemented
