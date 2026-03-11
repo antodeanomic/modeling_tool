@@ -62,12 +62,108 @@
             background-color: #fff;
             cursor: pointer;
             color: #333;
-            min-width: 220px;
+            min-width: 160px;
         }
         
-        .diagram-selector:hover {
+        .csv-selector:hover {
             border-color: #999;
             background-color: #f9f9f9;
+        }
+        
+        .palette-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .palette-input {
+            padding: 6px 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fff;
+            color: #333;
+            width: 340px;
+            outline: none;
+        }
+        
+        .palette-input:focus {
+            border-color: #007acc;
+            box-shadow: 0 0 0 1px #007acc;
+        }
+        
+        .palette-input::placeholder {
+            color: #aaa;
+        }
+        
+        .palette-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #007acc;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            max-height: 320px;
+            overflow-y: auto;
+            z-index: 2000;
+        }
+        
+        .palette-dropdown.open {
+            display: block;
+        }
+        
+        .palette-group-label {
+            padding: 6px 10px 3px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f8f8f8;
+            border-top: 1px solid #eee;
+        }
+        
+        .palette-group-label:first-child {
+            border-top: none;
+        }
+        
+        .palette-item {
+            padding: 6px 12px;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .palette-item:hover, .palette-item.active {
+            background-color: #007acc;
+            color: #fff;
+        }
+        
+        .palette-item .item-type {
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: #e8e8e8;
+            color: #666;
+            flex-shrink: 0;
+        }
+        
+        .palette-item:hover .item-type, .palette-item.active .item-type {
+            background: rgba(255,255,255,0.25);
+            color: #fff;
+        }
+        
+        .palette-empty {
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #999;
+            font-style: italic;
         }
         
         .menu-button {
@@ -324,14 +420,17 @@
         <div class="title">
             <span>Diagrams:</span>
             <div class="selector-group">
-                <select class="csv-selector" id="csvSelector">
-                    <option>Loading diagrams...</option>
+                <select class="csv-selector" id="typeSelector" style="min-width: 150px;">
+                    <option value="all">All Types</option>
+                    <option value="sequence">Sequence Diagrams</option>
+                    <option value="class_diagram">Class Diagrams</option>
                 </select>
             </div>
-            <div class="selector-group" id="diagramSelectorGroup">
-                <select class="csv-selector" id="diagramSelector" style="min-width: 200px;">
-                    <option>Loading...</option>
-                </select>
+            <div class="selector-group">
+                <div class="palette-wrapper" id="paletteWrapper">
+                    <input type="text" class="palette-input" id="paletteInput" placeholder="Select a diagram..." autocomplete="off">
+                    <div class="palette-dropdown" id="paletteDropdown"></div>
+                </div>
             </div>
             <div class="version-info" id="versionInfo" style="margin-left: 20px; color: #999; font-size: 12px; font-weight: normal;">Build: --</div>
         </div>
@@ -379,9 +478,7 @@
             verbosity: 'High',
             selectedLanes: [],
             allLanes: [],
-            allCsvs: [],
-            allSequences: [],
-            allClassDiagrams: [],
+            allDiagrams: [],       // aggregated from all CSVs
             zoomLevel: 1.0,
             panX: 0,
             panY: 0,
@@ -392,9 +489,10 @@
         };
         
         // DOM elements
-        const csvSelector = document.getElementById('csvSelector');
-        const diagramSelector = document.getElementById('diagramSelector');
-        const diagramSelectorGroup = document.getElementById('diagramSelectorGroup');
+        const typeSelector = document.getElementById('typeSelector');
+        const paletteInput = document.getElementById('paletteInput');
+        const paletteDropdown = document.getElementById('paletteDropdown');
+        const paletteWrapper = document.getElementById('paletteWrapper');
         const menuButton = document.getElementById('menuButton');
         const menu = document.getElementById('menu');
         const diagramArea = document.getElementById('diagramArea');
@@ -498,37 +596,23 @@
                     state.csv = csvPath;
                 }
                 
-                // Fetch available CSV files
-                const csvResponse = await fetch('/api/csvs');
-                if (!csvResponse.ok) {
-                    throw new Error(`Failed to load CSV list: ${csvResponse.statusText}`);
+                // Fetch all diagrams from all CSVs
+                const response = await fetch('/api/all_diagrams');
+                if (!response.ok) {
+                    throw new Error(`Failed to load diagrams: ${response.statusText}`);
                 }
-                const csvData = await csvResponse.json();
+                const data = await response.json();
                 
-                state.allCsvs = csvData.csvs || [];
-                if (state.allCsvs.length === 0) {
-                    diagramArea.innerHTML = '<div class="error">No CSV files found</div>';
+                state.allDiagrams = data.diagrams || [];
+                if (state.allDiagrams.length === 0) {
+                    diagramArea.innerHTML = '<div class="error">No diagrams found</div>';
                     return;
                 }
                 
-                // Populate CSV selector
-                csvSelector.innerHTML = '';
-                state.allCsvs.forEach(csv => {
-                    const option = document.createElement('option');
-                    option.value = csv.id;
-                    option.textContent = csv.name;
-                    csvSelector.appendChild(option);
-                });
+                typeSelector.addEventListener('change', onTypeChange);
                 
-                if (!state.csv) {
-                    state.csv = state.allCsvs[0].id;
-                }
-                csvSelector.value = state.csv;
-                csvSelector.addEventListener('change', onCsvChange);
-                diagramSelector.addEventListener('change', onDiagramChange);
-                
-                // Load diagram info for the selected CSV
-                await loadDiagramInfo();
+                // Set up command palette
+                setupPalette();
                 
                 // Populate verbosity options (once)
                 const levels = ["Low", "Normal", "High"];
@@ -544,95 +628,175 @@
                     verbosityOptions.appendChild(div);
                 });
                 
-                // Load initial diagram
-                loadDiagram();
+                // Show prompt to select a diagram
+                diagramContainer.innerHTML = '<div style="color: #999; font-size: 16px;">Select a diagram from the palette above</div>';
             } catch (error) {
                 console.error('Initialization error:', error);
                 diagramArea.innerHTML = `<div class="error">Error loading configuration: ${error.message}</div>`;
             }
         }
         
-        async function loadDiagramInfo() {
-            try {
-                console.log(`Loading diagram info for CSV: ${state.csv}`);
-                const response = await fetch(`/api/lanes?csv=${encodeURIComponent(state.csv)}`);
-                
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        
+        function setupPalette() {
+            state.paletteActiveIndex = -1;
+            
+            paletteInput.addEventListener('focus', () => {
+                populatePalette();
+                paletteDropdown.classList.add('open');
+                paletteInput.select();
+            });
+            
+            paletteInput.addEventListener('input', () => {
+                state.paletteActiveIndex = -1;
+                populatePalette();
+                paletteDropdown.classList.add('open');
+            });
+            
+            paletteInput.addEventListener('keydown', (e) => {
+                const items = paletteDropdown.querySelectorAll('.palette-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    state.paletteActiveIndex = Math.min(state.paletteActiveIndex + 1, items.length - 1);
+                    updatePaletteHighlight(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    state.paletteActiveIndex = Math.max(state.paletteActiveIndex - 1, 0);
+                    updatePaletteHighlight(items);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (state.paletteActiveIndex >= 0 && items[state.paletteActiveIndex]) {
+                        items[state.paletteActiveIndex].click();
+                    } else if (items.length > 0) {
+                        items[0].click();
+                    }
+                } else if (e.key === 'Escape') {
+                    paletteDropdown.classList.remove('open');
+                    paletteInput.blur();
                 }
-                
-                const data = await response.json();
-                state.allSequences = data.sequences || [];
-                state.allClassDiagrams = data.class_diagrams || [];
-                state.allLanes = data.lanes || [];
-                state.selectedLanes = [...state.allLanes];
-                
-                console.log('Sequences:', state.allSequences);
-                console.log('Class diagrams:', state.allClassDiagrams);
-                
-                // Populate diagram selector with both types
-                diagramSelector.innerHTML = '';
-                
-                if (state.allSequences.length > 0) {
-                    const seqGroup = document.createElement('optgroup');
-                    seqGroup.label = 'Sequence Diagrams';
-                    state.allSequences.forEach(s => {
-                        const option = document.createElement('option');
-                        option.value = 'seq:' + s.id;
-                        option.textContent = s.name;
-                        seqGroup.appendChild(option);
-                    });
-                    diagramSelector.appendChild(seqGroup);
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('mousedown', (e) => {
+                if (!paletteWrapper.contains(e.target)) {
+                    paletteDropdown.classList.remove('open');
                 }
-                
-                if (state.allClassDiagrams.length > 0) {
-                    const cdGroup = document.createElement('optgroup');
-                    cdGroup.label = 'Class Diagrams';
-                    state.allClassDiagrams.forEach(d => {
-                        const option = document.createElement('option');
-                        option.value = 'cd:' + d.id;
-                        option.textContent = d.name;
-                        cdGroup.appendChild(option);
-                    });
-                    diagramSelector.appendChild(cdGroup);
-                }
-                
-                if (state.allSequences.length === 0 && state.allClassDiagrams.length === 0) {
-                    const option = document.createElement('option');
-                    option.textContent = 'No diagrams found';
-                    diagramSelector.appendChild(option);
-                    return;
-                }
-                
-                // Auto-select first available diagram
-                if (state.allSequences.length > 0) {
-                    state.diagramType = 'sequence';
-                    state.sequence = state.allSequences[0].id;
-                    diagramSelector.value = 'seq:' + state.sequence;
-                } else {
-                    state.diagramType = 'class_diagram';
-                    state.classDiagramId = state.allClassDiagrams[0].id;
-                    diagramSelector.value = 'cd:' + state.classDiagramId;
-                }
-                
-                // Update menu visibility
-                updateMenuVisibility();
-                
-                // Update lane checkboxes
-                updateLaneCheckboxes();
-                
-            } catch (error) {
-                console.error('Error loading diagram info:', error);
-                diagramArea.innerHTML = `<div class="error">Error loading diagrams: ${error.message}</div>`;
+            });
+        }
+        
+        function updatePaletteHighlight(items) {
+            items.forEach((item, i) => {
+                item.classList.toggle('active', i === state.paletteActiveIndex);
+            });
+            // Scroll active item into view
+            if (state.paletteActiveIndex >= 0 && items[state.paletteActiveIndex]) {
+                items[state.paletteActiveIndex].scrollIntoView({ block: 'nearest' });
             }
         }
         
+        function populatePalette() {
+            const typeFilter = typeSelector.value;
+            const textFilter = paletteInput.value.toLowerCase().trim();
+            paletteDropdown.innerHTML = '';
+            let totalItems = 0;
+            
+            // Filter diagrams by type and text
+            const seqDiagrams = state.allDiagrams.filter(d => d.type === 'sequence');
+            const clsDiagrams = state.allDiagrams.filter(d => d.type === 'class_diagram');
+            
+            if ((typeFilter === 'all' || typeFilter === 'sequence') && seqDiagrams.length > 0) {
+                const matches = seqDiagrams.filter(d =>
+                    !textFilter || d.name.toLowerCase().includes(textFilter) || d.id.toLowerCase().includes(textFilter)
+                );
+                if (matches.length > 0) {
+                    const label = document.createElement('div');
+                    label.className = 'palette-group-label';
+                    label.textContent = 'Sequence Diagrams';
+                    paletteDropdown.appendChild(label);
+                    matches.forEach(d => {
+                        const item = document.createElement('div');
+                        item.className = 'palette-item';
+                        item.dataset.value = 'seq:' + d.csv + ':' + d.id;
+                        item.innerHTML = `<span class="item-type">SEQ</span> ${escapeHtml(d.name)}`;
+                        item.addEventListener('click', () => selectPaletteItem(d));
+                        paletteDropdown.appendChild(item);
+                        totalItems++;
+                    });
+                }
+            }
+            
+            if ((typeFilter === 'all' || typeFilter === 'class_diagram') && clsDiagrams.length > 0) {
+                const matches = clsDiagrams.filter(d =>
+                    !textFilter || d.name.toLowerCase().includes(textFilter) || d.id.toLowerCase().includes(textFilter)
+                );
+                if (matches.length > 0) {
+                    const label = document.createElement('div');
+                    label.className = 'palette-group-label';
+                    label.textContent = 'Class Diagrams';
+                    paletteDropdown.appendChild(label);
+                    matches.forEach(d => {
+                        const item = document.createElement('div');
+                        item.className = 'palette-item';
+                        item.dataset.value = 'cd:' + d.csv + ':' + d.id;
+                        item.innerHTML = `<span class="item-type">CLS</span> ${escapeHtml(d.name)}`;
+                        item.addEventListener('click', () => selectPaletteItem(d));
+                        paletteDropdown.appendChild(item);
+                        totalItems++;
+                    });
+                }
+            }
+            
+            if (totalItems === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'palette-empty';
+                empty.textContent = 'No diagrams match filter';
+                paletteDropdown.appendChild(empty);
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function selectPaletteItem(diagram) {
+            paletteInput.value = diagram.name;
+            paletteDropdown.classList.remove('open');
+            paletteInput.blur();
+            
+            // Set source CSV (hidden from user)
+            state.csv = diagram.csv;
+            
+            if (diagram.type === 'sequence') {
+                state.diagramType = 'sequence';
+                state.sequence = diagram.id;
+                // Use lanes from the diagram data
+                state.allLanes = diagram.lanes || [];
+                state.selectedLanes = [...state.allLanes];
+            } else if (diagram.type === 'class_diagram') {
+                state.diagramType = 'class_diagram';
+                state.classDiagramId = diagram.id;
+                // Use layers from the diagram data
+                if (diagram.layers && diagram.layers.length > 0) {
+                    state.allLanes = diagram.layers;
+                    state.selectedLanes = [...diagram.layers];
+                } else {
+                    state.allLanes = [];
+                    state.selectedLanes = [];
+                }
+            }
+            updateMenuVisibility();
+            updateLaneCheckboxes();
+            loadDiagram();
+        }
+        
+        
+        
         function updateMenuVisibility() {
-            // Show verbosity and lanes only for sequence diagrams
-            const isSequence = state.diagramType === 'sequence';
+            // Show verbosity and lanes/layers for all diagram types
             const menuSections = menu.querySelectorAll('.menu-section');
             menuSections.forEach(section => {
-                section.style.display = isSequence ? 'block' : 'none';
+                section.style.display = 'block';
             });
         }
         
@@ -829,38 +993,19 @@
         fitButton.addEventListener('click', fitToView);
         resetButton.addEventListener('click', resetPanAndZoom);
         
-        async function onCsvChange(e) {
-            state.csv = e.target.value;
-            console.log(`CSV changed to: ${state.csv}`);
-            // Reload diagram info for this CSV
-            await loadDiagramInfo();
-            await loadDiagram();
+        function onTypeChange(e) {
+            paletteInput.value = '';
+            state.diagramType = '';
+            state.sequence = '';
+            state.classDiagramId = '';
+            state.csv = '';
+            diagramContainer.innerHTML = '<div style="color: #999; font-size: 16px;">Select a diagram from the palette above</div>';
+            populatePalette();
+            paletteDropdown.classList.add('open');
+            paletteInput.focus();
         }
         
-        async function onDiagramChange(e) {
-            const val = e.target.value;
-            if (val.startsWith('seq:')) {
-                state.diagramType = 'sequence';
-                state.sequence = val.substring(4);
-                
-                // Reload lanes for this specific sequence
-                try {
-                    const response = await fetch(`/api/lanes?csv=${encodeURIComponent(state.csv)}`);
-                    const data = await response.json();
-                    // Find lanes for the selected sequence
-                    state.allLanes = data.lanes || [];
-                    state.selectedLanes = [...state.allLanes];
-                    updateLaneCheckboxes();
-                } catch (err) {
-                    console.error('Error reloading lanes:', err);
-                }
-            } else if (val.startsWith('cd:')) {
-                state.diagramType = 'class_diagram';
-                state.classDiagramId = val.substring(3);
-            }
-            updateMenuVisibility();
-            await loadDiagram();
-        }
+
         
         async function onVerbosityChange(e) {
             state.verbosity = e.target.value;
@@ -906,7 +1051,8 @@
                 
                 let url;
                 if (state.diagramType === 'class_diagram') {
-                    url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&type=class_diagram&diagram_id=${encodeURIComponent(state.classDiagramId)}`;
+                    const lanesParam = state.selectedLanes.length > 0 ? state.selectedLanes.join(',') : '';
+                    url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&type=class_diagram&diagram_id=${encodeURIComponent(state.classDiagramId)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
                 } else {
                     const lanesParam = state.selectedLanes.length > 0 ? state.selectedLanes.join(',') : '';
                     url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&type=sequence&sequence=${encodeURIComponent(state.sequence)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
@@ -922,15 +1068,7 @@
                 const svgText = await response.text();
                 diagramContainer.innerHTML = svgText;
                 
-                // Extract and display render version from the SVG
-                const svgElement = diagramContainer.querySelector('svg');
-                if (svgElement) {
-                    const renderVersion = svgElement.getAttribute('data-render-version');
-                    if (renderVersion) {
-                        const pageVersion = document.getElementById('versionInfo').textContent.split(': ')[1];
-                        document.getElementById('versionInfo').textContent = `Build: ${pageVersion} | Render: ${renderVersion}`;
-                    }
-                }
+                // No version update needed - Build version is set once at page load
                 
                 // Apply zoom to the newly loaded SVG
                 updateZoom();

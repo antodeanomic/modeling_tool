@@ -219,6 +219,8 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(f"Error loading HTML: {str(e)}".encode('utf-8'))
         elif parsed_path.path == '/api/diagram':
             self.handle_diagram_request(parsed_path.query)
+        elif parsed_path.path == '/api/all_diagrams':
+            self.handle_all_diagrams_request()
         elif parsed_path.path == '/api/csvs':
             self.handle_csvs_request()
         elif parsed_path.path == '/api/lanes':
@@ -295,7 +297,11 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 if not class_diagram:
                     raise ValueError(f"Class diagram '{diagram_id}' not found")
                 
-                svg = render_class_diagram_svg(model, class_diagram)
+                layers_filter = None
+                if lanes_str:
+                    layers_filter = lanes_str.split(',')
+                
+                svg = render_class_diagram_svg(model, class_diagram, verbosity_level=verbosity, layers_filter=layers_filter)
             else:
                 # Default: sequence diagram
                 if not sequence_id:
@@ -344,6 +350,49 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+    
+    def handle_all_diagrams_request(self):
+        """Return all diagrams from all CSVs, aggregated by type."""
+        try:
+            diagrams = []
+            for csv_name, csv_path in sorted(CSV_FILES.items()):
+                try:
+                    model = load_model(csv_name)
+                    for s in model.sequences:
+                        diagrams.append({
+                            'type': 'sequence',
+                            'id': s.seq_id,
+                            'name': s.seq_id,
+                            'csv': csv_name,
+                            'lanes': s.get_lanes()
+                        })
+                    for d in model.class_diagrams:
+                        diagrams.append({
+                            'type': 'class_diagram',
+                            'id': d.diagram_id,
+                            'name': d.description or d.diagram_id,
+                            'csv': csv_name,
+                            'layers': d.get_layers(),
+                            'routing': d.routing
+                        })
+                except Exception as e:
+                    print(f"[all_diagrams] Error loading {csv_name}: {e}")
+            
+            print(f"[all_diagrams] Found {len(diagrams)} diagram(s) across {len(CSV_FILES)} CSV(s)")
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+            self.end_headers()
+            self.wfile.write(json.dumps({'diagrams': diagrams}).encode('utf-8'))
+        except Exception as e:
+            print(f"[all_diagrams] Error: {str(e)}")
+            self.send_response(400)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
     
     def handle_csvs_request(self):
         """Return available CSV files."""
@@ -397,7 +446,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             sequences = [{'id': s.seq_id, 'name': s.seq_id} for s in model.sequences]
             
             # Get all class diagrams
-            class_diagrams = [{'id': d.diagram_id, 'name': d.description or d.diagram_id} for d in model.class_diagrams]
+            class_diagrams = [{'id': d.diagram_id, 'name': d.description or d.diagram_id, 'layers': d.get_layers(), 'routing': d.routing} for d in model.class_diagrams]
             
             print(f"[lanes] CSV '{csv_name}': {len(sequences)} sequence(s), {len(class_diagrams)} class diagram(s)")
             

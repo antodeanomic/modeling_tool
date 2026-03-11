@@ -4,7 +4,7 @@ from difflib import get_close_matches
 from model import (
     Model, ClassDef, MemberVar, FunctionDef, ParamDef, ReturnDef,
     SequenceDef, SequenceStep, StateMachineDef, StateDef, NoteDef,
-    ClassDiagramDef, ClassRelationship
+    ClassDiagramDef, ClassRelationship, ELEMENT_TYPES, ROUTING_MODES
 )
 
 def clean(s: str) -> str:
@@ -228,7 +228,30 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                     stack.append(seq)
 
                 elif type_name == "ClassDiagram":
-                    cd = ClassDiagramDef(diagram_id=name, description=desc)
+                    # Parse optional parameters from remaining columns
+                    routing = "diagonal"
+                    element_types = {}
+                    for col_idx in range(3, len(row)):
+                        param = clean(row[col_idx])
+                        if param.startswith("routing="):
+                            routing = param.split("=", 1)[1].strip()
+                            if routing not in ROUTING_MODES:
+                                model.warnings.append(f"Unknown routing mode '{routing}', using 'diagonal'")
+                                routing = "diagonal"
+                        elif param.startswith("element_type="):
+                            # Format: element_type=Name:type,Name:type
+                            pairs = param.split("=", 1)[1].strip()
+                            for pair in pairs.split(","):
+                                pair = pair.strip()
+                                if ":" in pair:
+                                    ename, etype = pair.split(":", 1)
+                                    ename = ename.strip()
+                                    etype = etype.strip()
+                                    if etype in ELEMENT_TYPES:
+                                        element_types[ename] = etype
+                                    else:
+                                        model.warnings.append(f"Unknown element type '{etype}' for '{ename}'")
+                    cd = ClassDiagramDef(diagram_id=name, description=desc, routing=routing, element_types=element_types)
                     model.class_diagrams.append(cd)
                     stack.append(cd)
 
@@ -280,7 +303,7 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                 continue
 
             # Inside a class diagram
-            # Row format: Source;Target;Arrow;SrcMult;TgtMult;Label
+            # Row format: Source;Target;Arrow;SrcMult;TgtMult;Label;Layer
             if isinstance(parent, ClassDiagramDef):
                 # type_name is the Source class (first column after indent)
                 source = type_name
@@ -289,6 +312,7 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                 src_mult = clean(row[3]) if len(row) > 3 else ""
                 tgt_mult = clean(row[4]) if len(row) > 4 else ""
                 label = clean(row[5]) if len(row) > 5 else ""
+                layer = clean(row[6]) if len(row) > 6 else ""
 
                 if source and target and arrow:
                     if arrow not in VALID_ARROWS:
@@ -300,7 +324,8 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                         arrow=arrow,
                         src_mult=src_mult,
                         tgt_mult=tgt_mult,
-                        label=label
+                        label=label,
+                        layer=layer
                     )
                     parent.relationships.append(rel)
                 continue

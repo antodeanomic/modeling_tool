@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""SVG renderer for UML class diagrams."""
+"""SVG renderer for UML class/structure diagrams.
 
-from model import Model, ClassDiagramDef, ClassRelationship, ClassDef
+Supports element types: class, component, package, object.
+Supports connector routing: diagonal, orthogonal, mixed.
+Supports verbosity: Low (name only), Normal (+members), High (+operations).
+Supports layer filtering to show subsets of relationships.
+"""
+
+from model import Model, ClassDiagramDef, ClassRelationship, ClassDef, ELEMENT_TYPES
 from datetime import datetime
 
 # Layout constants
@@ -21,6 +27,14 @@ MARGIN = 40
 ARROW_SIZE = 10  # Arrowhead size
 DIAMOND_SIZE = 10  # Diamond marker size
 
+# Element type visual styles
+ELEMENT_STYLES = {
+    "class": {"fill": "#FAFAFA", "stroke": "#333", "stereotype": None},
+    "component": {"fill": "#E8F5E9", "stroke": "#2E7D32", "stereotype": "\u00ABcomponent\u00BB"},
+    "package": {"fill": "#E3F2FD", "stroke": "#1565C0", "stereotype": "\u00ABpackage\u00BB"},
+    "object": {"fill": "#FFF3E0", "stroke": "#E65100", "stereotype": None},
+}
+
 
 def _escape_xml(text):
     """Escape special XML characters."""
@@ -36,13 +50,29 @@ def _measure_text(text, font_size=FONT_SIZE):
     return len(text) * char_w
 
 
-def _compute_class_box_size(class_name, class_def):
+def _compute_class_box_size(class_name, class_def, verbosity="High", element_type="class"):
     """Compute width and height for a class box.
+    
+    Verbosity levels:
+      Low: name only
+      Normal: name + members
+      High: name + members + functions
     
     Returns (width, height, has_members, has_functions).
     """
-    # Name section
-    name_width = _measure_text(class_name, FONT_SIZE) + 2 * CLASS_BOX_PADDING_X
+    # Determine if this is an object (underlined Name:Type display)
+    style = ELEMENT_STYLES.get(element_type, ELEMENT_STYLES["class"])
+    stereotype = style["stereotype"]
+    
+    # Name section - account for stereotype text above name
+    display_name = class_name
+    if element_type == "object" and ":" in class_name:
+        display_name = class_name  # Will be rendered underlined
+    
+    name_width = _measure_text(display_name, FONT_SIZE) + 2 * CLASS_BOX_PADDING_X
+    if stereotype:
+        stereo_width = _measure_text(stereotype, MEMBER_FONT_SIZE) + 2 * CLASS_BOX_PADDING_X
+        name_width = max(name_width, stereo_width)
     max_width = max(name_width, CLASS_MIN_WIDTH)
     
     has_members = False
@@ -50,8 +80,8 @@ def _compute_class_box_size(class_name, class_def):
     member_lines = 0
     function_lines = 0
     
-    if class_def:
-        # Members section
+    if class_def and verbosity != "Low":
+        # Members section (shown at Normal and High)
         for m in class_def.members:
             has_members = True
             member_lines += 1
@@ -59,29 +89,37 @@ def _compute_class_box_size(class_name, class_def):
             line_width = _measure_text(line_text, MEMBER_FONT_SIZE) + 2 * CLASS_BOX_PADDING_X
             max_width = max(max_width, line_width)
         
-        # Functions section
-        for f in class_def.functions:
-            has_functions = True
-            function_lines += 1
-            vis = "+" if f.visibility == "public" else "-" if f.visibility == "private" else "#"
-            line_text = f"  {vis} {f.name}"
-            line_width = _measure_text(line_text, MEMBER_FONT_SIZE) + 2 * CLASS_BOX_PADDING_X
-            max_width = max(max_width, line_width)
+        # Functions section (shown only at High)
+        if verbosity == "High":
+            for f in class_def.functions:
+                has_functions = True
+                function_lines += 1
+                vis = "+" if f.visibility == "public" else "-" if f.visibility == "private" else "#"
+                line_text = f"  {vis} {f.name}"
+                line_width = _measure_text(line_text, MEMBER_FONT_SIZE) + 2 * CLASS_BOX_PADDING_X
+                max_width = max(max_width, line_width)
     
-    # Height: name section + optional member section + optional function section
-    height = CLASS_BOX_PADDING_Y + FONT_SIZE + CLASS_BOX_PADDING_Y  # Name section
+    # Height: stereotype line + name section + optional member section + optional function section
+    height = CLASS_BOX_PADDING_Y
+    if stereotype:
+        height += MEMBER_FONT_SIZE + 2  # stereotype line
+    height += FONT_SIZE + CLASS_BOX_PADDING_Y  # Name section
     if has_members:
         height += CLASS_SECTION_SPACING + member_lines * ROW_HEIGHT + CLASS_BOX_PADDING_Y
     if has_functions:
         height += CLASS_SECTION_SPACING + function_lines * ROW_HEIGHT + CLASS_BOX_PADDING_Y
     
+    # Component gets extra width for the icon
+    if element_type == "component":
+        max_width += 20  # Space for component icon
+    
     return max_width, height, has_members, has_functions
 
 
-def _layout_classes(diagram, model):
+def _layout_classes(diagram, model, verbosity="High"):
     """Compute positions for each class box in the diagram.
     
-    Returns dict: class_name -> {x, y, width, height, has_members, has_functions, class_def}
+    Returns dict: class_name -> {x, y, width, height, has_members, has_functions, class_def, element_type}
     """
     # Collect unique class names from relationships
     class_names = []
@@ -101,11 +139,12 @@ def _layout_classes(diagram, model):
     boxes = {}
     for name in class_names:
         class_def = model.get_class(name)
-        w, h, has_m, has_f = _compute_class_box_size(name, class_def)
+        element_type = diagram.element_types.get(name, "class")
+        w, h, has_m, has_f = _compute_class_box_size(name, class_def, verbosity, element_type)
         boxes[name] = {
             'width': w, 'height': h,
             'has_members': has_m, 'has_functions': has_f,
-            'class_def': class_def
+            'class_def': class_def, 'element_type': element_type
         }
     
     # Simple grid layout: arrange in rows
@@ -138,7 +177,10 @@ def _layout_classes(diagram, model):
 
 
 def _render_class_box(box_info, class_name):
-    """Render a single UML class box as SVG elements."""
+    """Render a single UML element box as SVG elements.
+    
+    Supports class, component, package, and object element types.
+    """
     x = box_info['x']
     y = box_info['y']
     w = box_info['width']
@@ -146,29 +188,74 @@ def _render_class_box(box_info, class_name):
     class_def = box_info['class_def']
     has_members = box_info['has_members']
     has_functions = box_info['has_functions']
+    element_type = box_info.get('element_type', 'class')
+    
+    style = ELEMENT_STYLES.get(element_type, ELEMENT_STYLES["class"])
+    fill = style["fill"]
+    stroke = style["stroke"]
+    stereotype = style["stereotype"]
     
     parts = []
     
-    # Box background and border
-    parts.append(f'  <rect x="{x}" y="{y}" width="{w}" height="{h}" '
-                 f'fill="#FAFAFA" stroke="#333" stroke-width="1.5" rx="2"/>')
+    if element_type == "package":
+        # Package: tabbed folder shape
+        tab_w = min(w * 0.4, 80)
+        tab_h = 16
+        # Tab
+        parts.append(f'  <rect x="{x}" y="{y}" width="{tab_w}" height="{tab_h}" '
+                     f'fill="{fill}" stroke="{stroke}" stroke-width="1.5" rx="2"/>')
+        # Body (below tab)
+        parts.append(f'  <rect x="{x}" y="{y + tab_h}" width="{w}" height="{h - tab_h}" '
+                     f'fill="{fill}" stroke="{stroke}" stroke-width="1.5" rx="2"/>')
+    elif element_type == "component":
+        # Component: rectangle with small component icon
+        parts.append(f'  <rect x="{x}" y="{y}" width="{w}" height="{h}" '
+                     f'fill="{fill}" stroke="{stroke}" stroke-width="1.5" rx="2"/>')
+        # Component icon (two small rectangles on left edge)
+        icon_x = x + 6
+        icon_y = y + 6
+        icon_w = 12
+        icon_h = 6
+        parts.append(f'  <rect x="{icon_x - 3}" y="{icon_y}" width="{icon_w}" height="{icon_h}" '
+                     f'fill="{fill}" stroke="{stroke}" stroke-width="1"/>')
+        parts.append(f'  <rect x="{icon_x - 3}" y="{icon_y + icon_h + 3}" width="{icon_w}" height="{icon_h}" '
+                     f'fill="{fill}" stroke="{stroke}" stroke-width="1"/>')
+    else:
+        # Class or Object: standard rectangle
+        parts.append(f'  <rect x="{x}" y="{y}" width="{w}" height="{h}" '
+                     f'fill="{fill}" stroke="{stroke}" stroke-width="1.5" rx="2"/>')
     
-    # Class name (bold, centered)
-    name_y = y + CLASS_BOX_PADDING_Y + FONT_SIZE
+    # Track current Y position for content rendering
+    content_y = y + CLASS_BOX_PADDING_Y
+    
+    # Stereotype text (for component and package)
+    if stereotype:
+        content_y += MEMBER_FONT_SIZE
+        parts.append(f'  <text x="{x + w / 2}" y="{content_y}" '
+                     f'font-family="{FONT_FAMILY}" font-size="{MEMBER_FONT_SIZE}" '
+                     f'text-anchor="middle" fill="#666">'
+                     f'{_escape_xml(stereotype)}</text>')
+        content_y += 2
+    
+    # Class/element name (bold, centered)
+    content_y += FONT_SIZE
     name_x = x + w / 2
-    parts.append(f'  <text x="{name_x}" y="{name_y}" '
+    # Object names are underlined
+    text_decoration = ' text-decoration="underline"' if element_type == "object" else ''
+    parts.append(f'  <text x="{name_x}" y="{content_y}" '
                  f'font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}" '
-                 f'font-weight="bold" text-anchor="middle" fill="#333">'
+                 f'font-weight="bold" text-anchor="middle" fill="#333"'
+                 f'{text_decoration}>'
                  f'{_escape_xml(class_name)}</text>')
     
-    section_y = y + CLASS_BOX_PADDING_Y + FONT_SIZE + CLASS_BOX_PADDING_Y
+    section_y = content_y + CLASS_BOX_PADDING_Y
     
     if class_def:
         # Members section
         if has_members:
             # Separator line
             parts.append(f'  <line x1="{x}" y1="{section_y}" x2="{x + w}" y2="{section_y}" '
-                         f'stroke="#333" stroke-width="1"/>')
+                         f'stroke="{stroke}" stroke-width="1"/>')
             section_y += CLASS_SECTION_SPACING
             
             for m in class_def.members:
@@ -183,7 +270,7 @@ def _render_class_box(box_info, class_name):
         if has_functions:
             # Separator line
             parts.append(f'  <line x1="{x}" y1="{section_y}" x2="{x + w}" y2="{section_y}" '
-                         f'stroke="#333" stroke-width="1"/>')
+                         f'stroke="{stroke}" stroke-width="1"/>')
             section_y += CLASS_SECTION_SPACING
             
             for f in class_def.functions:
@@ -283,8 +370,14 @@ def _get_arrow_style(arrow):
     return styles.get(arrow, (solid, None, 'arrow-open'))
 
 
-def _render_relationship(rel, boxes):
-    """Render a single relationship line between two class boxes."""
+def _render_relationship(rel, boxes, routing="diagonal"):
+    """Render a single relationship line between two class boxes.
+    
+    Routing modes:
+      diagonal: straight line between connection points
+      orthogonal: right-angle paths (horizontal-vertical-horizontal)
+      mixed: use orthogonal for same-row, diagonal for different-row
+    """
     if rel.source not in boxes or rel.target not in boxes:
         return ''
     
@@ -299,60 +392,109 @@ def _render_relationship(rel, boxes):
     
     parts = []
     
-    # Build line attributes
-    attrs = f'x1="{sx}" y1="{sy}" x2="{tx}" y2="{ty}" stroke="#555" stroke-width="1.5"'
-    if dash != "none":
-        attrs += f' stroke-dasharray="{dash}"'
-    if marker_start:
-        attrs += f' marker-start="url(#{marker_start})"'
-    if marker_end:
-        attrs += f' marker-end="url(#{marker_end})"'
+    use_orthogonal = (routing == "orthogonal" or 
+                      (routing == "mixed" and abs(sy - ty) < src_box['height']))
     
-    parts.append(f'  <line {attrs}/>')
-    
-    # Multiplicity labels
-    if rel.src_mult:
-        # Place near source end
-        mx = sx + (tx - sx) * 0.12
-        my = sy + (ty - sy) * 0.12 - 8
-        parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
-                     f'font-size="11" fill="#666" text-anchor="middle">'
-                     f'{_escape_xml(rel.src_mult)}</text>')
-    
-    if rel.tgt_mult:
-        # Place near target end
-        mx = tx + (sx - tx) * 0.12
-        my = ty + (sy - ty) * 0.12 - 8
-        parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
-                     f'font-size="11" fill="#666" text-anchor="middle">'
-                     f'{_escape_xml(rel.tgt_mult)}</text>')
-    
-    # Relationship label (centered on line)
-    if rel.label:
-        lx = (sx + tx) / 2
-        ly = (sy + ty) / 2 - 8
-        parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
-                     f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
-                     f'{_escape_xml(rel.label)}</text>')
+    if use_orthogonal and (abs(sx - tx) > 1 and abs(sy - ty) > 1):
+        # Orthogonal routing: horizontal-vertical-horizontal path
+        mid_x = (sx + tx) / 2
+        path_d = f"M {sx} {sy} L {mid_x} {sy} L {mid_x} {ty} L {tx} {ty}"
+        attrs = f'd="{path_d}" fill="none" stroke="#555" stroke-width="1.5"'
+        if dash != "none":
+            attrs += f' stroke-dasharray="{dash}"'
+        if marker_start:
+            attrs += f' marker-start="url(#{marker_start})"'
+        if marker_end:
+            attrs += f' marker-end="url(#{marker_end})"'
+        parts.append(f'  <path {attrs}/>')
+        
+        # Multiplicity labels for orthogonal
+        if rel.src_mult:
+            mx = sx + (mid_x - sx) * 0.2
+            my = sy - 8
+            parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
+                         f'font-size="11" fill="#666" text-anchor="middle">'
+                         f'{_escape_xml(rel.src_mult)}</text>')
+        if rel.tgt_mult:
+            mx = tx + (mid_x - tx) * 0.2
+            my = ty - 8
+            parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
+                         f'font-size="11" fill="#666" text-anchor="middle">'
+                         f'{_escape_xml(rel.tgt_mult)}</text>')
+        # Label at midpoint of orthogonal path
+        if rel.label:
+            lx = mid_x + 4
+            ly = (sy + ty) / 2 - 4
+            parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
+                         f'font-size="11" font-style="italic" fill="#444" text-anchor="start">'
+                         f'{_escape_xml(rel.label)}</text>')
+    else:
+        # Diagonal routing: straight line
+        attrs = f'x1="{sx}" y1="{sy}" x2="{tx}" y2="{ty}" stroke="#555" stroke-width="1.5"'
+        if dash != "none":
+            attrs += f' stroke-dasharray="{dash}"'
+        if marker_start:
+            attrs += f' marker-start="url(#{marker_start})"'
+        if marker_end:
+            attrs += f' marker-end="url(#{marker_end})"'
+        parts.append(f'  <line {attrs}/>')
+        
+        # Multiplicity labels
+        if rel.src_mult:
+            mx = sx + (tx - sx) * 0.12
+            my = sy + (ty - sy) * 0.12 - 8
+            parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
+                         f'font-size="11" fill="#666" text-anchor="middle">'
+                         f'{_escape_xml(rel.src_mult)}</text>')
+        if rel.tgt_mult:
+            mx = tx + (sx - tx) * 0.12
+            my = ty + (sy - ty) * 0.12 - 8
+            parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
+                         f'font-size="11" fill="#666" text-anchor="middle">'
+                         f'{_escape_xml(rel.tgt_mult)}</text>')
+        # Relationship label
+        if rel.label:
+            lx = (sx + tx) / 2
+            ly = (sy + ty) / 2 - 8
+            parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
+                         f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
+                         f'{_escape_xml(rel.label)}</text>')
     
     return '\n'.join(parts)
 
 
-def render_class_diagram_svg(model, diagram):
+def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filter=None):
     """Render a class diagram as SVG.
     
     Args:
         model: The Model containing class definitions
         diagram: A ClassDiagramDef with relationships
+        verbosity_level: "Low" (name only), "Normal" (+members), "High" (+operations)
+        layers_filter: Optional list of layer names to include. None = show all.
     
     Returns:
         SVG string
     """
-    if not diagram.relationships:
+    # Filter relationships by layer if requested
+    if layers_filter is not None:
+        filtered_rels = [r for r in diagram.relationships if not r.layer or r.layer in layers_filter]
+        # Create a temporary diagram with filtered relationships
+        from model import ClassDiagramDef
+        filtered_diagram = ClassDiagramDef(
+            diagram_id=diagram.diagram_id,
+            description=diagram.description,
+            relationships=filtered_rels,
+            routing=diagram.routing,
+            element_types=diagram.element_types
+        )
+    else:
+        filtered_diagram = diagram
+    
+    if not filtered_diagram.relationships:
         return _empty_svg(diagram.description or diagram.diagram_id)
     
     # Layout class boxes
-    boxes = _layout_classes(diagram, model)
+    boxes = _layout_classes(filtered_diagram, model, verbosity_level)
     
     if not boxes:
         return _empty_svg(diagram.description or diagram.diagram_id)
@@ -390,14 +532,22 @@ def render_class_diagram_svg(model, diagram):
         box['y'] += title_height
     
     # Render relationships (under the boxes)
-    for rel in diagram.relationships:
-        line_svg = _render_relationship(rel, boxes)
+    for rel in filtered_diagram.relationships:
+        line_svg = _render_relationship(rel, boxes, diagram.routing)
         if line_svg:
             lines.append(line_svg)
     
     # Render class boxes (on top of relationships)
     for name, box in boxes.items():
         lines.append(_render_class_box(box, name))
+    
+    # Show render version in bottom-right when High verbosity
+    if verbosity_level == "High":
+        version_x = max_x - 8
+        version_y = total_height - 5
+        lines.append(f'  <text x="{version_x}" y="{version_y}" text-anchor="end" '
+                     f'font-family="{FONT_FAMILY}" font-size="9" fill="#ccc">'
+                     f'v:{render_version}</text>')
     
     lines.append('</svg>')
     return '\n'.join(lines)

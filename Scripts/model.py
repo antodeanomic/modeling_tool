@@ -71,12 +71,42 @@ class ClassRelationship:
     src_mult: str = ""
     tgt_mult: str = ""
     label: str = ""
+    layer: str = ""
+
+# Valid element types for structure diagrams
+ELEMENT_TYPES = {"class", "component", "package", "object"}
+
+# Valid connector routing modes
+ROUTING_MODES = {"diagonal", "orthogonal", "mixed"}
 
 @dataclass
 class ClassDiagramDef:
     diagram_id: str
     description: str
     relationships: List[ClassRelationship] = field(default_factory=list)
+    routing: str = "diagonal"  # diagonal, orthogonal, or mixed
+    element_types: dict = field(default_factory=dict)  # Maps element_name -> type (class/component/package/object)
+
+    def get_layers(self) -> List[str]:
+        """Get unique layer names from relationships, in order of appearance."""
+        layers = []
+        for rel in self.relationships:
+            if rel.layer and rel.layer not in layers:
+                layers.append(rel.layer)
+        return layers
+
+    def get_element_names(self) -> List[str]:
+        """Get unique element names from relationships, in order of appearance."""
+        names = []
+        seen = set()
+        for rel in self.relationships:
+            if rel.source not in seen:
+                names.append(rel.source)
+                seen.add(rel.source)
+            if rel.target not in seen:
+                names.append(rel.target)
+                seen.add(rel.target)
+        return names
 
 @dataclass
 class NoteDef:

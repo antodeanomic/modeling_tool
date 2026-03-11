@@ -1246,11 +1246,12 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         note_elements = create_note_box(x_lane, spaced_note_y, note, show_text=False)
         svg.extend(note_elements)
     
-    # Add render version in bottom right corner for cache debugging
-    version_x = width - 8
-    version_y = height + top_margin - 5
-    svg.append(f'<text x="{version_x}" y="{version_y}" text-anchor="end" font-family="Arial" '
-               f'font-size="9" fill="#ccc">v:{render_version}</text>')
+    # Add render version in bottom right corner when High verbosity
+    if verbosity_level.lower() == "high":
+        version_x = width - 8
+        version_y = height + top_margin - 5
+        svg.append(f'<text x="{version_x}" y="{version_y}" text-anchor="end" font-family="Arial" '
+                   f'font-size="9" fill="#ccc">v:{render_version}</text>')
 
     svg.append("</svg>")
     return "\n".join(svg)
