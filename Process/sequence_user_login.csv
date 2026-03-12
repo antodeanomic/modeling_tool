@@ -1,0 +1,32 @@
+Type;Name;Description;Layer
+Class;Client;Web browser client;UI
+Class;LoginForm;Login form component;UI
+Class;APIGateway;API gateway/router;API
+Class;AuthService;Authentication service;Business Logic
+Class;TokenValidator;Token validation handler;Business Logic
+Class;PermissionChecker;Permission checker;Business Logic
+Class;PermissionCache;In-memory cache;Business Logic
+Class;UserDB;User database;Data Access
+Class;PermissionDB;Permission database;Data Access
+Class;AuditLog;Audit logging service;Data Access
+Sequence;SEQ_002_UserLogin;Multi-layer user login flow
+    Client;LoginForm;EnterCredentials;username;password;-;@Info;User enters credentials
+    LoginForm;APIGateway;Authenticate;username;password;token;@Info;Submit login request
+    APIGateway;AuthService;ValidateUser;username;password;valid;@Info;Validation request
+    AuthService;UserDB;QueryUser;username;user;@Info;Look up user record
+    UserDB;AuthService;QueryUser;user
+    AuthService;TokenValidator;GenerateToken;user;token;@Success;Create session token
+    TokenValidator;AuthService;GenerateToken;token
+    AuthService;AuditLog;LogAuth;username;success;logged;@Success;Record login event
+    AuditLog;AuthService;LogAuth;logged
+    AuthService;APIGateway;ValidateUser;token
+    APIGateway;PermissionChecker;GetPermissions;user;permissions;@Info;Fetch user permissions
+    PermissionChecker;PermissionCache;Lookup;user;fromCache;-;@Info;Check cache first
+    PermissionCache;PermissionChecker;Lookup;fromCache
+    PermissionChecker;PermissionDB;QueryPermissions;user;permissions;@Info;Query database if not cached
+    PermissionDB;PermissionChecker;QueryPermissions;permissions
+    PermissionChecker;PermissionCache;Store;user;permissions;cached;@Success;Cache result
+    PermissionCache;PermissionChecker;Store;cached
+    PermissionChecker;APIGateway;GetPermissions;permissions
+    APIGateway;LoginForm;Authenticate;token;user_id;permissions;@Success;Login successful
+    LoginForm;Client;DisplayDashboard;token;user_id;permissions;@Success;Show user dashboard

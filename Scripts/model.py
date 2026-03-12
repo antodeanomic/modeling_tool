@@ -39,6 +39,7 @@ class MemberVar:
 class ClassDef:
     name: str
     description: str
+    layer: str = ""  # Layer/group assignment (e.g., "UI", "Business Logic", "Data Access")
     members: List[MemberVar] = field(default_factory=list)
     functions: List[FunctionDef] = field(default_factory=list)
     state_machines: List[StateMachineDef] = field(default_factory=list)
@@ -211,3 +212,11 @@ class Model:
             if d.diagram_id == diagram_id:
                 return d
         return None
+    
+    def get_layers(self) -> List[str]:
+        """Get unique layer names from all classes, in order of appearance."""
+        layers = []
+        for cls in self.classes:
+            if cls.layer and cls.layer not in layers:
+                layers.append(cls.layer)
+        return layers

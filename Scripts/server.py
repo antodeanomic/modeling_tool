@@ -510,6 +510,9 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             if model.sequences:
                 lanes = model.sequences[0].get_lanes()
             
+            # Get all layers from classes
+            layers = model.get_layers()
+            
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
@@ -520,6 +523,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 "sequences": sequences,
                 "class_diagrams": class_diagrams,
                 "lanes": lanes,
+                "layers": layers,
                 "verbosity_levels": ["Low", "Normal", "High"]
             }).encode('utf-8'))
         except Exception as e:

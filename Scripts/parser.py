@@ -192,6 +192,7 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
             type_field = row[0]
             name = clean(row[1]) if len(row) > 1 else ""
             desc = clean(row[2]) if len(row) > 2 else ""
+            layer = clean(row[3]) if len(row) > 3 else ""  # Optional layer assignment
 
             level, type_name = parse_indent(type_field)
 
@@ -213,7 +214,7 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                         model.class_diagrams.extend(included_model.class_diagrams)
 
                 elif type_name == "Class":
-                    c = ClassDef(name=name, description=desc)
+                    c = ClassDef(name=name, description=desc, layer=layer)
                     model.classes.append(c)
                     stack.append(c)
 
