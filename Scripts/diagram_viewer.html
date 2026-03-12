@@ -728,15 +728,11 @@
                 node._diagrams.push(diagram);
             });
             
-            // Helper to format folder names: remove numeric prefix and replace underscores with spaces
+            // Helper to format folder names: remove numeric sorting prefix only
+            // The hierarchy should match the actual folder structure exactly
             function formatFolderName(name) {
-                // Remove leading numeric prefix (e.g., "01_", "10_")
-                let formatted = name.replace(/^\d+_/, '');
-                // Replace underscores with spaces
-                formatted = formatted.replace(/_/g, ' ');
-                // Insert spaces before capital letters (for camelCase)
-                formatted = formatted.replace(/([a-z])([A-Z])/g, '$1 $2');
-                return formatted;
+                // Remove leading numeric prefix for sorting (e.g., "01_", "40_") only
+                return name.replace(/^\d+_/, '');
             }
             
             // Render the tree recursively
