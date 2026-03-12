@@ -13,13 +13,15 @@ from class_diagram_renderer import render_class_diagram_svg
 
 # Configuration - find CSV files and HTML flexibly
 def find_csv_files_hierarchical():
-    """Scan diagrams/ folder for CSVs with hierarchy preserved."""
+    """Scan diagrams/ and Process/ folders for CSVs with hierarchy preserved."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    diagrams_dir = os.path.join(script_dir, '../diagrams')
-    diagrams_dir = os.path.normpath(diagrams_dir)
+    repo_root = os.path.dirname(script_dir)
     
     csv_files_with_hierarchy = []
     
+    # Scan diagrams/ folder
+    diagrams_dir = os.path.join(script_dir, '../diagrams')
+    diagrams_dir = os.path.normpath(diagrams_dir)
     if os.path.isdir(diagrams_dir):
         for root, dirs, files in os.walk(diagrams_dir):
             for file in files:
@@ -48,57 +50,74 @@ def find_csv_files_hierarchical():
                         'relative_path': os.path.join(rel_path, file).replace(os.sep, '/')
                     })
     
+    # Scan Process/ folder to capture System and Architecture hierarchy
+    process_dir = os.path.join(repo_root, 'Process')
+    if os.path.isdir(process_dir):
+        for root, dirs, files in os.walk(process_dir):
+            for file in files:
+                if file.endswith('.csv'):
+                    abs_path = os.path.abspath(os.path.join(root, file))
+                    # Calculate relative path from Process/ folder
+                    rel_path = os.path.relpath(root, process_dir)
+                    # Extract hierarchy from path (e.g., "System" or "Architecture")
+                    path_parts = rel_path.split(os.sep)
+                    hierarchy = []
+                    for part in path_parts:
+                        if part != '.' and part:
+                            cleaned = part.replace('_', ' ')
+                            hierarchy.append(cleaned)
+                    
+                    # Check if already exists in diagrams (avoid duplicates)
+                    if not any(item['name'] == file and item['path'] == abs_path for item in csv_files_with_hierarchy):
+                        csv_files_with_hierarchy.append({
+                            'name': file,
+                            'path': abs_path,
+                            'hierarchy': hierarchy,
+                            'relative_path': os.path.join(rel_path, file).replace(os.sep, '/')
+                        })
+    
     return csv_files_with_hierarchy
 
 def find_csv_files():
     """Search for all CSV files in common locations relative to this script."""
     # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.dirname(script_dir)  # Parent of Scripts/
     
-    # Build search paths relative to script directory
+    # Build search paths using absolute paths
     search_dirs = [
-        os.path.join(script_dir, '../Source'),              # ../Source from Scripts/
-        os.path.join(script_dir, '../Test/tests'),          # ../Test/tests from Scripts/
-        os.path.join(script_dir, '../tests'),               # ../tests from Scripts/ (for Test subdir)
-        os.path.join(script_dir, '../Process'),             # ../Process from Scripts/
-        os.path.join(script_dir, '../Process/System'),      # ../Process/System for system diagrams
-        os.path.join(script_dir, '../Process/Architecture'), # ../Process/Architecture for architecture diagrams
-        os.path.join(script_dir, '../Process/architecture'), # ../Process/architecture (legacy)
-        os.path.join(script_dir, '.'),                      # Scripts/ itself
-        os.path.join(script_dir, '..'),                     # Parent of Scripts/
+        os.path.join(repo_root, 'Source'),              # Source/
+        os.path.join(repo_root, 'Test/tests'),          # Test/tests/
+        os.path.join(repo_root, 'tests'),               # tests/
+        os.path.join(repo_root, 'Process'),             # Process/
+        os.path.join(repo_root, 'Process/System'),      # Process/System/
+        os.path.join(repo_root, 'Process/Architecture'), # Process/Architecture/
+        os.path.join(repo_root, 'Process/architecture'), # Process/architecture/ (legacy)
+        script_dir,                                      # Scripts/
     ]
     
-    # Also check current working directory just in case
-    search_dirs.extend([
-        "Source",
-        "tests",
-        "Test/tests",
-        "Process",
-        "Process/System",
-        "Process/Architecture",
-        "Process/architecture",
-        ".",
-    ])
-    
     csv_files = {}
+    found_dirs = []
+    
     for search_dir in search_dirs:
-        # Normalize and check if it exists
-        normalized_dir = os.path.normpath(search_dir)
-        if not os.path.isdir(normalized_dir):
+        search_dir = os.path.normpath(search_dir)
+        if not os.path.isdir(search_dir):
             continue
+        found_dirs.append(search_dir)
         try:
-            for file in os.listdir(normalized_dir):
+            for file in os.listdir(search_dir):
                 if file.endswith('.csv'):
-                    path = os.path.join(normalized_dir, file)
+                    path = os.path.join(search_dir, file)
                     abs_path = os.path.abspath(path)
                     # Use filename as key, avoid duplicates
                     if file not in csv_files:
                         csv_files[file] = abs_path
-        except (OSError, FileNotFoundError):
+        except (OSError, FileNotFoundError) as e:
+            print(f"[warn] Error listing {search_dir}: {e}")
             pass
     
-    # Recursively search entire Process/ directory for CSVs (System, Architecture, and legacy diagrams/)
-    process_dir = os.path.normpath(os.path.join(script_dir, '../Process'))
+    # Recursively search entire Process/ directory for CSVs
+    process_dir = os.path.join(repo_root, 'Process')
     if os.path.isdir(process_dir):
         try:
             for root, dirs, files in os.walk(process_dir):
@@ -108,7 +127,8 @@ def find_csv_files():
                         abs_path = os.path.abspath(path)
                         if file not in csv_files:
                             csv_files[file] = abs_path
-        except (OSError, FileNotFoundError):
+        except (OSError, FileNotFoundError) as e:
+            print(f"[warn] Error walking Process/: {e}")
             pass
     
     # Also add CSV files from hierarchical diagrams/ folder
@@ -120,8 +140,9 @@ def find_csv_files():
             csv_files[key] = item['path']
     
     if not csv_files:
-        raise FileNotFoundError(f"Could not find any CSV files in: {search_dirs}")
+        raise FileNotFoundError(f"Could not find any CSV files in: {found_dirs}")
     
+    print(f"[OK] Found {len(csv_files)} CSV file(s) in {len(found_dirs)} directories")
     return csv_files
 
 def find_default_csv(csv_files):
