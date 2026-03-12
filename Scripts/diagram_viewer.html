@@ -717,7 +717,7 @@
                         item.className = 'palette-item';
                         item.dataset.value = 'seq:' + d.csv + ':' + d.id;
                         item.innerHTML = `<span class="item-type">SEQ</span> ${escapeHtml(d.name)}`;
-                        item.addEventListener('click', () => selectPaletteItem(d));
+                        item.addEventListener('mousedown', (e) => { e.preventDefault(); selectPaletteItem(d); });
                         paletteDropdown.appendChild(item);
                         totalItems++;
                     });
@@ -738,7 +738,7 @@
                         item.className = 'palette-item';
                         item.dataset.value = 'cd:' + d.csv + ':' + d.id;
                         item.innerHTML = `<span class="item-type">CLS</span> ${escapeHtml(d.name)}`;
-                        item.addEventListener('click', () => selectPaletteItem(d));
+                        item.addEventListener('mousedown', (e) => { e.preventDefault(); selectPaletteItem(d); });
                         paletteDropdown.appendChild(item);
                         totalItems++;
                     });
@@ -760,7 +760,6 @@
         }
         
         function selectPaletteItem(diagram) {
-            paletteInput.value = diagram.name;
             paletteDropdown.classList.remove('open');
             paletteInput.blur();
             
