@@ -12,6 +12,44 @@ from svg_renderer import render_svg
 from class_diagram_renderer import render_class_diagram_svg
 
 # Configuration - find CSV files and HTML flexibly
+def find_csv_files_hierarchical():
+    """Scan diagrams/ folder for CSVs with hierarchy preserved."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    diagrams_dir = os.path.join(script_dir, '../diagrams')
+    diagrams_dir = os.path.normpath(diagrams_dir)
+    
+    csv_files_with_hierarchy = []
+    
+    if os.path.isdir(diagrams_dir):
+        for root, dirs, files in os.walk(diagrams_dir):
+            for file in files:
+                if file.endswith('.csv'):
+                    abs_path = os.path.abspath(os.path.join(root, file))
+                    # Calculate relative path from diagrams/ folder
+                    rel_path = os.path.relpath(root, diagrams_dir)
+                    # Extract hierarchy from path
+                    path_parts = rel_path.split(os.sep)
+                    # Clean up path parts: remove numeric prefixes like "01_" but keep display names
+                    hierarchy = []
+                    for part in path_parts:
+                        if part != '.':
+                            # Remove numeric prefix (e.g., "01_SystemArchitecture" -> "System Architecture")
+                            cleaned = part
+                            if '_' in cleaned and cleaned[0].isdigit():
+                                # Remove "NN_" prefix, keep rest, replace underscores with spaces
+                                cleaned = '_'.join(cleaned.split('_')[1:])
+                            cleaned = cleaned.replace('_', ' ')
+                            hierarchy.append(cleaned)
+                    
+                    csv_files_with_hierarchy.append({
+                        'name': file,
+                        'path': abs_path,
+                        'hierarchy': hierarchy,
+                        'relative_path': os.path.join(rel_path, file).replace(os.sep, '/')
+                    })
+    
+    return csv_files_with_hierarchy
+
 def find_csv_files():
     """Search for all CSV files in common locations relative to this script."""
     # Get the directory where this script is located
@@ -52,6 +90,14 @@ def find_csv_files():
                         csv_files[file] = abs_path
         except (OSError, FileNotFoundError):
             pass
+    
+    # Also add CSV files from hierarchical diagrams/ folder
+    hierarchical = find_csv_files_hierarchical()
+    for item in hierarchical:
+        # Use the relative path as key for hierarchical CSVs to avoid conflicts
+        key = item['name']  # Could also use relative_path for uniqueness
+        if key not in csv_files:
+            csv_files[key] = item['path']
     
     if not csv_files:
         raise FileNotFoundError(f"Could not find any CSV files in: {search_dirs}")
@@ -352,19 +398,27 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
     
     def handle_all_diagrams_request(self):
-        """Return all diagrams from all CSVs, aggregated by type."""
+        """Return all diagrams from all CSVs with hierarchy information."""
         try:
+            # Get hierarchical CSV information
+            hierarchical_csvs = find_csv_files_hierarchical()
+            hierarchy_lookup = {item['name']: item['hierarchy'] for item in hierarchical_csvs}
+            
             diagrams = []
             for csv_name, csv_path in sorted(CSV_FILES.items()):
                 try:
                     model = load_model(csv_name)
+                    # Get hierarchy for this CSV if it exists
+                    hierarchy = hierarchy_lookup.get(csv_name, [])
+                    
                     for s in model.sequences:
                         diagrams.append({
                             'type': 'sequence',
                             'id': s.seq_id,
                             'name': s.seq_id,
                             'csv': csv_name,
-                            'lanes': s.get_lanes()
+                            'lanes': s.get_lanes(),
+                            'hierarchy': hierarchy
                         })
                     for d in model.class_diagrams:
                         diagrams.append({
@@ -373,7 +427,8 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                             'name': d.description or d.diagram_id,
                             'csv': csv_name,
                             'layers': d.get_layers(),
-                            'routing': d.routing
+                            'routing': d.routing,
+                            'hierarchy': hierarchy
                         })
                 except Exception as e:
                     print(f"[all_diagrams] Error loading {csv_name}: {e}")

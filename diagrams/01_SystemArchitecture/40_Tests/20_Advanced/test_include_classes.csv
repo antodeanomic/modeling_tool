@@ -1,0 +1,13 @@
+Type;Name;Description
+Class;User;User interface
+    Function;LogEvent;Logs events
+        Param;EventID;Event ID
+        ReturnVal;Status;Logged
+Class;Logger;System logger
+    Function;SendNotification;Send alert
+        Param;EventID;Event ID
+        ReturnVal;Queued;In queue
+Class;NotificationService;Notification handler
+    Function;Notify;Alert user
+        Param;EventID;event
+        ReturnVal;Sent;Delivered

@@ -82,7 +82,7 @@
             border-radius: 4px;
             background-color: #fff;
             color: #333;
-            width: 340px;
+            width: 550px;
             outline: none;
         }
         
@@ -142,6 +142,10 @@
         
         .palette-item:hover, .palette-item.active {
             background-color: #007acc;
+            color: #fff;
+        }
+        
+        .palette-item:hover span, .palette-item.active span {
             color: #fff;
         }
         
@@ -420,13 +424,6 @@
         <div class="title">
             <span>Diagrams:</span>
             <div class="selector-group">
-                <select class="csv-selector" id="typeSelector" style="min-width: 150px;">
-                    <option value="all">All Types</option>
-                    <option value="sequence">Sequence Diagrams</option>
-                    <option value="class_diagram">Class Diagrams</option>
-                </select>
-            </div>
-            <div class="selector-group">
                 <div class="palette-wrapper" id="paletteWrapper">
                     <input type="text" class="palette-input" id="paletteInput" placeholder="Select a diagram..." autocomplete="off">
                     <div class="palette-dropdown" id="paletteDropdown"></div>
@@ -489,7 +486,6 @@
         };
         
         // DOM elements
-        const typeSelector = document.getElementById('typeSelector');
         const paletteInput = document.getElementById('paletteInput');
         const paletteDropdown = document.getElementById('paletteDropdown');
         const paletteWrapper = document.getElementById('paletteWrapper');
@@ -609,7 +605,7 @@
                     return;
                 }
                 
-                typeSelector.addEventListener('change', onTypeChange);
+                // Type filtering removed; all diagrams shown with type badges
                 
                 // Set up command palette
                 setupPalette();
@@ -694,63 +690,104 @@
         }
         
         function populatePalette() {
-            const typeFilter = typeSelector.value;
             const textFilter = paletteInput.value.toLowerCase().trim();
             paletteDropdown.innerHTML = '';
-            let totalItems = 0;
             
-            // Filter diagrams by type and text
-            const seqDiagrams = state.allDiagrams.filter(d => d.type === 'sequence');
-            const clsDiagrams = state.allDiagrams.filter(d => d.type === 'class_diagram');
+            // Filter all diagrams by text
+            const matches = state.allDiagrams.filter(d =>
+                !textFilter || d.name.toLowerCase().includes(textFilter) || d.id.toLowerCase().includes(textFilter)
+            );
             
-            if ((typeFilter === 'all' || typeFilter === 'sequence') && seqDiagrams.length > 0) {
-                const matches = seqDiagrams.filter(d =>
-                    !textFilter || d.name.toLowerCase().includes(textFilter) || d.id.toLowerCase().includes(textFilter)
-                );
-                if (matches.length > 0) {
-                    const label = document.createElement('div');
-                    label.className = 'palette-group-label';
-                    label.textContent = 'Sequence Diagrams';
-                    paletteDropdown.appendChild(label);
-                    matches.forEach(d => {
-                        const item = document.createElement('div');
-                        item.className = 'palette-item';
-                        item.dataset.value = 'seq:' + d.csv + ':' + d.id;
-                        item.innerHTML = `<span class="item-type">SEQ</span> ${escapeHtml(d.name)}`;
-                        item.addEventListener('mousedown', (e) => { e.preventDefault(); selectPaletteItem(d); });
-                        paletteDropdown.appendChild(item);
-                        totalItems++;
-                    });
-                }
-            }
-            
-            if ((typeFilter === 'all' || typeFilter === 'class_diagram') && clsDiagrams.length > 0) {
-                const matches = clsDiagrams.filter(d =>
-                    !textFilter || d.name.toLowerCase().includes(textFilter) || d.id.toLowerCase().includes(textFilter)
-                );
-                if (matches.length > 0) {
-                    const label = document.createElement('div');
-                    label.className = 'palette-group-label';
-                    label.textContent = 'Class Diagrams';
-                    paletteDropdown.appendChild(label);
-                    matches.forEach(d => {
-                        const item = document.createElement('div');
-                        item.className = 'palette-item';
-                        item.dataset.value = 'cd:' + d.csv + ':' + d.id;
-                        item.innerHTML = `<span class="item-type">CLS</span> ${escapeHtml(d.name)}`;
-                        item.addEventListener('mousedown', (e) => { e.preventDefault(); selectPaletteItem(d); });
-                        paletteDropdown.appendChild(item);
-                        totalItems++;
-                    });
-                }
-            }
-            
-            if (totalItems === 0) {
+            if (matches.length === 0) {
                 const empty = document.createElement('div');
                 empty.className = 'palette-empty';
                 empty.textContent = 'No diagrams match filter';
                 paletteDropdown.appendChild(empty);
+                return;
             }
+            
+            // Build a tree structure from hierarchy
+            const tree = {};
+            
+            matches.forEach(diagram => {
+                const hierarchy = diagram.hierarchy || [];
+                let node = tree;
+                
+                // Navigate/create tree nodes for each level
+                hierarchy.forEach(folderName => {
+                    if (!node[folderName]) {
+                        node[folderName] = {};
+                    }
+                    node = node[folderName];
+                });
+                
+                // Store diagrams in _diagrams array at leaf level
+                if (!node._diagrams) {
+                    node._diagrams = [];
+                }
+                node._diagrams.push(diagram);
+            });
+            
+            // Helper to format folder names: remove numeric prefix and replace underscores with spaces
+            function formatFolderName(name) {
+                // Remove leading numeric prefix (e.g., "01_", "10_")
+                let formatted = name.replace(/^\d+_/, '');
+                // Replace underscores with spaces
+                formatted = formatted.replace(/_/g, ' ');
+                // Insert spaces before capital letters (for camelCase)
+                formatted = formatted.replace(/([a-z])([A-Z])/g, '$1 $2');
+                return formatted;
+            }
+            
+            // Render the tree recursively
+            function renderTree(treeNode, depth = 0) {
+                const keys = Object.keys(treeNode).sort();
+                
+                keys.forEach(key => {
+                    if (key === '_diagrams') return;
+                    
+                    // Render folder name in bold with formatted name
+                    const folderDiv = document.createElement('div');
+                    folderDiv.style.paddingLeft = (depth * 16) + 'px';
+                    folderDiv.style.fontWeight = 'bold';
+                    folderDiv.style.color = '#333';
+                    folderDiv.style.marginTop = depth > 0 ? '4px' : '8px';
+                    folderDiv.style.fontSize = '13px';
+                    folderDiv.textContent = formatFolderName(key);
+                    paletteDropdown.appendChild(folderDiv);
+                    
+                    // Render diagrams in this folder (sort so CLS comes before SEQ)
+                    const node = treeNode[key];
+                    if (node._diagrams) {
+                        // Sort so class_diagram comes before sequence
+                        const sortedDiagrams = node._diagrams.sort((a, b) => {
+                            // Class diagrams first, sequence diagrams second
+                            if (a.type === 'class_diagram' && b.type === 'sequence') return -1;
+                            if (a.type === 'sequence' && b.type === 'class_diagram') return 1;
+                            // If same type, sort by name
+                            return a.name.localeCompare(b.name);
+                        });
+                        
+                        sortedDiagrams.forEach(d => {
+                            const item = document.createElement('div');
+                            item.className = 'palette-item';
+                            const typePrefix = d.type === 'sequence' ? 'seq' : 'cd';
+                            item.dataset.value = typePrefix + ':' + d.csv + ':' + d.id;
+                            item.style.paddingLeft = ((depth + 1) * 16) + 'px';
+                            
+                            const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
+                            item.innerHTML = `<span class="item-type">${typeLabel}</span> ${escapeHtml(d.name)}`;
+                            item.addEventListener('mousedown', (e) => { e.preventDefault(); selectPaletteItem(d); });
+                            paletteDropdown.appendChild(item);
+                        });
+                    }
+                    
+                    // Recursively render subfolders
+                    renderTree(node, depth + 1);
+                });
+            }
+            
+            renderTree(tree);
         }
         
         function escapeHtml(text) {
@@ -992,7 +1029,7 @@
         fitButton.addEventListener('click', fitToView);
         resetButton.addEventListener('click', resetPanAndZoom);
         
-        function onTypeChange(e) {
+        function resetDiagram() {
             paletteInput.value = '';
             state.diagramType = '';
             state.sequence = '';
