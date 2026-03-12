@@ -13,20 +13,11 @@ from class_diagram_renderer import render_class_diagram_svg
 
 # Configuration - find CSV files and HTML flexibly
 def find_csv_files_hierarchical():
-    """Scan diagrams/ and Process/ folders for CSVs with hierarchy matching folder structure exactly."""
+    """Scan diagrams/ and Process/ folders for CSVs with hierarchy including numeric prefixes for proper sorting."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.dirname(script_dir)
     
     csv_files_with_hierarchy = []
-    
-    def strip_numeric_prefix(folder_name):
-        """Remove numeric sorting prefix (e.g., '01_' or '40_') from folder name."""
-        if '_' in folder_name and folder_name[0].isdigit():
-            # Find where digit sequence ends (e.g., '01_' or '40_')
-            parts = folder_name.split('_', 1)
-            if len(parts) == 2 and parts[0].isdigit():
-                return parts[1]
-        return folder_name
     
     # Scan diagrams/ folder
     diagrams_dir = os.path.join(script_dir, '../diagrams')
@@ -38,14 +29,13 @@ def find_csv_files_hierarchical():
                     abs_path = os.path.abspath(os.path.join(root, file))
                     # Calculate relative path from diagrams/ folder
                     rel_path = os.path.relpath(root, diagrams_dir)
-                    # Extract hierarchy from path, removing numeric prefixes only
+                    # Extract hierarchy from path, preserving numeric prefixes for sorting
                     path_parts = rel_path.split(os.sep)
                     hierarchy = []
                     for part in path_parts:
                         if part != '.':
-                            # Remove numeric prefix but keep folder name exactly as is otherwise
-                            cleaned = strip_numeric_prefix(part)
-                            hierarchy.append(cleaned)
+                            # Keep folder name exactly as is (with numeric prefix for proper sorting)
+                            hierarchy.append(part)
                     
                     csv_files_with_hierarchy.append({
                         'name': file,
@@ -63,14 +53,13 @@ def find_csv_files_hierarchical():
                     abs_path = os.path.abspath(os.path.join(root, file))
                     # Calculate relative path from Process/ folder
                     rel_path = os.path.relpath(root, process_dir)
-                    # Extract hierarchy from path, removing numeric prefixes
+                    # Extract hierarchy from path, preserving numeric prefixes for sorting
                     path_parts = rel_path.split(os.sep)
                     hierarchy = []
                     for part in path_parts:
                         if part != '.' and part:
-                            # Remove numeric prefix using the same logic as diagrams
-                            cleaned = strip_numeric_prefix(part)
-                            hierarchy.append(cleaned)
+                            # Keep folder name exactly as is (with numeric prefix for proper sorting)
+                            hierarchy.append(part)
                     
                     # Check if already exists in diagrams (avoid duplicates)
                     if not any(item['name'] == file and item['path'] == abs_path for item in csv_files_with_hierarchy):

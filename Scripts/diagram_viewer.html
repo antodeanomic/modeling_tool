@@ -735,9 +735,32 @@
                 return name.replace(/^\d+_/, '');
             }
             
+            // Helper to extract numeric prefix for sorting
+            function extractNumericPrefix(name) {
+                const match = name.match(/^(\d+)/);
+                return match ? parseInt(match[1]) : 9999; // Non-prefixed items go last
+            }
+            
+            // Custom sort for folder keys: maintains numeric prefix order
+            function sortFolderKeys(keys) {
+                return keys.sort((a, b) => {
+                    // Extract numeric prefixes
+                    const prefixA = extractNumericPrefix(a);
+                    const prefixB = extractNumericPrefix(b);
+                    
+                    // Compare by numeric prefix first
+                    if (prefixA !== prefixB) {
+                        return prefixA - prefixB;
+                    }
+                    
+                    // If same prefix, sort alphabetically by the rest of the name
+                    return a.localeCompare(b);
+                });
+            }
+            
             // Render the tree recursively
             function renderTree(treeNode, depth = 0) {
-                const keys = Object.keys(treeNode).sort();
+                const keys = sortFolderKeys(Object.keys(treeNode));
                 
                 keys.forEach(key => {
                     if (key === '_diagrams') return;
