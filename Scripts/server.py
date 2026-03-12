@@ -63,13 +63,14 @@ def find_csv_files_hierarchical():
                     abs_path = os.path.abspath(os.path.join(root, file))
                     # Calculate relative path from Process/ folder
                     rel_path = os.path.relpath(root, process_dir)
-                    # Extract hierarchy from path exactly as folders are named
+                    # Extract hierarchy from path, removing numeric prefixes
                     path_parts = rel_path.split(os.sep)
                     hierarchy = []
                     for part in path_parts:
                         if part != '.' and part:
-                            # Use folder name exactly as is (no underscore->space conversion)
-                            hierarchy.append(part)
+                            # Remove numeric prefix using the same logic as diagrams
+                            cleaned = strip_numeric_prefix(part)
+                            hierarchy.append(cleaned)
                     
                     # Check if already exists in diagrams (avoid duplicates)
                     if not any(item['name'] == file and item['path'] == abs_path for item in csv_files_with_hierarchy):
