@@ -1,3 +1,7 @@
+# DiagramType: Sequence
+# Purpose: End-to-end data upload and processing pipeline from user submission to indexed storage
+# Layers: UI, API, Business Logic, Data Access
+
 Type;Name;Description;Layer
 Class;DataPortal;Data upload portal;UI
 Class;FileUpload;File upload component;UI

@@ -1,3 +1,7 @@
+# DiagramType: Sequence
+# Purpose: Multi-layer user authentication and permission workflow
+# Layers: UI, API, Business Logic, Data Access
+
 Type;Name;Description;Layer
 Class;Client;Web browser client;UI
 Class;LoginForm;Login form component;UI

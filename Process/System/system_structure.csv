@@ -1,0 +1,7 @@
+# DiagramType: Class Diagram
+# Purpose: High-level system structure showing user-facing components and their relationships
+# Status: PLACEHOLDER - Ready for detailed design
+# Future: Add UI components, API gateway, backend services, and external systems
+
+Type;Name;Description
+ClassDiagram;SystemArchitecture;User-facing system structure
