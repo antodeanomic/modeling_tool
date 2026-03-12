@@ -1,0 +1,33 @@
+Type;Name;Description;Layer
+Class;DataPortal;Data upload portal;UI
+Class;FileUpload;File upload component;UI
+Class;APIServer;REST API server;API
+Class;RequestValidator;Request validator;Business Logic
+Class;DataProcessor;Data processor/transformer;Business Logic
+Class;ValidationEngine;Validation rules engine;Business Logic
+Class;StorageManager;Storage manager;Business Logic
+Class;FileStore;File storage system;Data Access
+Class;DataDB;Data warehouse;Data Access
+Class;SearchIndex;Search index;Data Access
+Sequence;SEQ_003_DataUploadProcessing;Data upload with multi-layer processing
+    DataPortal;FileUpload;BrowseFiles;-;selected_file;@Info;User selects CSV file
+    FileUpload;APIServer;UploadFile;file;upload_id;@Info;POST file to server
+    APIServer;RequestValidator;ValidateRequest;file;size;valid;@Info;Check file integrity
+    RequestValidator;APIServer;ValidateRequest;valid
+    APIServer;DataProcessor;ProcessFile;upload_id;file;processing;@Info;Begin processing
+    DataProcessor;ValidationEngine;ValidateContent;file;issues;-;@Warning;Detect data issues
+    ValidationEngine;DataProcessor;ValidateContent;issues
+    DataProcessor;DataProcessor;TransformData;file;records;@Info;Clean and normalize
+    DataProcessor;DataProcessor;EnrichData;records;enriched;@Info;Add computed fields
+    DataProcessor;StorageManager;StoreData;enriched;storage_id;@Info;Persist transformed data
+    StorageManager;FileStore;WriteFile;enriched;path;@Info;Write to file system
+    FileStore;StorageManager;WriteFile;path
+    StorageManager;DataDB;InsertRecords;enriched;rows_inserted;@Success;Write to database
+    DataDB;StorageManager;InsertRecords;rows_inserted
+    StorageManager;SearchIndex;IndexData;enriched;indexed;@Success;Create search index
+    SearchIndex;StorageManager;IndexData;indexed
+    StorageManager;DataProcessor;StoreData;storage_id
+    DataProcessor;APIServer;ProcessFile;storage_id;@Success;Processing complete
+    APIServer;FileUpload;UploadFile;storage_id;status
+    FileUpload;DataPortal;UploadComplete;storage_id;@Success;Upload successful
+    DataPortal;DataPortal;RefreshList;storage_id;-;@Info;Update file list

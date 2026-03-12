@@ -60,6 +60,8 @@ def find_csv_files():
         os.path.join(script_dir, '../Source'),              # ../Source from Scripts/
         os.path.join(script_dir, '../Test/tests'),          # ../Test/tests from Scripts/
         os.path.join(script_dir, '../tests'),               # ../tests from Scripts/ (for Test subdir)
+        os.path.join(script_dir, '../Process'),             # ../Process from Scripts/ (for process diagrams)
+        os.path.join(script_dir, '../Process/diagrams'),    # ../Process/diagrams from Scripts/ (for organized diagrams)
         os.path.join(script_dir, '../Process/architecture'), # ../Process/architecture from Scripts/
         os.path.join(script_dir, '.'),                      # Scripts/ itself
         os.path.join(script_dir, '..'),                     # Parent of Scripts/
@@ -70,6 +72,8 @@ def find_csv_files():
         "Source",
         "tests",
         "Test/tests",
+        "Process",
+        "Process/diagrams",
         "Process/architecture",
         ".",
     ])
@@ -88,6 +92,20 @@ def find_csv_files():
                     # Use filename as key, avoid duplicates
                     if file not in csv_files:
                         csv_files[file] = abs_path
+        except (OSError, FileNotFoundError):
+            pass
+    
+    # Recursively search Process/diagrams/ subdirectories for CSVs
+    process_diagrams = os.path.normpath(os.path.join(script_dir, '../Process/diagrams'))
+    if os.path.isdir(process_diagrams):
+        try:
+            for root, dirs, files in os.walk(process_diagrams):
+                for file in files:
+                    if file.endswith('.csv'):
+                        path = os.path.join(root, file)
+                        abs_path = os.path.abspath(path)
+                        if file not in csv_files:
+                            csv_files[file] = abs_path
         except (OSError, FileNotFoundError):
             pass
     
