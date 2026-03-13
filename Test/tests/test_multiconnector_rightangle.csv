@@ -1,0 +1,31 @@
+# DiagramType: Class Diagram
+# Purpose: Test right-angle connector text layout with 11 symmetrical connectors
+# Routing: orthogonal
+# Status: Test case for multi-connector right-angle rendering
+
+Type;Name;Description
+Class;CentralHub;Central hub for connections
+Class;Target1;Target 1
+Class;Target2;Target 2
+Class;Target3;Target 3
+Class;Target4;Target 4
+Class;Target5;Target 5
+Class;Target6;Target 6
+Class;Target7;Target 7
+Class;Target8;Target 8
+Class;Target9;Target 9
+Class;Target10;Target 10
+Class;Target11;Target 11
+ClassDiagram;MultiConnectorTest;11 Symmetrical Right-Angle Connectors
+    CentralHub;Target1;-->;;1;Connector 1
+    CentralHub;Target2;-->;;1;Connector 2
+    CentralHub;Target3;-->;;1;Connector 3
+    CentralHub;Target4;-->;;1;Connector 4
+    CentralHub;Target5;-->;;1;Connector 5
+    CentralHub;Target6;-->;;1;Connector 6
+    CentralHub;Target7;-->;;1;Connector 7
+    CentralHub;Target8;-->;;1;Connector 8
+    CentralHub;Target9;-->;;1;Connector 9
+    CentralHub;Target10;-->;;1;Connector 10
+    CentralHub;Target11;-->;;1;Connector 11
+
