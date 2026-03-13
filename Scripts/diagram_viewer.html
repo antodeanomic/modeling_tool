@@ -884,6 +884,51 @@
         
         function updateLaneCheckboxes() {
             layersList.innerHTML = '';
+            
+            // Only show buttons if there are lanes/layers to select
+            if (state.allLanes.length > 0) {
+                // Add Select All / Clear All buttons
+                const buttonContainer = document.createElement('div');
+                buttonContainer.style.marginBottom = '8px';
+                buttonContainer.style.display = 'flex';
+                buttonContainer.style.gap = '6px';
+                
+                const selectAllBtn = document.createElement('button');
+                selectAllBtn.textContent = 'Select All';
+                selectAllBtn.style.padding = '4px 8px';
+                selectAllBtn.style.fontSize = '12px';
+                selectAllBtn.style.backgroundColor = '#4CAF50';
+                selectAllBtn.style.color = 'white';
+                selectAllBtn.style.border = 'none';
+                selectAllBtn.style.borderRadius = '3px';
+                selectAllBtn.style.cursor = 'pointer';
+                selectAllBtn.addEventListener('click', () => {
+                    state.selectedLanes = [...state.allLanes];
+                    document.querySelectorAll('#layersList input[type="checkbox"]').forEach(cb => cb.checked = true);
+                    loadDiagram();
+                });
+                
+                const clearAllBtn = document.createElement('button');
+                clearAllBtn.textContent = 'Clear All';
+                clearAllBtn.style.padding = '4px 8px';
+                clearAllBtn.style.fontSize = '12px';
+                clearAllBtn.style.backgroundColor = '#f44336';
+                clearAllBtn.style.color = 'white';
+                clearAllBtn.style.border = 'none';
+                clearAllBtn.style.borderRadius = '3px';
+                clearAllBtn.style.cursor = 'pointer';
+                clearAllBtn.addEventListener('click', () => {
+                    state.selectedLanes = [];
+                    document.querySelectorAll('#layersList input[type="checkbox"]').forEach(cb => cb.checked = false);
+                    loadDiagram();
+                });
+                
+                buttonContainer.appendChild(selectAllBtn);
+                buttonContainer.appendChild(clearAllBtn);
+                layersList.appendChild(buttonContainer);
+            }
+            
+            // Add checkboxes
             state.allLanes.forEach(lane => {
                 const div = document.createElement('div');
                 div.className = 'checkbox-option';
