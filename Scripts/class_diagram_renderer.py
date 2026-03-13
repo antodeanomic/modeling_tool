@@ -14,6 +14,8 @@ from datetime import datetime
 FONT_SIZE = 13
 FONT_FAMILY = "Arial, Helvetica, sans-serif"
 CHAR_WIDTH = 7.8  # Approximate character width for Arial at 13px
+CONNECTOR_FONT_FAMILY = "monospace"  # Monospace for connector labels (multiplicity, labels)
+CONNECTOR_CHAR_WIDTH = 7.5  # Approximate character width for monospace at 11px
 CLASS_BOX_PADDING_X = 14
 CLASS_BOX_PADDING_Y = 10
 CLASS_MIN_WIDTH = 120
@@ -153,6 +155,10 @@ def _layout_classes(diagram, model, verbosity="High"):
     cols = max(1, min(n, int(n ** 0.5) + 1))
     
     # Place classes in grid
+    # Always add spacing for connector text, more on High verbosity
+    spacing_x = CLASS_SPACING_X + (15 if verbosity != "High" else 30)
+    spacing_y = CLASS_SPACING_Y + (10 if verbosity != "High" else 15)
+    
     x = MARGIN
     y = MARGIN
     col = 0
@@ -168,10 +174,10 @@ def _layout_classes(diagram, model, verbosity="High"):
         if col >= cols:
             col = 0
             x = MARGIN
-            y += row_height + CLASS_SPACING_Y
+            y += row_height + spacing_y
             row_height = 0
         else:
-            x += box['width'] + CLASS_SPACING_X
+            x += box['width'] + spacing_x
     
     return boxes
 
@@ -370,13 +376,19 @@ def _get_arrow_style(arrow):
     return styles.get(arrow, (solid, None, 'arrow-open'))
 
 
-def _render_relationship(rel, boxes, routing="diagonal"):
+def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High"):
     """Render a single relationship line between two class boxes.
     
     Routing modes:
       diagonal: straight line between connection points
       orthogonal: right-angle paths (horizontal-vertical-horizontal)
       mixed: use orthogonal for same-row, diagonal for different-row
+    
+    Args:
+        rel: ClassRelationship to render
+        boxes: Dictionary of class box positions and dimensions
+        routing: Connection routing style
+        verbosity_level: "Low", "Normal", or "High" - multiplicity only shown on High
     """
     if rel.source not in boxes or rel.target not in boxes:
         return ''
@@ -408,25 +420,26 @@ def _render_relationship(rel, boxes, routing="diagonal"):
             attrs += f' marker-end="url(#{marker_end})"'
         parts.append(f'  <path {attrs}/>')
         
-        # Multiplicity labels for orthogonal
-        if rel.src_mult:
-            mx = sx + (mid_x - sx) * 0.2
-            my = sy - 8
-            parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
-                         f'font-size="11" fill="#666" text-anchor="middle">'
-                         f'{_escape_xml(rel.src_mult)}</text>')
-        if rel.tgt_mult:
-            mx = tx + (mid_x - tx) * 0.2
-            my = ty - 8
-            parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
-                         f'font-size="11" fill="#666" text-anchor="middle">'
-                         f'{_escape_xml(rel.tgt_mult)}</text>')
-        # Label at midpoint of orthogonal path
+        # Multiplicity labels for orthogonal (only on High verbosity) - positioned BELOW (1/2 character height)
+        if verbosity_level == "High":
+            if rel.src_mult:
+                mx = sx + (mid_x - sx) * 0.2
+                my = sy + 12
+                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                             f'font-size="11" fill="#666" text-anchor="middle"'
+                             f'>{_escape_xml(rel.src_mult)}</text>')
+            if rel.tgt_mult:
+                mx = tx + (mid_x - tx) * 0.35  # Increased from 0.2 to move further from arrowhead
+                my = ty + 12
+                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                             f'font-size="11" fill="#666" text-anchor="middle"'
+                             f'>{_escape_xml(rel.tgt_mult)}</text>')
+        # Label at midpoint of orthogonal path - positioned slightly ABOVE the line
         if rel.label:
-            lx = mid_x + 4
-            ly = (sy + ty) / 2 - 4
+            lx = mid_x
+            ly = (sy + ty) / 2 - 3  # Slightly above the line
             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
-                         f'font-size="11" font-style="italic" fill="#444" text-anchor="start">'
+                         f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
                          f'{_escape_xml(rel.label)}</text>')
     else:
         # Diagonal routing: straight line
@@ -439,23 +452,24 @@ def _render_relationship(rel, boxes, routing="diagonal"):
             attrs += f' marker-end="url(#{marker_end})"'
         parts.append(f'  <line {attrs}/>')
         
-        # Multiplicity labels
-        if rel.src_mult:
-            mx = sx + (tx - sx) * 0.12
-            my = sy + (ty - sy) * 0.12 - 8
-            parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
-                         f'font-size="11" fill="#666" text-anchor="middle">'
-                         f'{_escape_xml(rel.src_mult)}</text>')
-        if rel.tgt_mult:
-            mx = tx + (sx - tx) * 0.12
-            my = ty + (sy - ty) * 0.12 - 8
-            parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
-                         f'font-size="11" fill="#666" text-anchor="middle">'
-                         f'{_escape_xml(rel.tgt_mult)}</text>')
-        # Relationship label
+        # Multiplicity labels (only on High verbosity) - positioned BELOW connector (1/2 character height)
+        if verbosity_level == "High":
+            if rel.src_mult:
+                mx = sx + (tx - sx) * 0.12
+                my = sy + (ty - sy) * 0.12 + 12
+                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                             f'font-size="11" fill="#666" text-anchor="middle">'
+                             f'{_escape_xml(rel.src_mult)}</text>')
+            if rel.tgt_mult:
+                mx = tx + (sx - tx) * 0.20  # Increased from 0.12 to move further from arrowhead
+                my = ty + (sy - ty) * 0.20 + 12
+                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                             f'font-size="11" fill="#666" text-anchor="middle">'
+                             f'{_escape_xml(rel.tgt_mult)}</text>')
+        # Relationship label - positioned slightly ABOVE the connector line
         if rel.label:
             lx = (sx + tx) / 2
-            ly = (sy + ty) / 2 - 8
+            ly = (sy + ty) / 2 - 3  # Slightly above the line
             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                          f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
                          f'{_escape_xml(rel.label)}</text>')
@@ -533,7 +547,7 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     
     # Render relationships (under the boxes)
     for rel in filtered_diagram.relationships:
-        line_svg = _render_relationship(rel, boxes, diagram.routing)
+        line_svg = _render_relationship(rel, boxes, diagram.routing, verbosity_level)
         if line_svg:
             lines.append(line_svg)
     
