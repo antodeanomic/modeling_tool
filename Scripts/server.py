@@ -361,6 +361,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
         sequence_id = params.get('sequence', [''])[0]
         diagram_id = params.get('diagram_id', [''])[0]
         verbosity = params.get('verbosity', ['High'])[0]
+        routing = params.get('routing', [''])[0]  # Override diagram routing if specified
         lanes_str = params.get('lanes', [''])[0]
         
         try:
@@ -377,6 +378,10 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 class_diagram = model.get_class_diagram(diagram_id)
                 if not class_diagram:
                     raise ValueError(f"Class diagram '{diagram_id}' not found")
+                
+                # Override routing if specified in the request
+                if routing and routing in {'diagonal', 'orthogonal', 'mixed'}:
+                    class_diagram.routing = routing
                 
                 layers_filter = None
                 if lanes_str:

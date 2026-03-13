@@ -308,6 +308,7 @@
         }
         
         .verbosity-options,
+        .routing-options,
         .layers-list {
             display: flex;
             flex-direction: column;
@@ -453,6 +454,11 @@
         </div>
         
         <div class="menu-section">
+            <div class="menu-section-title">Connector Routing</div>
+            <div class="routing-options" id="routingOptions"></div>
+        </div>
+        
+        <div class="menu-section">
             <div class="menu-section-title">Display Layers</div>
             <div class="layers-list" id="layersList"></div>
         </div>
@@ -473,6 +479,7 @@
             sequence: '',          // selected sequence ID (for sequence diagrams)
             classDiagramId: '',    // selected class diagram ID
             verbosity: 'High',
+            routing: 'diagonal',   // 'diagonal', 'orthogonal', or 'mixed' for class diagrams
             selectedLanes: [],
             allLanes: [],
             allDiagrams: [],       // aggregated from all CSVs
@@ -498,6 +505,7 @@
         const resetButton = document.getElementById('resetButton');
         const panInfo = document.getElementById('panInfo');
         const verbosityOptions = document.getElementById('verbosityOptions');
+        const routingOptions = document.getElementById('routingOptions');
         const layersList = document.getElementById('layersList');
         
         // Copy to clipboard functionality
@@ -622,6 +630,25 @@
                     `;
                     div.querySelector('input').addEventListener('change', onVerbosityChange);
                     verbosityOptions.appendChild(div);
+                });
+                
+                // Populate routing options (once)
+                const routingModes = ["diagonal", "orthogonal", "mixed"];
+                const routingLabels = {
+                    "diagonal": "Diagonal Lines",
+                    "orthogonal": "Right Angles",
+                    "mixed": "Mixed"
+                };
+                routingModes.forEach(mode => {
+                    const div = document.createElement('div');
+                    div.className = 'radio-option';
+                    div.innerHTML = `
+                        <input type="radio" id="rout_${mode}" name="routing" value="${mode}" 
+                               ${mode === state.routing ? 'checked' : ''}>
+                        <label for="rout_${mode}">${routingLabels[mode]}</label>
+                    `;
+                    div.querySelector('input').addEventListener('change', onRoutingChange);
+                    routingOptions.appendChild(div);
                 });
                 
                 // Show prompt to select a diagram
@@ -1067,6 +1094,11 @@
             await loadDiagram();
         }
         
+        async function onRoutingChange(e) {
+            state.routing = e.target.value;
+            await loadDiagram();
+        }
+        
         async function onLayerChange(e) {
             const lane = e.target.value;
             if (e.target.checked) {
@@ -1107,7 +1139,7 @@
                 let url;
                 if (state.diagramType === 'class_diagram') {
                     const lanesParam = state.selectedLanes.length > 0 ? state.selectedLanes.join(',') : '';
-                    url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&type=class_diagram&diagram_id=${encodeURIComponent(state.classDiagramId)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
+                    url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&type=class_diagram&diagram_id=${encodeURIComponent(state.classDiagramId)}&verbosity=${encodeURIComponent(state.verbosity)}&routing=${encodeURIComponent(state.routing)}&lanes=${encodeURIComponent(lanesParam)}`;
                 } else {
                     const lanesParam = state.selectedLanes.length > 0 ? state.selectedLanes.join(',') : '';
                     url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&type=sequence&sequence=${encodeURIComponent(state.sequence)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
