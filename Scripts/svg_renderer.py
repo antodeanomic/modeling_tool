@@ -85,6 +85,15 @@ def measure_text_width(text: str, font_size: float = 11) -> float:
     """Rough estimate of text width in SVG (monospace-ish)."""
     return len(text) * (font_size * 0.6)
 
+def _empty_svg(title):
+    """Return a minimal SVG with just a message."""
+    from html import escape
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100">'
+            f'<rect width="400" height="100" fill="white"/>'
+            f'<text x="200" y="55" font-family="Arial, Helvetica, sans-serif" font-size="14" '
+            f'text-anchor="middle" fill="#999">No objects selected in: {escape(title)}</text>'
+            f'</svg>')
+
 def split_participant_name(name: str) -> list:
     """Split participant name by <br> tags or newlines, return list of lines."""
     # Handle <br> tags and line breaks
@@ -444,11 +453,13 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         raise ValueError("Sequence has no lanes. Did you forget to add steps?")
     
     # Filter lanes if specified
-    if lanes_filter:
+    if lanes_filter is not None:  # Explicit filtering (even if empty)
         lanes = [lane for lane in lanes if lane in lanes_filter]
+    # If lanes_filter is None, use all lanes (no filtering)
     
+    # If no lanes after filtering, return empty SVG
     if not lanes:
-        raise ValueError("No lanes selected after filtering.")
+        raise ValueError("No lanes in sequence after filtering.")  # This will be caught and return empty SVG
 
     # Pre-calculate participant box widths to ensure proper margins
     max_box_width = 0
@@ -625,14 +636,17 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
         print(f"  {lane}: center={pos:.0f}px, box_width={box_width:.0f}px, left_edge={pos - box_width/2:.0f}px, right_edge={pos + box_width/2:.0f}px")
 
     # Filter steps to only include those between selected lanes
-    filtered_steps = []
-    if lanes_filter:
+    if lanes_filter is not None:  # Explicit filtering (even if empty)
         filtered_steps = [
             step for step in seq.steps
             if step.src_obj in lanes and step.dst_obj in lanes
         ]
-    else:
+    else:  # No filtering
         filtered_steps = seq.steps
+
+    # If no steps after filtering, return empty SVG
+    if not filtered_steps:
+        return _empty_svg(f"{seq.seq_id} (no objects selected)")
 
     # Calculate y positions based on row numbers
     # Group steps by row number to allow multiple steps on same Y coordinate

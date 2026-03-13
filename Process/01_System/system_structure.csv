@@ -5,37 +5,37 @@
 
 Type;Name;Description
 ClassDiagram;UserInteraction;Users interact with the system through the web UI
-    User;WebBrowser;-->;1;1;views
-    WebBrowser;DiagramViewer;-->;1;1;displays
-    User;DiagramPicker;-->;1;1;selects
-    DiagramPicker;DiagramViewer;-->;1;1;controls
+    User;WebBrowser;-->;1;1;views;UI
+    WebBrowser;DiagramViewer;-->;1;1;displays;UI
+    User;DiagramPicker;-->;1;1;selects;UI
+    DiagramPicker;DiagramViewer;-->;1;1;controls;UI
 
 ClassDiagram;SystemComponents;Main system components and their responsibilities
-    DiagramViewer;APIGateway;-->;1;1;requests diagrams from
-    APIGateway;DiagramProcessor;-->;1;1;orchestrates
-    DiagramProcessor;CsvParser;-->;1;1;parses
-    DiagramProcessor;SvgRenderer;-->;1;1;renders
-    CsvParser;DiagramModel;-->;1;1;produces
-    SvgRenderer;DiagramModel;..>;;;reads
-    SvgRenderer;SvgOutput;-->;1;1;produces
+    DiagramViewer;APIGateway;-->;1;1;requests diagrams from;UI
+    APIGateway;DiagramProcessor;-->;1;1;orchestrates;API
+    DiagramProcessor;CsvParser;-->;1;1;parses;Processing
+    DiagramProcessor;SvgRenderer;-->;1;1;renders;Processing
+    CsvParser;DiagramModel;-->;1;1;produces;Processing
+    SvgRenderer;DiagramModel;..>;;;reads;Processing
+    SvgRenderer;SvgOutput;-->;1;1;produces;UI
 
 ClassDiagram;DataFlow;How data flows through the system
-    CsvFile;CsvParser;-->;1;1;input to
-    CsvParser;DiagramModel;◆--;1;1;produces
-    DiagramModel;SvgRenderer;◆--;1;0.*;input to
-    SvgRenderer;WebBrowser;-->;1;1;displays in
-    WebBrowser;User;-->;1;1;viewed by
+    CsvFile;CsvParser;-->;1;1;input to;Storage
+    CsvParser;DiagramModel;◆--;1;1;produces;Processing
+    DiagramModel;SvgRenderer;◆--;1;0.*;input to;Processing
+    SvgRenderer;WebBrowser;-->;1;1;displays in;UI
+    WebBrowser;User;-->;1;1;viewed by;UI
 
 ClassDiagram;SystemStorage;Where diagrams are stored and cached
-    FileSystem;CsvRepository;-->;1;0.*;stores
-    CsvRepository;AvailableDiagrams;◇--;1;0.*;lists
-    CacheLayer;RenderedDiagrams;◆--;1;0.*;stores
-    AvailableDiagrams;DiagramPicker;-->;1;1;populates
-    RenderedDiagrams;DiagramViewer;-->;1;0.*;provides
+    FileSystem;CsvRepository;-->;1;0.*;stores;Storage
+    CsvRepository;AvailableDiagrams;◇--;1;0.*;lists;Storage
+    CacheLayer;RenderedDiagrams;◆--;1;0.*;stores;Storage
+    AvailableDiagrams;DiagramPicker;-->;1;1;populates;UI
+    RenderedDiagrams;DiagramViewer;-->;1;0.*;provides;UI
 
 ClassDiagram;SystemLayers;Architectural layers of the system
-    User;UILayer;-->;1;1;interacts with
-    UILayer;APISLayer;-->;1;1;calls
-    APISLayer;ProcessingLayer;-->;1;1;delegates to
-    ProcessingLayer;StorageLayer;-->;1;1;accesses
-    StorageLayer;FileSystem;-->;1;1;backed by
+    User;UILayer;-->;1;1;interacts with;UI
+    UILayer;APISLayer;-->;1;1;calls;API
+    APISLayer;ProcessingLayer;-->;1;1;delegates to;Processing
+    ProcessingLayer;StorageLayer;-->;1;1;accesses;Storage
+    StorageLayer;FileSystem;-->;1;1;backed by;Storage

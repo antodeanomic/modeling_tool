@@ -383,9 +383,15 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 if routing and routing in {'diagonal', 'orthogonal', 'mixed'}:
                     class_diagram.routing = routing
                 
+                # Handle layers filter: if 'lanes' parameter is present (even if empty),
+                # treat it as an explicit filter. If absent, show all.
                 layers_filter = None
-                if lanes_str:
-                    layers_filter = lanes_str.split(',')
+                if 'lanes' in params:  # Parameter was explicitly provided
+                    lanes_str = params.get('lanes', [''])[0]
+                    if lanes_str:  # Non-empty: filter to specific layers
+                        layers_filter = lanes_str.split(',')
+                    else:  # Empty: show no layers (empty diagram)
+                        layers_filter = []
                 
                 svg = render_class_diagram_svg(model, class_diagram, verbosity_level=verbosity, layers_filter=layers_filter)
             else:
@@ -402,8 +408,13 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                     raise ValueError(f"Sequence {sequence_id} not found")
                 
                 lanes_filter = None
-                if lanes_str:
-                    lanes_filter = lanes_str.split(',')
+                # Handle lanes filter: if 'lanes' parameter is present (even if empty),
+                # treat it as an explicit filter. If absent, show all.
+                if 'lanes' in params:  # Parameter was explicitly provided
+                    if lanes_str:  # Non-empty: filter to specific lanes
+                        lanes_filter = lanes_str.split(',')
+                    else:  # Empty: show no lanes (empty diagram)
+                        lanes_filter = []
                 
                 svg = render_svg(model, sequence, verbosity_level=verbosity, lanes_filter=lanes_filter)
             
