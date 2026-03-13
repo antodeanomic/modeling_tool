@@ -16,7 +16,7 @@ Class;Target8;Target 8
 Class;Target9;Target 9
 Class;Target10;Target 10
 Class;Target11;Target 11
-ClassDiagram;MultiConnectorTest;11 Symmetrical Right-Angle Connectors
+ClassDiagram;MultiConnectorTest;11 Symmetrical Right-Angle Connectors;routing=orthogonal
     CentralHub;Target1;-->;;1;Connector 1
     CentralHub;Target2;-->;;1;Connector 2
     CentralHub;Target3;-->;;1;Connector 3
