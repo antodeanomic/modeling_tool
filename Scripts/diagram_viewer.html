@@ -787,6 +787,29 @@
             
             // Render the tree recursively
             function renderTree(treeNode, depth = 0) {
+                // First, render any diagrams at this level (before folders)
+                if (treeNode._diagrams) {
+                    const sortedDiagrams = treeNode._diagrams.sort((a, b) => {
+                        if (a.type === 'class_diagram' && b.type === 'sequence') return -1;
+                        if (a.type === 'sequence' && b.type === 'class_diagram') return 1;
+                        return a.name.localeCompare(b.name);
+                    });
+                    
+                    sortedDiagrams.forEach(d => {
+                        const item = document.createElement('div');
+                        item.className = 'palette-item';
+                        const typePrefix = d.type === 'sequence' ? 'seq' : 'cd';
+                        item.dataset.value = typePrefix + ':' + d.csv + ':' + d.id;
+                        item.style.paddingLeft = (depth * 16) + 'px';
+                        
+                        const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
+                        item.innerHTML = `<span class="item-type">${typeLabel}</span> ${escapeHtml(d.name)}`;
+                        item.addEventListener('mousedown', (e) => { e.preventDefault(); selectPaletteItem(d); });
+                        paletteDropdown.appendChild(item);
+                    });
+                }
+                
+                // Then render folders and their contents
                 const keys = sortFolderKeys(Object.keys(treeNode));
                 
                 keys.forEach(key => {
