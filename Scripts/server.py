@@ -355,7 +355,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
     
     def handle_diagram_request(self, query_string):
         """Generate and return an SVG diagram (sequence or class diagram)."""
-        params = parse_qs(query_string)
+        params = parse_qs(query_string, keep_blank_values=True)
         csv_name = params.get('csv', [DEFAULT_CSV])[0]
         diagram_type = params.get('type', ['sequence'])[0]
         sequence_id = params.get('sequence', [''])[0]
@@ -541,7 +541,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
         # Get csv from query params (default to DEFAULT_CSV)
         from urllib.parse import parse_qs, urlparse as parse_urlparse
         parsed = parse_urlparse(self.path)
-        params = parse_qs(parsed.query)
+        params = parse_qs(parsed.query, keep_blank_values=True)
         csv_name = params.get('csv', [DEFAULT_CSV])[0]
         
         try:
