@@ -376,7 +376,63 @@ def _get_arrow_style(arrow):
     return styles.get(arrow, (solid, None, 'arrow-open'))
 
 
-def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High"):
+def _calculate_connector_offsets(relationships):
+    """Pre-calculate Y offsets for multi-connector scenarios.
+    
+    When multiple connectors originate from or target the same box,
+    space them vertically to avoid overlap.
+    
+    Returns:
+        Dict mapping id(rel) -> (src_offset_y, tgt_offset_y)
+    """
+    if not relationships:
+        return {}
+    
+    # Group relationships by source and target
+    by_source = {}
+    by_target = {}
+    
+    for rel in relationships:
+        if rel.source not in by_source:
+            by_source[rel.source] = []
+        by_source[rel.source].append(rel)
+        
+        if rel.target not in by_target:
+            by_target[rel.target] = []
+        by_target[rel.target].append(rel)
+    
+    # Calculate offsets for each relationship
+    offsets = {}
+    CONNECTOR_SPACING = 15  # Vertical spacing between connectors in pixels
+    
+    for rel in relationships:
+        # Source offset: distribute vertically if multiple connectors from same source
+        src_rels = by_source[rel.source]
+        src_idx = src_rels.index(rel) if rel in src_rels else 0
+        src_total = len(src_rels)
+        if src_total > 1:
+            # Center around the default connection point
+            src_offset = (src_idx - (src_total - 1) / 2) * CONNECTOR_SPACING
+        else:
+            src_offset = 0
+        
+        # Target offset: distribute vertically if multiple connectors to same target
+        tgt_rels = by_target[rel.target]
+        tgt_idx = tgt_rels.index(rel) if rel in tgt_rels else 0
+        tgt_total = len(tgt_rels)
+        if tgt_total > 1:
+            # Center around the default connection point
+            tgt_offset = (tgt_idx - (tgt_total - 1) / 2) * CONNECTOR_SPACING
+        else:
+            tgt_offset = 0
+        
+        offsets[id(rel)] = (src_offset, tgt_offset)
+    
+    return offsets
+
+
+def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High", 
+                         connector_offsets=None):
     """Render a single relationship line between two class boxes.
     
     Routing modes:
@@ -389,6 +445,7 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High")
         boxes: Dictionary of class box positions and dimensions
         routing: Connection routing style
         verbosity_level: "Low", "Normal", or "High" - multiplicity only shown on High
+        connector_offsets: Optional dict mapping id(rel) -> (src_offset_y, tgt_offset_y)
     """
     if rel.source not in boxes or rel.target not in boxes:
         return ''
@@ -399,6 +456,12 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High")
     # Get connection points
     sx, sy = _get_connection_points(src_box, tgt_box)
     tx, ty = _get_connection_points(tgt_box, src_box)
+    
+    # Apply multi-connector offsets if provided
+    if connector_offsets and id(rel) in connector_offsets:
+        src_offset, tgt_offset = connector_offsets[id(rel)]
+        sy += src_offset
+        ty += tgt_offset
     
     dash, marker_start, marker_end = _get_arrow_style(rel.arrow)
     
@@ -545,9 +608,13 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     for box in boxes.values():
         box['y'] += title_height
     
+    # Calculate multi-connector offsets for proper text positioning
+    connector_offsets = _calculate_connector_offsets(filtered_diagram.relationships)
+    
     # Render relationships (under the boxes)
     for rel in filtered_diagram.relationships:
-        line_svg = _render_relationship(rel, boxes, diagram.routing, verbosity_level)
+        line_svg = _render_relationship(rel, boxes, diagram.routing, verbosity_level,
+                                       connector_offsets)
         if line_svg:
             lines.append(line_svg)
     
