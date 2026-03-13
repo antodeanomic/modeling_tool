@@ -470,10 +470,18 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
     use_orthogonal = (routing == "orthogonal" or 
                       (routing == "mixed" and abs(sy - ty) < src_box['height']))
     
-    if use_orthogonal and (abs(sx - tx) > 1 and abs(sy - ty) > 1):
-        # Orthogonal routing: horizontal-vertical-horizontal path
-        mid_x = (sx + tx) / 2
-        path_d = f"M {sx} {sy} L {mid_x} {sy} L {mid_x} {ty} L {tx} {ty}"
+    # Check if we need H separation (different X coordinates)
+    needs_horizontal = abs(sx - tx) > 1
+    
+    if use_orthogonal and abs(sy - ty) > 1:
+        if needs_horizontal:
+            # Orthogonal routing: vertical-horizontal-vertical path (V-H-V)
+            # Ensures at least 3 segments for clarity in multi-connector diagrams
+            mid_y = (sy + ty) / 2
+            path_d = f"M {sx} {sy} L {sx} {mid_y} L {tx} {mid_y} L {tx} {ty}"
+        else:
+            # Simple vertical line when no horizontal separation needed
+            path_d = f"M {sx} {sy} L {tx} {ty}"
         attrs = f'd="{path_d}" fill="none" stroke="#555" stroke-width="1.5"'
         if dash != "none":
             attrs += f' stroke-dasharray="{dash}"'
@@ -483,24 +491,45 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
             attrs += f' marker-end="url(#{marker_end})"'
         parts.append(f'  <path {attrs}/>')
         
-        # Multiplicity labels for orthogonal (only on High verbosity) - positioned BELOW (1/2 character height)
+        # Multiplicity labels for orthogonal (only on High verbosity)
         if verbosity_level == "High":
-            if rel.src_mult:
-                mx = sx + (mid_x - sx) * 0.2
-                my = sy + 12
-                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                             f'font-size="11" fill="#666" text-anchor="middle"'
-                             f'>{_escape_xml(rel.src_mult)}</text>')
-            if rel.tgt_mult:
-                mx = tx + (mid_x - tx) * 0.35  # Increased from 0.2 to move further from arrowhead
-                my = ty + 12
-                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                             f'font-size="11" fill="#666" text-anchor="middle"'
-                             f'>{_escape_xml(rel.tgt_mult)}</text>')
-        # Label at midpoint of orthogonal path - positioned slightly ABOVE the line
+            if needs_horizontal:
+                # V-H-V routing: position multiplicity on vertical segments
+                if rel.src_mult:
+                    # Position on the first vertical segment (left side)
+                    my = sy + (mid_y - sy) * 0.2  # 20% along first vertical
+                    parts.append(f'  <text x="{sx - 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="end"'
+                                 f'>{_escape_xml(rel.src_mult)}</text>')
+                if rel.tgt_mult:
+                    # Position on the final vertical segment (right side)
+                    my = mid_y + (ty - mid_y) * 0.8  # 80% along final vertical
+                    parts.append(f'  <text x="{tx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="start"'
+                                 f'>{_escape_xml(rel.tgt_mult)}</text>')
+            else:
+                # Vertical-only routing: position multiplicity on sides
+                if rel.src_mult:
+                    my = sy + (ty - sy) * 0.2  # 20% along vertical
+                    parts.append(f'  <text x="{sx - 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="end"'
+                                 f'>{_escape_xml(rel.src_mult)}</text>')
+                if rel.tgt_mult:
+                    my = sy + (ty - sy) * 0.8  # 80% along vertical
+                    parts.append(f'  <text x="{sx - 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="end"'
+                                 f'>{_escape_xml(rel.tgt_mult)}</text>')
+        
+        # Label positioning
         if rel.label:
-            lx = mid_x
-            ly = (sy + ty) / 2 - 3  # Slightly above the line
+            if needs_horizontal:
+                # V-H-V routing: label on horizontal segment
+                lx = (sx + tx) / 2  # Horizontal midpoint
+                ly = mid_y - 3  # Slightly above the line
+            else:
+                # Vertical-only: label on the line
+                lx = sx + 15  # Offset to the right
+                ly = (sy + ty) / 2  # Vertical midpoint
             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                          f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
                          f'{_escape_xml(rel.label)}</text>')
