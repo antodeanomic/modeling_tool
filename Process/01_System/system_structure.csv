@@ -1,7 +1,41 @@
 # DiagramType: Class Diagram
 # Purpose: High-level system structure showing user-facing components and their relationships
-# Status: PLACEHOLDER - Ready for detailed design
-# Future: Add UI components, API gateway, backend services, and external systems
+# Layers: UI, API, Processing, Storage
+# Status: System architecture showing how users interact with the diagram tool
 
 Type;Name;Description
-ClassDiagram;SystemArchitecture;User-facing system structure
+ClassDiagram;UserInteraction;Users interact with the system through the web UI
+    User;WebBrowser;-->;1;1;views
+    WebBrowser;DiagramViewer;-->;1;1;displays
+    User;DiagramPicker;-->;1;1;selects
+    DiagramPicker;DiagramViewer;-->;1;1;controls
+
+ClassDiagram;SystemComponents;Main system components and their responsibilities
+    DiagramViewer;APIGateway;-->;1;1;requests diagrams from
+    APIGateway;DiagramProcessor;-->;1;1;orchestrates
+    DiagramProcessor;CsvParser;-->;1;1;parses
+    DiagramProcessor;SvgRenderer;-->;1;1;renders
+    CsvParser;DiagramModel;-->;1;1;produces
+    SvgRenderer;DiagramModel;..>;;;reads
+    SvgRenderer;SvgOutput;-->;1;1;produces
+
+ClassDiagram;DataFlow;How data flows through the system
+    CsvFile;CsvParser;-->;1;1;input to
+    CsvParser;DiagramModel;◆--;1;1;produces
+    DiagramModel;SvgRenderer;◆--;1;0.*;input to
+    SvgRenderer;WebBrowser;-->;1;1;displays in
+    WebBrowser;User;-->;1;1;viewed by
+
+ClassDiagram;SystemStorage;Where diagrams are stored and cached
+    FileSystem;CsvRepository;-->;1;0.*;stores
+    CsvRepository;AvailableDiagrams;◇--;1;0.*;lists
+    CacheLayer;RenderedDiagrams;◆--;1;0.*;stores
+    AvailableDiagrams;DiagramPicker;-->;1;1;populates
+    RenderedDiagrams;DiagramViewer;-->;1;0.*;provides
+
+ClassDiagram;SystemLayers;Architectural layers of the system
+    User;UILayer;-->;1;1;interacts with
+    UILayer;APISLayer;-->;1;1;calls
+    APISLayer;ProcessingLayer;-->;1;1;delegates to
+    ProcessingLayer;StorageLayer;-->;1;1;accesses
+    StorageLayer;FileSystem;-->;1;1;backed by
