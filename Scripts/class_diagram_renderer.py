@@ -8,6 +8,7 @@ Supports layer filtering to show subsets of relationships.
 """
 
 from model import Model, ClassDiagramDef, ClassRelationship, ClassDef, ELEMENT_TYPES
+from class_diagram_connectors import ConnectorPlanner
 from datetime import datetime
 
 # Layout constants
@@ -376,6 +377,89 @@ def _get_arrow_style(arrow):
     return styles.get(arrow, (solid, None, 'arrow-open'))
 
 
+def _render_connectors_with_planner(planner, boxes, verbosity_level="High", layers_filter=None):
+    """Render all connectors using the grid-based connector planner system.
+    
+    Args:
+        planner: ConnectorPlanner with all connectors planned
+        boxes: Dictionary of class box positions and dimensions
+        verbosity_level: "Low", "Normal", or "High" for multiplicity display
+        layers_filter: Optional list of layers to include
+    
+    Returns:
+        SVG string with all connector lines
+    """
+    parts = []
+    
+    # Get planned connectors (filtered by layer if needed)
+    connectors = planner.get_connectors(layer_filter=None)
+    
+    if layers_filter is not None:
+        connectors = [c for c in connectors if not c.layer or c.layer in layers_filter]
+    
+    for connector in connectors:
+        if connector.source_name not in boxes or connector.target_name not in boxes:
+            continue
+        
+        dash, marker_start, marker_end = _get_arrow_style(connector.arrow_type)
+        
+        # Render connector path
+        if connector.path_type == "direct":
+            # Simple line
+            parts.append(f'  <line x1="{connector.source_x}" y1="{connector.source_y}" '
+                        f'x2="{connector.target_x}" y2="{connector.target_y}" '
+                        f'stroke="#555" stroke-width="1.5"')
+            if dash != "none":
+                parts.append(f' stroke-dasharray="{dash}"')
+            if marker_start:
+                parts.append(f' marker-start="url(#{marker_start})"')
+            if marker_end:
+                parts.append(f' marker-end="url(#{marker_end})"')
+            parts.append('/>')
+        else:
+            # Multi-segment path
+            if connector.segments:
+                path_d = f"M {connector.source_x} {connector.source_y}"
+                for x, y in connector.segments:
+                    path_d += f" L {x} {y}"
+                path_d += f" L {connector.target_x} {connector.target_y}"
+                
+                parts.append(f'  <path d="{path_d}" fill="none" stroke="#555" stroke-width="1.5"')
+                if dash != "none":
+                    parts.append(f' stroke-dasharray="{dash}"')
+                if marker_start:
+                    parts.append(f' marker-start="url(#{marker_start})"')
+                if marker_end:
+                    parts.append(f' marker-end="url(#{marker_end})"')
+                parts.append('/>')
+        
+        # Add multiplicity and label text (only on High verbosity)
+        if verbosity_level == "High":
+            if connector.src_mult:
+                mx = connector.source_x + (connector.target_x - connector.source_x) * 0.12
+                my = connector.source_y + (connector.target_y - connector.source_y) * 0.12 + 12
+                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                            f'font-size="11" fill="#666" text-anchor="middle">'
+                            f'{_escape_xml(connector.src_mult)}</text>')
+            
+            if connector.tgt_mult:
+                mx = connector.target_x + (connector.source_x - connector.target_x) * 0.20
+                my = connector.target_y + (connector.source_y - connector.target_y) * 0.20 + 12
+                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                            f'font-size="11" fill="#666" text-anchor="middle">'
+                            f'{_escape_xml(connector.tgt_mult)}</text>')
+        
+        # Relationship label
+        if connector.label:
+            lx = (connector.source_x + connector.target_x) / 2
+            ly = (connector.source_y + connector.target_y) / 2 - 3
+            parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
+                        f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
+                        f'{_escape_xml(connector.label)}</text>')
+    
+    return '\n'.join(parts)
+
+
 def _calculate_connector_offsets(relationships):
     """Pre-calculate Y offsets for multi-connector scenarios.
     
@@ -651,15 +735,23 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     for box in boxes.values():
         box['y'] += title_height
     
-    # Calculate multi-connector offsets for proper text positioning
-    connector_offsets = _calculate_connector_offsets(filtered_diagram.relationships)
+    # Create connector planner and register all boxes
+    planner = ConnectorPlanner()
+    for name, box in boxes.items():
+        planner.add_rectangle(name, box['x'], box['y'], box['width'], box['height'])
     
-    # Render relationships (under the boxes)
+    # Add all relationships to the planner
     for rel in filtered_diagram.relationships:
-        line_svg = _render_relationship(rel, boxes, diagram.routing, verbosity_level,
-                                       connector_offsets)
-        if line_svg:
-            lines.append(line_svg)
+        planner.add_connector(rel.source, rel.target, rel.arrow,
+                            rel.src_mult, rel.tgt_mult, rel.label, rel.layer)
+    
+    # Plan all connectors
+    planner.plan_connectors()
+    
+    # Render relationships using the planner (under the boxes)
+    connector_svg = _render_connectors_with_planner(planner, boxes, verbosity_level, layers_filter)
+    if connector_svg:
+        lines.append(connector_svg)
     
     # Render class boxes (on top of relationships)
     for name, box in boxes.items():

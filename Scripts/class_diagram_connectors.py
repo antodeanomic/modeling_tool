@@ -1,0 +1,363 @@
+"""Class diagram connector system using grid-based connection points.
+
+Provides:
+- Grid-based connection point selection on rectangle perimeters
+- Multi-segment connector routing (DOWN → RIGHT → UP → RIGHT)
+- Collision-aware connector planning with distance-based sorting
+"""
+
+from dataclasses import dataclass, field
+from typing import List, Dict, Tuple, Optional
+import math
+
+
+@dataclass
+class ConnectionPoint:
+    """A connection point on a rectangle edge."""
+    edge: str         # 'top', 'bottom', 'left', 'right'
+    index: int        # 1-7 (point number on that edge)
+    x: float          # Pixel x coordinate
+    y: float          # Pixel y coordinate
+    
+    def __hash__(self):
+        return hash((self.edge, self.index))
+    
+    def __eq__(self, other):
+        if not isinstance(other, ConnectionPoint):
+            return False
+        return self.edge == other.edge and self.index == other.index
+
+
+@dataclass
+class RectangleGrid:
+    """Grid of connection points around a rectangle perimeter."""
+    x: float          # Rectangle left edge
+    y: float          # Rectangle top edge
+    width: float      # Rectangle width
+    height: float     # Rectangle height
+    name: str         # Rectangle label (for debugging)
+    
+    # Points per edge (calculated based on rectangle size)
+    _points_top: List[ConnectionPoint] = field(default_factory=list)
+    _points_bottom: List[ConnectionPoint] = field(default_factory=list)
+    _points_left: List[ConnectionPoint] = field(default_factory=list)
+    _points_right: List[ConnectionPoint] = field(default_factory=list)
+    
+    def __post_init__(self):
+        """Calculate connection points on rectangle perimeter."""
+        self._calculate_points()
+    
+    def _calculate_points(self):
+        """Calculate evenly-spaced connection points on each edge.
+        
+        Logic:
+        - Top/Bottom: 7 points across the width
+        - Left/Right: Points based on height
+        """
+        # Top edge (y = self.y, x varies)
+        num_horizontal = 7
+        self._points_top = []
+        for i in range(1, num_horizontal + 1):
+            x = self.x + (i - 1) * self.width / (num_horizontal - 1)
+            pt = ConnectionPoint(edge='top', index=i, x=x, y=self.y)
+            self._points_top.append(pt)
+        
+        # Bottom edge (y = self.y + height, x varies)
+        self._points_bottom = []
+        for i in range(1, num_horizontal + 1):
+            x = self.x + (i - 1) * self.width / (num_horizontal - 1)
+            pt = ConnectionPoint(edge='bottom', index=i, x=x, y=self.y + self.height)
+            self._points_bottom.append(pt)
+        
+        # Left edge (x = self.x, y varies)
+        num_vertical = max(3, int(self.height / 20))  # ~20px per point
+        self._points_left = []
+        for i in range(1, num_vertical + 1):
+            y = self.y + (i - 1) * self.height / (num_vertical - 1)
+            pt = ConnectionPoint(edge='left', index=i, x=self.x, y=y)
+            self._points_left.append(pt)
+        
+        # Right edge (x = self.x + width, y varies)
+        self._points_right = []
+        for i in range(1, num_vertical + 1):
+            y = self.y + (i - 1) * self.height / (num_vertical - 1)
+            pt = ConnectionPoint(edge='right', index=i, x=self.x + self.width, y=y)
+            self._points_right.append(pt)
+    
+    def get_points(self, edge: str) -> List[ConnectionPoint]:
+        """Get all connection points for a given edge."""
+        if edge == 'top':
+            return self._points_top
+        elif edge == 'bottom':
+            return self._points_bottom
+        elif edge == 'left':
+            return self._points_left
+        elif edge == 'right':
+            return self._points_right
+        else:
+            raise ValueError(f"Invalid edge: {edge}")
+    
+    def get_point(self, edge: str, index: int) -> Optional[ConnectionPoint]:
+        """Get a specific connection point by edge and index."""
+        points = self.get_points(edge)
+        if 1 <= index <= len(points):
+            return points[index - 1]
+        return None
+    
+    def get_center(self) -> Tuple[float, float]:
+        """Get the center of the rectangle."""
+        return (self.x + self.width / 2, self.y + self.height / 2)
+
+
+@dataclass
+class ConnectorPath:
+    """Represents a connector between two rectangles."""
+    source_name: str
+    target_name: str
+    arrow_type: str               # Arrow type (--◆, etc.)
+    src_mult: str = ""            # Source multiplicity
+    tgt_mult: str = ""            # Target multiplicity
+    label: str = ""               # Relationship label
+    layer: str = ""               # Layer for filtering
+    
+    # Connection points assigned
+    source_edge: str = ""
+    source_point_idx: int = 0
+    target_edge: str = ""
+    target_point_idx: int = 0
+    
+    # Computed path
+    source_x: float = 0.0
+    source_y: float = 0.0
+    target_x: float = 0.0
+    target_y: float = 0.0
+    
+    # For multi-segment paths
+    segments: List[Tuple[float, float]] = field(default_factory=list)
+    path_type: str = "direct"     # 'direct' or 'multi_segment'
+    
+    def calculate_distance(self) -> float:
+        """Calculate Manhattan distance of the connector path."""
+        if self.path_type == "direct":
+            dx = self.target_x - self.source_x
+            dy = self.target_y - self.source_y
+            return math.sqrt(dx*dx + dy*dy)
+        else:
+            # Multi-segment: sum of segment lengths
+            total = 0.0
+            if self.segments:
+                sx, sy = self.source_x, self.source_y
+                for tx, ty in self.segments:
+                    dx = tx - sx
+                    dy = ty - sy
+                    total += math.sqrt(dx*dx + dy*dy)
+                    sx, sy = tx, ty
+            return total
+
+
+class ConnectorPlanner:
+    """Plans and routes connectors for a class diagram."""
+    
+    def __init__(self):
+        self.grids: Dict[str, RectangleGrid] = {}
+        self.connectors: List[ConnectorPath] = []
+    
+    def add_rectangle(self, name: str, x: float, y: float, width: float, height: float):
+        """Register a rectangle in the planner."""
+        grid = RectangleGrid(x=x, y=y, width=width, height=height, name=name)
+        self.grids[name] = grid
+    
+    def add_connector(self, source: str, target: str, arrow_type: str,
+                     src_mult: str = "", tgt_mult: str = "", label: str = "", 
+                     layer: str = ""):
+        """Add a connector to be routed."""
+        if source not in self.grids or target not in self.grids:
+            return  # Skip if boxes not registered
+        
+        connector = ConnectorPath(
+            source_name=source,
+            target_name=target,
+            arrow_type=arrow_type,
+            src_mult=src_mult,
+            tgt_mult=tgt_mult,
+            label=label,
+            layer=layer
+        )
+        self.connectors.append(connector)
+    
+    def _select_exit_edge(self, source_grid: RectangleGrid, target_grid: RectangleGrid) -> str:
+        """Select the primary exit edge based on target direction."""
+        src_cx, src_cy = source_grid.get_center()
+        tgt_cx, tgt_cy = target_grid.get_center()
+        
+        dx = tgt_cx - src_cx
+        dy = tgt_cy - src_cy
+        
+        # Prioritize horizontal movement, then vertical
+        if abs(dx) > abs(dy):
+            return 'right' if dx > 0 else 'left'
+        else:
+            return 'bottom' if dy > 0 else 'top'
+    
+    def _get_opposite_edge(self, edge: str) -> str:
+        """Get the opposite edge."""
+        opposites = {'top': 'bottom', 'bottom': 'top', 'left': 'right', 'right': 'left'}
+        return opposites.get(edge, 'bottom')
+    
+    def plan_connectors(self):
+        """Plan all connectors: assign connection points and calculate routes.
+        
+        Algorithm:
+        1. Calculate ideal distance for each connector
+        2. Sort by distance (shortest first)
+        3. Assign consecutive connection points
+        4. Calculate multi-segment paths if needed
+        """
+        # Step 1: Calculate distances (using center-to-center for initial estimate)
+        for connector in self.connectors:
+            src_grid = self.grids[connector.source_name]
+            tgt_grid = self.grids[connector.target_name]
+            
+            src_cx, src_cy = src_grid.get_center()
+            tgt_cx, tgt_cy = tgt_grid.get_center()
+            
+            dx = tgt_cx - src_cx
+            dy = tgt_cy - src_cy
+            connector.source_x = src_cx
+            connector.source_y = src_cy
+            connector.target_x = tgt_cx
+            connector.target_y = tgt_cy
+        
+        # Step 2 & 3: Sort and assign points
+        self.connectors.sort(key=lambda c: c.calculate_distance())
+        
+        # Track used points per edge
+        used_points: Dict[Tuple[str, str, str], int] = {}  # (source, edge, direction) -> count
+        
+        for connector in self.connectors:
+            src_grid = self.grids[connector.source_name]
+            tgt_grid = self.grids[connector.target_name]
+            
+            # Select exit edge
+            exit_edge = self._select_exit_edge(src_grid, tgt_grid)
+            entry_edge = self._get_opposite_edge(exit_edge)
+            
+            # Get available points on these edges
+            exit_points = src_grid.get_points(exit_edge)
+            entry_points = tgt_grid.get_points(entry_edge)
+            
+            # Assign next available point (consecutive)
+            key = (connector.source_name, exit_edge, 'out')
+            point_idx = used_points.get(key, 0)
+            point_idx = min(point_idx, len(exit_points) - 1)
+            
+            if point_idx < len(exit_points):
+                src_pt = exit_points[point_idx]
+                connector.source_edge = exit_edge
+                connector.source_point_idx = src_pt.index
+                connector.source_x = src_pt.x
+                connector.source_y = src_pt.y
+                used_points[key] = point_idx + 1
+            
+            # Assign entry point
+            key_tgt = (connector.target_name, entry_edge, 'in')
+            entry_idx = used_points.get(key_tgt, 0)
+            entry_idx = min(entry_idx, len(entry_points) - 1)
+            
+            if entry_idx < len(entry_points):
+                tgt_pt = entry_points[entry_idx]
+                connector.target_edge = entry_edge
+                connector.target_point_idx = tgt_pt.index
+                connector.target_x = tgt_pt.x
+                connector.target_y = tgt_pt.y
+                used_points[key_tgt] = entry_idx + 1
+            
+            # Determine if we need multi-segment routing
+            # Use multi-segment when source and target are not aligned on primary axis
+            self._route_connector(connector)
+    
+    def _route_connector(self, connector: ConnectorPath):
+        """Calculate the path for a connector (direct or multi-segment)."""
+        # For now, simple routing: if on same edge axis, direct; otherwise multi-segment
+        if connector.source_edge == connector.target_edge:
+            # Parallel edges: use multi-segment
+            self._route_multi_segment(connector)
+        else:
+            # Check if natural straight line
+            src_grid = self.grids[connector.source_name]
+            tgt_grid = self.grids[connector.target_name]
+            
+            # If both are horizontal (top/bottom) or both vertical (left/right), direct
+            src_is_horiz = connector.source_edge in ['top', 'bottom']
+            tgt_is_horiz = connector.target_edge in ['top', 'bottom']
+            
+            if src_is_horiz == tgt_is_horiz:
+                connector.path_type = "direct"
+            else:
+                connector.path_type = "multi_segment"
+                self._route_multi_segment(connector)
+    
+    def _route_multi_segment(self, connector: ConnectorPath):
+        """Create a multi-segment path (DOWN → RIGHT → UP → RIGHT or equivalent)."""
+        connector.path_type = "multi_segment"
+        connector.segments = []
+        
+        x1, y1 = connector.source_x, connector.source_y
+        x2, y2 = connector.target_x, connector.target_y
+        
+        # Determine routing based on exit/entry edges
+        src_edge = connector.source_edge
+        tgt_edge = connector.target_edge
+        
+        # Multi-segment should have 4 segments: exit vertical, horizontal, entry vertical, final horizontal
+        # Or: exit horizontal, vertical, entry horizontal, final vertical
+        
+        margin = 30  # Space to route outside the boxes
+        
+        if src_edge in ['top', 'bottom']:
+            # Exiting horizontally, need vertical at mid-point
+            mid_y = (y1 + y2) / 2
+            
+            if tgt_edge in ['left', 'right']:
+                # Entering vertically
+                mid_x = x2
+                connector.segments = [
+                    (x1, y1 + (margin if src_edge == 'bottom' else -margin)),
+                    (mid_x, y1 + (margin if src_edge == 'bottom' else -margin)),
+                    (mid_x, y2),
+                    (x2, y2)
+                ]
+            else:
+                # Entering horizontally
+                connector.segments = [
+                    (x1, mid_y),
+                    (x2, mid_y),
+                    (x2, y2)
+                ]
+        else:
+            # Exiting vertically
+            mid_x = (x1 + x2) / 2
+            
+            if tgt_edge in ['top', 'bottom']:
+                # Entering vertically (same direction)
+                mid_y = y2
+                connector.segments = [
+                    (x1 + (margin if src_edge == 'right' else -margin), y1),
+                    (x1 + (margin if src_edge == 'right' else -margin), mid_y),
+                    (x2, mid_y)
+                ]
+            else:
+                # Entering horizontally
+                connector.segments = [
+                    (mid_x, y1),
+                    (mid_x, y2),
+                    (x2, y2)
+                ]
+    
+    def get_connectors(self, layer_filter: Optional[str] = None) -> List[ConnectorPath]:
+        """Get connectors, optionally filtered by layer."""
+        if layer_filter is None:
+            return self.connectors
+        
+        # Filter by layer
+        return [c for c in self.connectors if not c.layer or c.layer == layer_filter]
