@@ -599,15 +599,31 @@ def _render_connectors_with_planner(planner, boxes, verbosity_level="High", laye
                                          f'{_escape_xml(connector.tgt_mult)}</text>')
                     else:
                         # Nearly horizontal diagonal: text ABOVE, not below
+                        # Position multiplicity with fixed pixel offset to avoid arrow markers
+                        dx = connector.target_x - connector.source_x
+                        dy = connector.target_y - connector.source_y
+                        line_length = (dx**2 + dy**2) ** 0.5
+                        MULT_OFFSET_PX = 30  # 30px offset from each endpoint to avoid markers
+                        
                         if connector.src_mult:
-                            mx = connector.source_x + (connector.target_x - connector.source_x) * 0.15
+                            # Position 30px from source along the line
+                            if line_length > MULT_OFFSET_PX:
+                                fraction = MULT_OFFSET_PX / line_length
+                                mx = connector.source_x + dx * fraction
+                            else:
+                                mx = connector.source_x + dx * 0.3
                             my = min(connector.source_y, connector.target_y) - 8  # ABOVE the line
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="middle">'
                                          f'{_escape_xml(connector.src_mult)}</text>')
                         
                         if connector.tgt_mult:
-                            mx = connector.target_x - (connector.target_x - connector.source_x) * 0.15
+                            # Position 30px from target along the line
+                            if line_length > MULT_OFFSET_PX:
+                                fraction = MULT_OFFSET_PX / line_length
+                                mx = connector.target_x - dx * fraction
+                            else:
+                                mx = connector.target_x - dx * 0.3
                             my = min(connector.source_y, connector.target_y) - 8  # ABOVE the line
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="middle">'
@@ -962,16 +978,32 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
                                  f'font-size="11" fill="#666" text-anchor="start">'
                                  f'{_escape_xml(rel.tgt_mult)}</text>')
             else:
-                # More horizontal diagonal: use perpendicular positioning (below the line)
+                # More horizontal diagonal: text positioned ABOVE the line
+                # Position multiplicity with fixed pixel offset to avoid arrow markers
+                dx = tx - sx
+                dy = ty - sy
+                line_length = (dx**2 + dy**2) ** 0.5
+                MULT_OFFSET_PX = 30  # 30px offset from each endpoint to avoid markers
+                
                 if rel.src_mult:
-                    mx = sx + (tx - sx) * 0.12
-                    my = sy + (ty - sy) * 0.12 + 12
+                    # Position 30px from source along the line
+                    if line_length > MULT_OFFSET_PX:
+                        fraction = MULT_OFFSET_PX / line_length
+                        mx = sx + dx * fraction
+                    else:
+                        mx = sx + dx * 0.3
+                    my = min(sy, ty) - 8  # ABOVE the line
                     parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                  f'font-size="11" fill="#666" text-anchor="middle">'
                                  f'{_escape_xml(rel.src_mult)}</text>')
                 if rel.tgt_mult:
-                    mx = tx + (sx - tx) * 0.20
-                    my = ty + (sy - ty) * 0.20 + 12
+                    # Position 30px from target along the line
+                    if line_length > MULT_OFFSET_PX:
+                        fraction = MULT_OFFSET_PX / line_length
+                        mx = tx - dx * fraction
+                    else:
+                        mx = tx - dx * 0.3
+                    my = min(sy, ty) - 8  # ABOVE the line
                     parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                  f'font-size="11" fill="#666" text-anchor="middle">'
                                  f'{_escape_xml(rel.tgt_mult)}</text>')
@@ -979,7 +1011,7 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
                 # Label for horizontal diagonal
                 if rel.label:
                     lx = (sx + tx) / 2
-                    ly = (sy + ty) / 2 - 3
+                    ly = min(sy, ty) - 8  # ABOVE the line
                     parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                  f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
                                  f'{_escape_xml(rel.label)}</text>')
@@ -1037,9 +1069,13 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     if not boxes:
         return _empty_svg(diagram.description or diagram.diagram_id)
     
-    # Compute canvas size
+    # Compute canvas size with extra space for connector text positioning
+    # Connector text is positioned 8px above lines with ~15px font height
+    # This ensures text won't be clipped by the SVG viewBox
+    CONNECTOR_TEXT_VERTICAL_MARGIN = 40  # Extra space for connector text above/below boxes
+    
     max_x = max(b['x'] + b['width'] for b in boxes.values()) + MARGIN
-    max_y = max(b['y'] + b['height'] for b in boxes.values()) + MARGIN
+    max_y = max(b['y'] + b['height'] for b in boxes.values()) + MARGIN + CONNECTOR_TEXT_VERTICAL_MARGIN
     
     # Title height
     title_height = 30
