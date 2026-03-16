@@ -342,28 +342,44 @@ class ConnectorPlanner:
     def _route_connector(self, connector: ConnectorPath):
         """Calculate the path for a connector (direct or multi-segment).
         
-        Direct lines: When both source and target edges are on same axis (both horizontal or both vertical)
-        Multi-segment: When edges are on different axes
+        Direct lines: When nodes are coordinate-aligned OR edges are on different axes
+        - Horizontal alignment: source_y == target_y (same row) → straight horizontal line
+        - Vertical alignment: source_x == target_x (same column) → straight vertical line
+        - Different axes: one edge horizontal, one vertical → diagonal line
+        
+        Multi-segment: When edges are on same axis and nodes aren't coordinate-aligned
+        - Both edges horizontal but different Y → needs vertical routing
+        - Both edges vertical but different X → needs horizontal routing
         
         Examples:
-        - bottom -> bottom (same box vertically): multi-segment (parallel edges)
-        - bottom -> top (boxes vertically aligned): multi-segment (parallel, opposite edges)
-        - right -> left (boxes horizontally separated): multi-segment (parallel, opposite edges)
-        - bottom -> left (edges on different axes): direct (can be straight diagonal)
+        - right -> left at same Y (same row): DIRECT horizontal line
+        - bottom -> top at same X (same column): DIRECT vertical line
+        - bottom -> left (different axes): DIRECT diagonal
+        - right -> left at different Y: MULTI-SEGMENT (need vertical segments)
+        - bottom -> bottom at different X: MULTI-SEGMENT (need horizontal segments)
         """
         src_edge = connector.source_edge
         tgt_edge = connector.target_edge
+        
+        x1, y1 = connector.source_x, connector.source_y
+        x2, y2 = connector.target_x, connector.target_y
+        
+        # Tolerance for coordinate alignment (in case of minor floating-point differences)
+        ALIGNMENT_TOLERANCE = 2.0
+        
+        # Check if nodes are coordinate-aligned
+        horizontally_aligned = abs(y1 - y2) < ALIGNMENT_TOLERANCE  # same row
+        vertically_aligned = abs(x1 - x2) < ALIGNMENT_TOLERANCE    # same column
         
         # Check edge orientation
         src_is_horiz = src_edge in ['top', 'bottom']
         tgt_is_horiz = tgt_edge in ['top', 'bottom']
         
-        # Direct line only if edges are on same axis AND not parallel to each other
-        # (i.e., one is top/bottom and the other is left/right)
-        if src_is_horiz != tgt_is_horiz:  # Different axes: one horizontal, one vertical
+        # If nodes are coordinate-aligned OR edges are on different axes, use direct line
+        if horizontally_aligned or vertically_aligned or src_is_horiz != tgt_is_horiz:
             connector.path_type = "direct"
         else:
-            # Same axis: both horizontal or both vertical -> use multi-segment
+            # Same axis and nodes not aligned -> use multi-segment for clarity
             connector.path_type = "multi_segment"
             self._route_multi_segment(connector)
     
