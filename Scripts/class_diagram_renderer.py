@@ -458,10 +458,24 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
     tx, ty = _get_connection_points(tgt_box, src_box)
     
     # Apply multi-connector offsets if provided
+    # Only apply offsets perpendicular to the connection direction
     if connector_offsets and id(rel) in connector_offsets:
         src_offset, tgt_offset = connector_offsets[id(rel)]
-        sy += src_offset
-        ty += tgt_offset
+        # Determine connection direction
+        dx = tx - sx
+        dy = ty - sy
+        # If primarily vertical (|dy| > |dx|), apply horizontal offsets
+        if abs(dy) > abs(dx):
+            sx += src_offset
+            tx += tgt_offset
+        # If primarily horizontal (|dx| > |dy|), apply vertical offsets
+        elif abs(dx) > abs(dy):
+            sy += src_offset
+            ty += tgt_offset
+        # If roughly diagonal, apply as both (preserves original behavior)
+        else:
+            sy += src_offset
+            ty += tgt_offset
     
     dash, marker_start, marker_end = _get_arrow_style(rel.arrow)
     
