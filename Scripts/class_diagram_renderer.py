@@ -75,6 +75,8 @@ def _calculate_required_spacing(diagram, verbosity="High") -> float:
       - Target multiplicity: ~30px
       - Arrow/diamond marker: ~10px
     
+    Also computes vertical spacing needed for vertical connectors.
+    
     Args:
         diagram: ClassDiagramDef with relationships
         verbosity: "Low", "Normal", or "High"
@@ -108,6 +110,55 @@ def _calculate_required_spacing(diagram, verbosity="High") -> float:
     # Return recommended spacing (this gets added to the base spacing)
     # We want to ensure the gap between boxes is at least this wide
     return max(CLASS_SPACING_X, int(max_width_needed * 0.8))  # Use 80% as recommended gap
+
+
+def _get_segment_type(x1: float, y1: float, x2: float, y2: float) -> str:
+    """Determine if a line segment is horizontal or vertical.
+    
+    Args:
+        x1, y1: Start point
+        x2, y2: End point
+    
+    Returns:
+        "horizontal" if primarily horizontal, "vertical" if primarily vertical
+    """
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    return "horizontal" if dx > dy else "vertical"
+
+
+def _place_text_perpendicular(x: float, y: float, text: str, segment_type: str, 
+                              is_final: bool = False, offset_px: float = 8) -> str:
+    """Generate SVG text element positioned perpendicular to segment.
+    
+    Args:
+        x, y: Text position
+        text: Text content
+        segment_type: "horizontal" or "vertical"  
+        is_final: If True, position on opposite side
+        offset_px: Distance from line
+    
+    Returns:
+        SVG text element string
+    """
+    if segment_type == "vertical":
+        # Vertical segment: place text to the right
+        if is_final:
+            x_pos = x + offset_px
+            anchor = "start"
+        else:
+            x_pos = x + offset_px
+            anchor = "start"
+        y_pos = y
+    else:
+        # Horizontal segment: place text above
+        x_pos = x
+        y_pos = y - offset_px
+        anchor = "middle"
+    
+    return f'  <text x="{x_pos}" y="{y_pos}" font-family="{CONNECTOR_FONT_FAMILY}" ' \
+           f'font-size="11" fill="#666" text-anchor="{anchor}">' \
+           f'{_escape_xml(text)}</text>'
 
 
 def _escape_xml(text):
@@ -661,48 +712,53 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
             attrs += f' marker-end="url(#{marker_end})"'
         parts.append(f'  <path {attrs}/>')
         
-        # Multiplicity labels for orthogonal (only on High verbosity)
+        # Text placement for orthogonal connectors (only on High verbosity)
         if verbosity_level == "High":
             if needs_horizontal:
-                # V-H-V routing: position multiplicity on vertical segments
+                # V-H-V routing: vertical-horizontal-vertical path
+                # Segment 1 (vertical sy->mid_y): source multiplicity on right
                 if rel.src_mult:
-                    # Position on the first vertical segment (left side)
-                    my = sy + (mid_y - sy) * 0.2  # 20% along first vertical
-                    parts.append(f'  <text x="{sx - 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="end"'
+                    my = sy + (mid_y - sy) * 0.3  # 30% along first vertical segment
+                    parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="start"'
                                  f'>{_escape_xml(rel.src_mult)}</text>')
+                
+                # Segment 2 (horizontal mid_y): connector label above the line
+                if rel.label:
+                    lx = (sx + tx) / 2  # Horizontal midpoint
+                    ly = mid_y - 8  # Positioned above the line
+                    parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
+                                 f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
+                                 f'{_escape_xml(rel.label)}</text>')
+                
+                # Segment 3 (vertical mid_y->ty): target multiplicity on right
                 if rel.tgt_mult:
-                    # Position on the final vertical segment (right side)
-                    my = mid_y + (ty - mid_y) * 0.8  # 80% along final vertical
+                    my = mid_y + (ty - mid_y) * 0.7  # 70% along final vertical segment
                     parts.append(f'  <text x="{tx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                  f'font-size="11" fill="#666" text-anchor="start"'
                                  f'>{_escape_xml(rel.tgt_mult)}</text>')
             else:
-                # Vertical-only routing: position multiplicity on sides
+                # Vertical-only routing: single vertical segment
+                # Position source multiplicity at 25% along vertical
                 if rel.src_mult:
-                    my = sy + (ty - sy) * 0.2  # 20% along vertical
-                    parts.append(f'  <text x="{sx - 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="end"'
+                    my = sy + (ty - sy) * 0.25
+                    parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="start"'
                                  f'>{_escape_xml(rel.src_mult)}</text>')
+                
+                # Position connector label in the middle
+                if rel.label:
+                    ly = (sy + ty) / 2
+                    parts.append(f'  <text x="{sx + 8}" y="{ly}" font-family="{FONT_FAMILY}" '
+                                 f'font-size="11" font-style="italic" fill="#444" text-anchor="start"'
+                                 f'>{_escape_xml(rel.label)}</text>')
+                
+                # Position target multiplicity at 75% along vertical
                 if rel.tgt_mult:
-                    my = sy + (ty - sy) * 0.8  # 80% along vertical
-                    parts.append(f'  <text x="{sx - 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="end"'
+                    my = sy + (ty - sy) * 0.75
+                    parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="start"'
                                  f'>{_escape_xml(rel.tgt_mult)}</text>')
-        
-        # Label positioning
-        if rel.label:
-            if needs_horizontal:
-                # V-H-V routing: label on horizontal segment
-                lx = (sx + tx) / 2  # Horizontal midpoint
-                ly = mid_y - 3  # Slightly above the line
-            else:
-                # Vertical-only: label on the line
-                lx = sx + 15  # Offset to the right
-                ly = (sy + ty) / 2  # Vertical midpoint
-            parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
-                         f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
-                         f'{_escape_xml(rel.label)}</text>')
     else:
         # Diagonal routing: straight line between boxes
         # Check if this is a horizontal line (same Y coordinates within tolerance)
@@ -741,24 +797,69 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
                          f'font-size="11" fill="#666" text-anchor="start">'
                          f'{_escape_xml(total_text)}</text>')
         elif not is_horizontal and verbosity_level == "High":
-            # Diagonal connector: position elements in traditional way (perpendicular to line)
-            if rel.src_mult:
-                mx = sx + (tx - sx) * 0.12
-                my = sy + (ty - sy) * 0.12 + 12
-                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                             f'font-size="11" fill="#666" text-anchor="middle">'
-                             f'{_escape_xml(rel.src_mult)}</text>')
-            if rel.tgt_mult:
-                mx = tx + (sx - tx) * 0.20
-                my = ty + (sy - ty) * 0.20 + 12
-                parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                             f'font-size="11" fill="#666" text-anchor="middle">'
-                             f'{_escape_xml(rel.tgt_mult)}</text>')
-        
-        # Relationship label - positioned slightly ABOVE the diagonal connector line
-        if rel.label and not is_horizontal:
+            # Diagonal connector: determine if primarily vertical or primarily horizontal
+            dx = abs(tx - sx)
+            dy = abs(ty - sy)
+            is_vertical_diagonal = dy > dx  # More vertical than horizontal
+            
+            if is_vertical_diagonal:
+                # Nearly vertical diagonal: place text to the RIGHT of the line
+                # Source multiplicity near source
+                if rel.src_mult:
+                    mx = sx + 8  # To the right of the line
+                    my = sy + (ty - sy) * 0.2  # 20% along the connector
+                    parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="start">'
+                                 f'{_escape_xml(rel.src_mult)}</text>')
+                
+                # Connector label in the middle
+                if rel.label:
+                    mx = sx + 8
+                    my = (sy + ty) / 2
+                    parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
+                                 f'font-size="11" font-style="italic" fill="#444" text-anchor="start">'
+                                 f'{_escape_xml(rel.label)}</text>')
+                
+                # Target multiplicity near target
+                if rel.tgt_mult:
+                    mx = tx + 8  # To the right of the line
+                    my = ty + (sy - ty) * 0.2  # 20% back from target
+                    parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="start">'
+                                 f'{_escape_xml(rel.tgt_mult)}</text>')
+            else:
+                # More horizontal diagonal: use perpendicular positioning (below the line)
+                if rel.src_mult:
+                    mx = sx + (tx - sx) * 0.12
+                    my = sy + (ty - sy) * 0.12 + 12
+                    parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="middle">'
+                                 f'{_escape_xml(rel.src_mult)}</text>')
+                if rel.tgt_mult:
+                    mx = tx + (sx - tx) * 0.20
+                    my = ty + (sy - ty) * 0.20 + 12
+                    parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="middle">'
+                                 f'{_escape_xml(rel.tgt_mult)}</text>')
+                
+                # Label for horizontal diagonal
+                if rel.label:
+                    lx = (sx + tx) / 2
+                    ly = (sy + ty) / 2 - 3
+                    parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
+                                 f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
+                                 f'{_escape_xml(rel.label)}</text>')
+        elif is_horizontal and rel.label:
+            # Horizontal connector without multiplicity: just place label
             lx = (sx + tx) / 2
-            ly = (sy + ty) / 2 - 3  # Slightly above the line
+            ly = min(sy, ty) - 8
+            parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
+                         f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
+                         f'{_escape_xml(rel.label)}</text>')
+        elif not is_horizontal and rel.label and verbosity_level != "High":
+            # Diagonal connector with label only (no multiplicity)
+            lx = (sx + tx) / 2
+            ly = (sy + ty) / 2 - 3
             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                          f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
                          f'{_escape_xml(rel.label)}</text>')

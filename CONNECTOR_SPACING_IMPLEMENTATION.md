@@ -1,83 +1,110 @@
-# Connector Spacing Implementation
+# Connector Spacing & Text Layout Implementation
 
 ## Overview
-This implementation addresses the issue of connectors becoming multi-segment due to insufficient space to fit connector text and multiplicity labels on horizontal lines.
+Complete implementation of connector spacing calculation and text layout for three connector routing scenarios: horizontal, vertical, and multi-segment paths.
+
+## Problem Addressed
+Connectors were rendering as multi-segment due to insufficient space to fit connector text and multiplicity labels on single lines. The renderer now:
+1. Pre-calculates required spacing based on connector content
+2. Adjusts box spacing to fit all elements naturally
+3. Positions text appropriately for each connector type
 
 ## Changes Made
 
 ### 1. Spacing Calculator Function
 **Location**: `Scripts/class_diagram_renderer.py`
 
-Added `_calculate_required_spacing(diagram, verbosity)` which:
+Added `_calculate_required_spacing(diagram, verbosity)`:
 - Analyzes all relationships in a diagram
-- Calculates total width needed for connector elements on horizontal lines
-- Returns recommended minimum horizontal spacing in pixels
+- Computes minimum horizontal spacing needed for connector elements
+- Returns recommended spacing in pixels
 
 **Calculation includes**:
-- Arrow/diamond markers: ~10px (start and end)
+- Arrow/diamond markers: 10px × 2 (start and end)
 - Source multiplicity (worst case "1..*"): ~30px
 - 2-space gap: ~15px  
 - Connector label text: variable width
 - 2-space gap: ~15px
 - Target multiplicity: ~30px
 
-### 2. Updated Layout Function
+### 2. Helper Functions
+**`_get_segment_type(x1, y1, x2, y2)`**: Determines if segment is horizontal or vertical
+**`_place_text_perpendicular()`**: Generates SVG text positioned relative to segment (reserved for future use)
+
+### 3. Updated Layout Function
 **Function**: `_layout_classes()`
 
-Modified to:
-- Call `_calculate_required_spacing()` to get required spacing
-- Use calculated spacing instead of fixed `CLASS_SPACING_X`
-- Formula: `spacing_x = max(required_spacing, CLASS_SPACING_X + verbosity_adjustment)`
+- Calls `_calculate_required_spacing()` before positioning boxes
+- Uses calculated spacing if larger than default
+- Formula: `max(required_spacing, CLASS_SPACING_X + verbosity_adjustment)`
 
-**Result**: Horizontal spacing automatically increases when connector text is longer
+**Result**: Boxes automatically spread further when connectors have long text
 
-### 3. Horizontal Connector Text Placement
-**Function**: `_render_relationship()` - Diagonal routing section
+### 4. Scenario 1: Horizontal Connector Text Placement
+**Applies to**: Diagonal routing where Y coordinates are nearly identical (< 2px variation)
 
-New logic for horizontal connectors (when `sy ≈ ty`):
-- Detects horizontal lines (Y coordinate variation < 2px)
-- Builds centered text string: `"source_mult  connector_label  target_mult"`
-- Calculates position to center entire text above the line
-- Renders as single horizontal text element
-
-**Benefits**:
-- All text elements aligned horizontally above the line
-- No more individual offsets causing misalignment
-- Consistent spacing between elements
-
-### 4. Diagonal Connector Text Placement
-For non-horizontal connectors, uses original perpendicular positioning:
-- Source multiplicity positioned near source box
-- Target multiplicity positioned near target box
-- Label positioned at line midpoint
-
-## Layout Examples
-
-### Horizontal Connector (e.g., Model → ClassDef)
+Format: Places all elements centered above the line
 ```
-    diamond + "1..*" + "  " + "defines" + "  " + "1..*" + diamond
-    ├─ All elements centered above the line
-    ├─ Spacing calculated to ensure no overlap
-    └─ Uses monospace font for accurate width
+    "source_mult" + "  " + "connector_label" + "  " + "target_mult"
 ```
 
-### Vertical Connector (Orthogonal Routing)
+Implementation:
+- Builds single text string with proper spacing
+- Centers entire string above the connector
+- Uses monospace font for accurate positioning
+
+### 5. Scenario 2: Vertical Connector Text Placement (Orthogonal Routing)
+
+#### V-H-V Path (needs_horizontal = true)
+Three segments with distributed text:
+- **Segment 1 (Vertical sy→mid_y)**: Source multiplicity positioned **to the RIGHT** at 30% along segment
+- **Segment 2 (Horizontal mid_y)**: Connector label positioned **ABOVE** the line at midpoint
+- **Segment 3 (Vertical mid_y→ty)**: Target multiplicity positioned **to the RIGHT** at 70% along segment
+
+Layout visualization:
 ```
-    ╭─ [Box1]
-    │
-    ├─ source_mult (positioned right of vertical segment)
-    │
-    ├─ connector_label (positioned on horizontal segment)
-    │
-    ├─ target_mult (positioned right of vertical segment)
-    │
-    └─ [Box2]
+[Box1]
+   │ src_mult on right
+   ├─────── label above ───────┐
+           │ tgt_mult on right
+[Box2]
 ```
 
-### Multi-Segment Connector (Already Supported)
-Text placement on horizontal segment of V-H-V path:
-- Multiplicity labels on vertical segments (sides)
-- Connector label on horizontal segment (middle)
+#### V-Only Path (needs_horizontal = false)
+Single vertical segment with stacked text:
+- **25% along**: Source multiplicity to the RIGHT
+- **50% along**: Connector label to the RIGHT  
+- **75% along**: Target multiplicity to the RIGHT
+
+Layout:
+```
+[Box1]
+ │ src_mult
+ │ label
+ │ tgt_mult
+[Box2]
+```
+
+### 6. Scenario 3: Vertical Diagonal Connectors
+For nearly-vertical diagonal lines (dy > dx):
+- **20% from source**: Source multiplicity to the RIGHT
+- **Line midpoint**: Connector label to the RIGHT
+- **20% from target**: Target multiplicity to the RIGHT
+
+For more horizontal diagonal lines (dx > dy):
+- Uses perpendicular positioning (below the line)
+- Source and target multiplicities positioned below line
+- Label positioned at midpoint below
+
+## Text Positioning Summary
+
+| Connector Type | Scenario | Multiplicity | Label | Notes |
+|---|---|---|---|---|
+| Horizontal | 1 | Above line, spaced | Above line | All centered together |
+| Vertical V-H-V | 2a | Right of segments | Above middle segment | Distributed across 3 segments |
+| Vertical V-only | 2b | Right of segment | Right of segment | All on single vertical line |
+| Vertical diagonal | 3 | Right of line | Right of line | Text to right side |
+| Horizontal diagonal | 3 | Below line (perp) | Below line (perp) | Perpendicular offset |
 
 ## Constants
 
