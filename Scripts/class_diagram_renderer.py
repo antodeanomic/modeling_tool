@@ -549,20 +549,22 @@ def _render_connectors_with_planner(planner, boxes, verbosity_level="High", laye
             # Text placement for direct paths
             if verbosity_level == "High":
                 if is_horizontal:
-                    # Horizontal line: center all text above
+                    # Horizontal line: center all text ABOVE (safe distance from markers)
                     src_mult_text = connector.src_mult or ""
                     tgt_mult_text = connector.tgt_mult or ""
                     label_text = connector.label or ""
                     
+                    # Account for marker width (diamonds/arrows are ~10px each)
+                    # Format: "  mult  label  mult  " with marker clearance
                     if label_text:
-                        total_text = f"{src_mult_text}  {label_text}  {tgt_mult_text}"
+                        total_text = f"  {src_mult_text}  {label_text}  {tgt_mult_text}  "
                     else:
-                        total_text = f"{src_mult_text}   {tgt_mult_text}"
+                        total_text = f"  {src_mult_text}     {tgt_mult_text}  "
                     
                     text_width = len(total_text) * CONNECTOR_CHAR_WIDTH
                     line_center_x = (connector.source_x + connector.target_x) / 2
                     text_start_x = line_center_x - (text_width / 2)
-                    text_y = min(connector.source_y, connector.target_y) - 8
+                    text_y = min(connector.source_y, connector.target_y) - 12  # Further above to avoid markers
                     
                     parts.append(f'  <text x="{text_start_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                  f'font-size="11" fill="#666" text-anchor="start">'
@@ -596,24 +598,24 @@ def _render_connectors_with_planner(planner, boxes, verbosity_level="High", laye
                                          f'font-size="11" fill="#666" text-anchor="start">'
                                          f'{_escape_xml(connector.tgt_mult)}</text>')
                     else:
-                        # More horizontal: text below (perpendicular)
+                        # Nearly horizontal diagonal: text ABOVE, not below
                         if connector.src_mult:
-                            mx = connector.source_x + (connector.target_x - connector.source_x) * 0.12
-                            my = connector.source_y + (connector.target_y - connector.source_y) * 0.12 + 12
+                            mx = connector.source_x + (connector.target_x - connector.source_x) * 0.15
+                            my = min(connector.source_y, connector.target_y) - 8  # ABOVE the line
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="middle">'
                                          f'{_escape_xml(connector.src_mult)}</text>')
                         
                         if connector.tgt_mult:
-                            mx = connector.target_x + (connector.source_x - connector.target_x) * 0.20
-                            my = connector.target_y + (connector.source_y - connector.target_y) * 0.20 + 12
+                            mx = connector.target_x - (connector.target_x - connector.source_x) * 0.15
+                            my = min(connector.source_y, connector.target_y) - 8  # ABOVE the line
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="middle">'
                                          f'{_escape_xml(connector.tgt_mult)}</text>')
                         
                         if connector.label:
                             lx = (connector.source_x + connector.target_x) / 2
-                            ly = (connector.source_y + connector.target_y) / 2 - 3
+                            ly = min(connector.source_y, connector.target_y) - 8  # ABOVE the line
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
                                          f'{_escape_xml(connector.label)}</text>')
@@ -658,8 +660,10 @@ def _render_connectors_with_planner(planner, boxes, verbosity_level="High", laye
                     
                     if mid_x is not None and mid_y is not None:
                         # V-H-V routing detected
-                        # Source multiplicity on first vertical segment
+                        # Source multiplicity on first vertical segment (with 2 vertical line spacing)
                         if connector.src_mult:
+                            # Position: 30% along first vertical segment
+                            # Spacing: 2 vertical lines (24px) before mult, 2 after
                             my = connector.source_y + (mid_y - connector.source_y) * 0.3
                             parts.append(f'  <text x="{connector.source_x + 8}" y="{my}" '
                                          f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '

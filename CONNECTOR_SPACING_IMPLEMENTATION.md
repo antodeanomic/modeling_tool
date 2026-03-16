@@ -1,13 +1,15 @@
 # Connector Spacing & Text Layout Implementation
 
 ## Overview
-Complete implementation of connector spacing calculation and text layout for three connector routing scenarios: horizontal, vertical, and multi-segment paths.
+Complete implementation of connector spacing calculation and text layout for three connector routing scenarios: horizontal, vertical, and multi-segment paths. Proper positioning and spacing of connector elements to avoid overlaps and ensure readability.
 
 ## Problem Addressed
-Connectors were rendering as multi-segment due to insufficient space to fit connector text and multiplicity labels on single lines. The renderer now:
+Connectors were rendering with text overlapping markers, hidden under boxes, or positioned incorrectly. The renderer now:
 1. Pre-calculates required spacing based on connector content
 2. Adjusts box spacing to fit all elements naturally
 3. Positions text appropriately for each connector type
+4. Adds proper spacing around multiplicity labels to avoid overlap with markers
+5. Centers all text elements to avoid collision with boxes
 
 ## Changes Made
 
@@ -98,22 +100,57 @@ For more horizontal diagonal lines (dx > dy):
 
 ## Text Positioning Summary
 
-| Connector Type | Scenario | Multiplicity | Label | Notes |
+| Connector Type | Scenario | Multiplicity Position | Label Position | Spacing Notes |
 |---|---|---|---|---|
-| Horizontal | 1 | Above line, spaced | Above line | All centered together |
-| Vertical V-H-V | 2a | Right of segments | Above middle segment | Distributed across 3 segments |
-| Vertical V-only | 2b | Right of segment | Right of segment | All on single vertical line |
-| Vertical diagonal | 3 | Right of line | Right of line | Text to right side |
-| Horizontal diagonal | 3 | Below line (perp) | Below line (perp) | Perpendicular offset |
+| Horizontal | 1 | ABOVE line, centered | ABOVE line, centered | All elements grouped centrally with 2-space gaps between |
+| Horizontal diagonal | 1 variant | ABOVE line, perpendicular | ABOVE line, perpendicular | Text positioned 8px above line to avoid marker overlap |
+| Vertical V-H-V | 2a | RIGHT of vertical segments | ABOVE horizontal segment | Source/target: ±30%/±70% along segments; 2 vertical lines before/after each |
+| Vertical V-only | 2b | RIGHT of vertical segment | RIGHT of segment | Source: 25%, Label: 50%, Target: 75%; 2 vertical lines before/after multiplicity |
+| Vertical diagonal | 3 | RIGHT of line | RIGHT of line | Text 8px offset perpendicular to line direction |
+
+## Text Positioning Corrections
+
+### Horizontal Connectors (Scenario 1)
+**Format**: `[2 spaces][src_mult][2 spaces][label][2 spaces][tgt_mult][2 spaces]`
+- All elements centered ABOVE the connector line
+- Positioned 12px above to avoid overlap with diamonds/arrows
+- Monospace font for consistent spacing
+- Example: "  1  contains  0.*  "
+
+### Nearly-Horizontal Diagonals
+**Key Fix**: Text now positioned ABOVE line, not BELOW
+- Source and target multiplicity at 15% and 85% along line
+- All text elements 8px ABOVE the connector
+- Prevents overlap with diamonds/arrows at line endpoints
+
+### Vertical Connectors (Orthogonal V-H-V)
+**Spacing**: "2 vertical lines (24px) + multiplicity + 2 vertical lines"
+- First vertical segment: source multiplicity ± 2 lines
+- Horizontal segment: connector label
+- Final vertical segment: target multiplicity ± 2 lines
+- Proper spacing prevents marker/multiplicity collision
 
 ## Constants
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `CONNECTOR_MULTIPLICITY_MAX` | 4 | Worst-case character count for multiplicity |
+| `CONNECTOR_MULTIPLICITY_MAX` | 4 | Worst-case character count for multiplicity (e.g., "1..*") |
 | `TEXT_SPACING` | 2 | Spaces between connector elements |
 | `ARROW_MARKER_WIDTH` | 10 | Approximate width for arrow/diamond markers |
 | `CONNECTOR_CHAR_WIDTH` | 7.5 | Character width at 11px monospace font |
+| **VERTICAL_SPACING_BEFORE** | 2 lines | Space ABOVE multiplicity on vertical connectors (24px at 12px font) |
+| **VERTICAL_SPACING_AFTER** | 2 lines | Space BELOW multiplicity on vertical connectors (24px at 12px font) |
+
+### Vertical Spacing Requirements
+
+For **Scenario 2 (Vertical Connectors)** and **Scenario 3 (Vertical Diagonals)**:
+- **2 vertical lines BEFORE source multiplicity** (space for diamond + connector)
+- **Source multiplicity** (worst case: 1..*) 
+- **2 vertical lines AFTER source multiplicity** (spacing)
+- ... [connector middle section] ...
+- **2 vertical lines BEFORE target multiplicity** (spacing)
+- **Target multiplicity** (worst case: 1..*)
+- **2 vertical lines AFTER target multiplicity** (space for diamond/arrow)
 
 ## Testing Recommendations
 
