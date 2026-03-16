@@ -241,19 +241,117 @@ class ConnectorPlanner:
             # Fallback to horizontal edges
             return ['bottom', 'top']
     
+    def _edges_same_axis(self, edge1: str, edge2: str) -> bool:
+        """Check if two edges are on the same axis (both horizontal or both vertical)."""
+        horiz_edges = {'top', 'bottom'}
+        vert_edges = {'left', 'right'}
+        
+        if edge1 in horiz_edges and edge2 in horiz_edges:
+            return True
+        if edge1 in vert_edges and edge2 in vert_edges:
+            return True
+        return False
+    
+    def _determine_edge_preferences(self) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
+        """Analyze all relationships to determine preferred edges for incoming/outgoing.
+        
+        For each box, determines:
+        - Preferred outgoing edge (for connectors leaving the box)
+        - Preferred incoming edge (for connectors entering the box)
+        
+        These are selected to be opposite when possible, to minimize line crossing.
+        
+        Returns: box_name -> (preferred_outgoing_edge, preferred_incoming_edge)
+        """
+        # Collect outgoing and incoming for each box
+        outgoing_by_box: Dict[str, list] = {}
+        incoming_by_box: Dict[str, list] = {}
+        
+        for connector in self.connectors:
+            if connector.source_name not in outgoing_by_box:
+                outgoing_by_box[connector.source_name] = []
+            outgoing_by_box[connector.source_name].append(connector)
+            
+            if connector.target_name not in incoming_by_box:
+                incoming_by_box[connector.target_name] = []
+            incoming_by_box[connector.target_name].append(connector)
+        
+        preferences = {}
+        
+        # Analyze each box
+        for box_name in set(list(outgoing_by_box.keys()) + list(incoming_by_box.keys())):
+            out_list = outgoing_by_box.get(box_name, [])
+            in_list = incoming_by_box.get(box_name, [])
+            
+            out_pref = self._dominant_edge_direction(box_name, out_list, is_outgoing=True)
+            in_pref = self._dominant_edge_direction(box_name, in_list, is_outgoing=False)
+            
+            # If both preferences exist and they're not already opposite, swap
+            if out_pref and in_pref and not self._are_opposite_edges(out_pref, in_pref):
+                # In this case, prefer to keep outgoing as determined, and flip incoming to opposite
+                in_pref = self._get_opposite_edge(out_pref)
+            
+            preferences[box_name] = (out_pref, in_pref)
+        
+        return preferences
+    
+    def _dominant_edge_direction(self, box_name: str, connectors: list, is_outgoing: bool) -> Optional[str]:
+        """Determine the dominant edge direction for a list of connectors.
+        
+        For outgoing: prefer the edge pointing toward most targets
+        For incoming: prefer the edge pointing from most sources
+        """
+        if not connectors:
+            return None
+        
+        grid = self.grids[box_name]
+        box_cx = grid.x + grid.width / 2
+        box_cy = grid.y + grid.height / 2
+        
+        # Track direction votes
+        edge_votes: Dict[str, int] = {'top': 0, 'bottom': 0, 'left': 0, 'right': 0}
+        
+        for connector in connectors:
+            if is_outgoing:
+                other_grid = self.grids[connector.target_name]
+            else:
+                other_grid = self.grids[connector.source_name]
+            
+            other_cx = other_grid.x + other_grid.width / 2
+            other_cy = other_grid.y + other_grid.height / 2
+            
+            dx = other_cx - box_cx
+            dy = other_cy - box_cy
+            
+            # Vote for the edge pointing toward the other box
+            if abs(dx) > abs(dy):
+                edge_votes['right' if dx > 0 else 'left'] += 1
+            else:
+                edge_votes['bottom' if dy > 0 else 'top'] += 1
+        
+        # Return the edge with most votes
+        return max(edge_votes, key=edge_votes.get)
+    
+    def _are_opposite_edges(self, edge1: str, edge2: str) -> bool:
+        """Check if two edges are opposite (e.g., left and right, top and bottom)."""
+        opposites = {'top': 'bottom', 'bottom': 'top', 'left': 'right', 'right': 'left'}
+        return opposites.get(edge1) == edge2
+    
     def plan_connectors(self):
         """Plan all connectors: assign connection points and calculate routes.
         
         Algorithm:
         1. Calculate ideal distance for each connector
-        2. Sort by distance (shortest first)
-        3. Assign connection points (enforcing: one per point max, skip corners)
-        4. Calculate routes (direct or multi-segment)
+        2. Analyze edge preferences to separate incoming/outgoing
+        3. Sort by distance (shortest first)
+        4. Assign connection points (enforcing: one per point max, skip corners)
+        5. Calculate routes (direct or multi-segment)
         
         Constraints:
         - Each connection point can have at most one outgoing connector
         - Each connection point can have at most one incoming connector
         - Corner points (index 1 and last on each edge) are reserved (non-connector zones)
+        - Incoming and outgoing connectors prefer opposite edges (to avoid crossing)
         """
         # Step 1: Calculate distances (using center-to-center for initial estimate)
         for connector in self.connectors:
@@ -270,7 +368,11 @@ class ConnectorPlanner:
             connector.target_x = tgt_cx
             connector.target_y = tgt_cy
         
-        # Step 2 & 3: Sort and assign points
+        # Step 2: Analyze edge preferences for each box
+        # Maps box_name -> (preferred_outgoing_edge, preferred_incoming_edge)
+        edge_preferences = self._determine_edge_preferences()
+        
+        # Step 3 & 4: Sort and assign points
         self.connectors.sort(key=lambda c: c.calculate_distance())
         
         # Track used points: (box_name, edge, index) -> ('outgoing'|'incoming')
@@ -283,6 +385,20 @@ class ConnectorPlanner:
             # Select exit and entry edges based on target direction
             exit_edge = self._select_exit_edge(src_grid, tgt_grid)
             entry_edge = self._get_opposite_edge(exit_edge)
+            
+            # Apply edge preferences: try to use opposite sides for incoming/outgoing
+            src_outgoing_pref, src_incoming_pref = edge_preferences.get(connector.source_name, (None, None))
+            tgt_outgoing_pref, tgt_incoming_pref = edge_preferences.get(connector.target_name, (None, None))
+            
+            # For outgoing: prefer the source's preferred outgoing edge if it's compatible
+            if src_outgoing_pref and self._edges_same_axis(exit_edge, src_outgoing_pref):
+                exit_edge = src_outgoing_pref
+            
+            # For incoming: prefer the target's preferred incoming edge if it's compatible
+            entry_edge = self._get_opposite_edge(exit_edge)
+            if tgt_incoming_pref and self._edges_same_axis(entry_edge, tgt_incoming_pref):
+                entry_edge = tgt_incoming_pref
+                exit_edge = self._get_opposite_edge(entry_edge)
             
             # Assign outgoing point (skip corners, skip used points)
             src_pt = None
