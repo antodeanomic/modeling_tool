@@ -38,6 +38,77 @@ ELEMENT_STYLES = {
     "object": {"fill": "#FFF3E0", "stroke": "#E65100", "stereotype": None},
 }
 
+# Connector text layout constants
+CONNECTOR_MULTIPLICITY_MAX = 4  # Worst case: "1..*" = 4 characters
+TEXT_SPACING = 2  # Spaces between connector elements
+ARROW_MARKER_WIDTH = 10  # Approximate width for arrow/diamond markers
+
+
+def _calculate_connector_text_width(multiplicity: str, label: str = "", char_width: float = CONNECTOR_CHAR_WIDTH) -> float:
+    """Calculate width in pixels for connector text elements.
+    
+    Args:
+        multiplicity: Multiplicity string (e.g., "1", "0..*")
+        label: Connector label text (optional)
+        char_width: Character width (default: monospace at font size 11)
+    
+    Returns:
+        Width in pixels
+    """
+    width = 0
+    if multiplicity:
+        width += len(multiplicity) * char_width
+    if label:
+        width += len(label) * char_width
+    return width
+
+
+def _calculate_required_spacing(diagram, verbosity="High") -> float:
+    """Calculate minimum horizontal spacing needed for connector elements on horizontal lines.
+    
+    For horizontal connectors, we need space for:
+      - Arrow/diamond marker: ~10px
+      - Source multiplicity (max "1..*"): ~30px
+      - 2 spaces gap: ~15px
+      - Connector text: varies
+      - 2 spaces gap: ~15px
+      - Target multiplicity: ~30px
+      - Arrow/diamond marker: ~10px
+    
+    Args:
+        diagram: ClassDiagramDef with relationships
+        verbosity: "Low", "Normal", or "High"
+    
+    Returns:
+        Recommended minimum spacing in pixels
+    """
+    if not diagram.relationships:
+        return CLASS_SPACING_X
+    
+    # Base spacing for connector elements
+    max_width_needed = 0
+    
+    for rel in diagram.relationships:
+        # Calculate width for this relationship's connector text
+        width = ARROW_MARKER_WIDTH * 2  # Start and end arrows
+        
+        # Add multiplicity widths
+        if verbosity == "High":
+            src_mult_width = len(rel.src_mult) * CONNECTOR_CHAR_WIDTH if rel.src_mult else CONNECTOR_MULTIPLICITY_MAX * CONNECTOR_CHAR_WIDTH
+            tgt_mult_width = len(rel.tgt_mult) * CONNECTOR_CHAR_WIDTH if rel.tgt_mult else CONNECTOR_MULTIPLICITY_MAX * CONNECTOR_CHAR_WIDTH
+            width += src_mult_width + tgt_mult_width
+            width += (TEXT_SPACING * 2) * CONNECTOR_CHAR_WIDTH  # 2 spaces before and after label
+        
+        # Add label width
+        if rel.label:
+            width += len(rel.label) * CONNECTOR_CHAR_WIDTH
+        
+        max_width_needed = max(max_width_needed, width)
+    
+    # Return recommended spacing (this gets added to the base spacing)
+    # We want to ensure the gap between boxes is at least this wide
+    return max(CLASS_SPACING_X, int(max_width_needed * 0.8))  # Use 80% as recommended gap
+
 
 def _escape_xml(text):
     """Escape special XML characters."""
@@ -156,8 +227,9 @@ def _layout_classes(diagram, model, verbosity="High"):
     cols = max(1, min(n, int(n ** 0.5) + 1))
     
     # Place classes in grid
-    # Always add spacing for connector text, more on High verbosity
-    spacing_x = CLASS_SPACING_X + (15 if verbosity != "High" else 30)
+    # Calculate required spacing based on connector text dimensions
+    required_spacing = _calculate_required_spacing(diagram, verbosity)
+    spacing_x = max(required_spacing, CLASS_SPACING_X + (15 if verbosity != "High" else 30))
     spacing_y = CLASS_SPACING_Y + (10 if verbosity != "High" else 15)
     
     x = MARGIN
@@ -632,7 +704,10 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
                          f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
                          f'{_escape_xml(rel.label)}</text>')
     else:
-        # Diagonal routing: straight line
+        # Diagonal routing: straight line between boxes
+        # Check if this is a horizontal line (same Y coordinates within tolerance)
+        is_horizontal = abs(sy - ty) < 2
+        
         attrs = f'x1="{sx}" y1="{sy}" x2="{tx}" y2="{ty}" stroke="#555" stroke-width="1.5"'
         if dash != "none":
             attrs += f' stroke-dasharray="{dash}"'
@@ -642,8 +717,31 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
             attrs += f' marker-end="url(#{marker_end})"'
         parts.append(f'  <line {attrs}/>')
         
-        # Multiplicity labels (only on High verbosity) - positioned BELOW connector (1/2 character height)
-        if verbosity_level == "High":
+        # For horizontal connectors, place all text centered ABOVE the line
+        if is_horizontal and verbosity_level == "High":
+            # Calculate total width of all text elements
+            src_mult_text = rel.src_mult or ""
+            tgt_mult_text = rel.tgt_mult or ""
+            label_text = rel.label or ""
+            
+            # Build text sequences with proper spacing
+            # Format: "mult1  label  mult2" or "mult1  mult2" if no label
+            if label_text:
+                total_text = f"{src_mult_text}  {label_text}  {tgt_mult_text}"
+            else:
+                total_text = f"{src_mult_text}   {tgt_mult_text}"
+            
+            # Calculate position to center the entire text above the line
+            text_width = len(total_text) * CONNECTOR_CHAR_WIDTH
+            line_center_x = (sx + tx) / 2
+            text_start_x = line_center_x - (text_width / 2)
+            text_y = min(sy, ty) - 8  # Place above the line
+            
+            parts.append(f'  <text x="{text_start_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                         f'font-size="11" fill="#666" text-anchor="start">'
+                         f'{_escape_xml(total_text)}</text>')
+        elif not is_horizontal and verbosity_level == "High":
+            # Diagonal connector: position elements in traditional way (perpendicular to line)
             if rel.src_mult:
                 mx = sx + (tx - sx) * 0.12
                 my = sy + (ty - sy) * 0.12 + 12
@@ -651,13 +749,14 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
                              f'font-size="11" fill="#666" text-anchor="middle">'
                              f'{_escape_xml(rel.src_mult)}</text>')
             if rel.tgt_mult:
-                mx = tx + (sx - tx) * 0.20  # Increased from 0.12 to move further from arrowhead
+                mx = tx + (sx - tx) * 0.20
                 my = ty + (sy - ty) * 0.20 + 12
                 parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                              f'font-size="11" fill="#666" text-anchor="middle">'
                              f'{_escape_xml(rel.tgt_mult)}</text>')
-        # Relationship label - positioned slightly ABOVE the connector line
-        if rel.label:
+        
+        # Relationship label - positioned slightly ABOVE the diagonal connector line
+        if rel.label and not is_horizontal:
             lx = (sx + tx) / 2
             ly = (sy + ty) / 2 - 3  # Slightly above the line
             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
