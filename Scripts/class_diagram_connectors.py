@@ -51,10 +51,13 @@ class RectangleGrid:
         """Calculate evenly-spaced connection points on each edge.
         
         Logic:
-        - Top/Bottom: 7 points across the width
-        - Left/Right: Points based on height
+        - Top/Bottom: 7 points across the width (indices 1-7, corners at 1,7 reserved)
+        - Left/Right: Points based on height (corners at first/last reserved)
+        
+        Corner points (indices 1 and last on each edge) are reserved as non-connector zones.
         """
         # Top edge (y = self.y, x varies)
+        # 7 total points, indices 1-7, but corners (1 and 7) are non-connector zones
         num_horizontal = 7
         self._points_top = []
         for i in range(1, num_horizontal + 1):
@@ -83,6 +86,17 @@ class RectangleGrid:
             y = self.y + (i - 1) * self.height / (num_vertical - 1)
             pt = ConnectionPoint(edge='right', index=i, x=self.x + self.width, y=y)
             self._points_right.append(pt)
+    
+    def is_corner_point(self, edge: str, index: int) -> bool:
+        """Check if a point is at a corner (reserved, non-connector zone).
+        
+        Corner points are at index 1 and the last index on each edge.
+        """
+        points = self.get_points(edge)
+        if not points:
+            return True  # Non-existent points are treated as corners
+        last_idx = len(points)
+        return index == 1 or index == last_idx
     
     def get_points(self, edge: str) -> List[ConnectionPoint]:
         """Get all connection points for a given edge."""
@@ -186,9 +200,14 @@ class ConnectorPlanner:
         self.connectors.append(connector)
     
     def _select_exit_edge(self, source_grid: RectangleGrid, target_grid: RectangleGrid) -> str:
-        """Select the primary exit edge based on target direction."""
-        src_cx, src_cy = source_grid.get_center()
-        tgt_cx, tgt_cy = target_grid.get_center()
+        """Select the primary exit edge based on target direction.
+        
+        Simple rule: Choose the edge pointing toward the target center.
+        """
+        src_cx = source_grid.x + source_grid.width / 2
+        src_cy = source_grid.y + source_grid.height / 2
+        tgt_cx = target_grid.x + target_grid.width / 2
+        tgt_cy = target_grid.y + target_grid.height / 2
         
         dx = tgt_cx - src_cx
         dy = tgt_cy - src_cy
@@ -204,14 +223,37 @@ class ConnectorPlanner:
         opposites = {'top': 'bottom', 'bottom': 'top', 'left': 'right', 'right': 'left'}
         return opposites.get(edge, 'bottom')
     
+    def _get_fallback_edges(self, primary_edge: str) -> list:
+        """Get fallback edges when primary edge is exhausted.
+        
+        Fallback priority:
+        - If primary is top/bottom, fallback to same edge (both top or both bottom),
+          then try opposite, then try left/right
+        - If primary is left/right, fallback to bottom/top
+        
+        For horizontally adjacent boxes, prefer same-edge fallbacks to maintain
+        horizontal connector paths with a small jog.
+        """
+        if primary_edge in ['top', 'bottom']:
+            # Same edge first (both top or both bottom), then opposite, then perpendicular
+            return [primary_edge, self._get_opposite_edge(primary_edge), 'left', 'right']
+        else:  # left or right
+            # Fallback to horizontal edges
+            return ['bottom', 'top']
+    
     def plan_connectors(self):
         """Plan all connectors: assign connection points and calculate routes.
         
         Algorithm:
         1. Calculate ideal distance for each connector
         2. Sort by distance (shortest first)
-        3. Assign consecutive connection points
-        4. Calculate multi-segment paths if needed
+        3. Assign connection points (enforcing: one per point max, skip corners)
+        4. Calculate routes (direct or multi-segment)
+        
+        Constraints:
+        - Each connection point can have at most one outgoing connector
+        - Each connection point can have at most one incoming connector
+        - Corner points (index 1 and last on each edge) are reserved (non-connector zones)
         """
         # Step 1: Calculate distances (using center-to-center for initial estimate)
         for connector in self.connectors:
@@ -231,71 +273,80 @@ class ConnectorPlanner:
         # Step 2 & 3: Sort and assign points
         self.connectors.sort(key=lambda c: c.calculate_distance())
         
-        # Track used points per edge
-        used_points: Dict[Tuple[str, str, str], int] = {}  # (source, edge, direction) -> count
+        # Track used points: (box_name, edge, index) -> ('outgoing'|'incoming')
+        used_points: Dict[Tuple[str, str, int], str] = {}
         
         for connector in self.connectors:
             src_grid = self.grids[connector.source_name]
             tgt_grid = self.grids[connector.target_name]
             
-            # Select exit edge
+            # Select exit and entry edges based on target direction
             exit_edge = self._select_exit_edge(src_grid, tgt_grid)
             entry_edge = self._get_opposite_edge(exit_edge)
             
-            # Get available points on these edges
-            exit_points = src_grid.get_points(exit_edge)
-            entry_points = tgt_grid.get_points(entry_edge)
+            # Assign outgoing point (skip corners, skip used points)
+            src_pt = None
+            for pt in src_grid.get_points(exit_edge):
+                if src_grid.is_corner_point(exit_edge, pt.index):
+                    continue
+                if (connector.source_name, exit_edge, pt.index) not in used_points:
+                    src_pt = pt
+                    break
             
-            # Assign next available point (consecutive)
-            key = (connector.source_name, exit_edge, 'out')
-            point_idx = used_points.get(key, 0)
-            point_idx = min(point_idx, len(exit_points) - 1)
-            
-            if point_idx < len(exit_points):
-                src_pt = exit_points[point_idx]
+            if src_pt:
                 connector.source_edge = exit_edge
                 connector.source_point_idx = src_pt.index
                 connector.source_x = src_pt.x
                 connector.source_y = src_pt.y
-                used_points[key] = point_idx + 1
+                used_points[(connector.source_name, exit_edge, src_pt.index)] = 'outgoing'
             
-            # Assign entry point
-            key_tgt = (connector.target_name, entry_edge, 'in')
-            entry_idx = used_points.get(key_tgt, 0)
-            entry_idx = min(entry_idx, len(entry_points) - 1)
+            # Assign incoming point (skip corners, skip used points)
+            tgt_pt = None
+            for pt in tgt_grid.get_points(entry_edge):
+                if tgt_grid.is_corner_point(entry_edge, pt.index):
+                    continue
+                if (connector.target_name, entry_edge, pt.index) not in used_points:
+                    tgt_pt = pt
+                    break
             
-            if entry_idx < len(entry_points):
-                tgt_pt = entry_points[entry_idx]
+            if tgt_pt:
                 connector.target_edge = entry_edge
                 connector.target_point_idx = tgt_pt.index
                 connector.target_x = tgt_pt.x
                 connector.target_y = tgt_pt.y
-                used_points[key_tgt] = entry_idx + 1
+                used_points[(connector.target_name, entry_edge, tgt_pt.index)] = 'incoming'
             
             # Determine if we need multi-segment routing
             # Use multi-segment when source and target are not aligned on primary axis
             self._route_connector(connector)
     
     def _route_connector(self, connector: ConnectorPath):
-        """Calculate the path for a connector (direct or multi-segment)."""
-        # For now, simple routing: if on same edge axis, direct; otherwise multi-segment
-        if connector.source_edge == connector.target_edge:
-            # Parallel edges: use multi-segment
-            self._route_multi_segment(connector)
+        """Calculate the path for a connector (direct or multi-segment).
+        
+        Direct lines: When both source and target edges are on same axis (both horizontal or both vertical)
+        Multi-segment: When edges are on different axes
+        
+        Examples:
+        - bottom -> bottom (same box vertically): multi-segment (parallel edges)
+        - bottom -> top (boxes vertically aligned): multi-segment (parallel, opposite edges)
+        - right -> left (boxes horizontally separated): multi-segment (parallel, opposite edges)
+        - bottom -> left (edges on different axes): direct (can be straight diagonal)
+        """
+        src_edge = connector.source_edge
+        tgt_edge = connector.target_edge
+        
+        # Check edge orientation
+        src_is_horiz = src_edge in ['top', 'bottom']
+        tgt_is_horiz = tgt_edge in ['top', 'bottom']
+        
+        # Direct line only if edges are on same axis AND not parallel to each other
+        # (i.e., one is top/bottom and the other is left/right)
+        if src_is_horiz != tgt_is_horiz:  # Different axes: one horizontal, one vertical
+            connector.path_type = "direct"
         else:
-            # Check if natural straight line
-            src_grid = self.grids[connector.source_name]
-            tgt_grid = self.grids[connector.target_name]
-            
-            # If both are horizontal (top/bottom) or both vertical (left/right), direct
-            src_is_horiz = connector.source_edge in ['top', 'bottom']
-            tgt_is_horiz = connector.target_edge in ['top', 'bottom']
-            
-            if src_is_horiz == tgt_is_horiz:
-                connector.path_type = "direct"
-            else:
-                connector.path_type = "multi_segment"
-                self._route_multi_segment(connector)
+            # Same axis: both horizontal or both vertical -> use multi-segment
+            connector.path_type = "multi_segment"
+            self._route_multi_segment(connector)
     
     def _route_multi_segment(self, connector: ConnectorPath):
         """Create a multi-segment path (DOWN → RIGHT → UP → RIGHT or equivalent)."""
