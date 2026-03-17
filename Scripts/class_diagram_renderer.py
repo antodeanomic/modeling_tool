@@ -627,14 +627,19 @@ def _render_arrow_marker_defs(box_colors=None):
     
     # Generate colored marker variants if colors are provided
     if box_colors:
-        # Collect unique stroke colors used
-        unique_colors = set()
+        # Collect unique stroke colors with their COLOR_PALETTE indices (must match _get_arrow_style)
+        unique_colors_with_indices = {}
         for color_dict in box_colors.values():
             stroke = color_dict.get("dark_stroke", "#555")
-            unique_colors.add(stroke)
+            if stroke not in unique_colors_with_indices and stroke != "#555":
+                # Find this color's index in COLOR_PALETTE (to match _get_arrow_style logic)
+                for idx, palette_color in enumerate(COLOR_PALETTE):
+                    if palette_color["dark_stroke"] == stroke:
+                        unique_colors_with_indices[stroke] = idx
+                        break
         
-        # Generate colored marker variants
-        for color_idx, stroke_color in enumerate(sorted(unique_colors)):
+        # Generate colored marker variants using COLOR_PALETTE indices
+        for stroke_color, color_idx in unique_colors_with_indices.items():
             # Colored filled diamond
             markers += f'''    <!-- Filled diamond - Color {color_idx} -->
     <marker id="diamond-filled-{color_idx}" viewBox="0 0 12 8" refX="12" refY="4"
@@ -656,19 +661,6 @@ def _render_arrow_marker_defs(box_colors=None):
     markers += '  </defs>'
     return markers
 
-
-def _get_color_index(stroke_color):
-    """Get the color index for a given stroke color from the generated markers."""
-    if stroke_color == "#555":
-        return None  # Use base markers
-    
-    # Find index in sorted unique colors (this matches how we generate markers)
-    # We need to calculate the index based on sorted colors
-    # For now, hash the color to get a consistent index
-    color_hash = hash(stroke_color) % 100
-    return color_hash
-
-
 def _get_arrow_style(arrow, stroke_color=None):
     """Return (stroke_dasharray, marker_start, marker_end) for the given arrow type.
     
@@ -682,16 +674,14 @@ def _get_arrow_style(arrow, stroke_color=None):
     solid = "none"
     dashed = "6,4"
     
-    # If stroke_color is provided and not default gray, append -colored to marker IDs
+    # If stroke_color is provided and not default gray, use its COLOR_PALETTE index
     color_suffix = ""
     if stroke_color and stroke_color != "#555":
-        # Use the color itself as part of the ID for lookup
-        # We'll map colors to their marker indices
-        color_to_marker = {}
+        # Map color to its index in COLOR_PALETTE (must match _render_arrow_marker_defs)
         for idx, color_def in enumerate(COLOR_PALETTE):
-            color_to_marker[color_def["dark_stroke"]] = idx
-        if stroke_color in color_to_marker:
-            color_suffix = f"-{color_to_marker[stroke_color]}"
+            if color_def["dark_stroke"] == stroke_color:
+                color_suffix = f"-{idx}"
+                break
     
     styles = {
         # Structural (solid)
