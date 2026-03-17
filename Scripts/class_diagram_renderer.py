@@ -335,6 +335,251 @@ def _compute_class_box_size(class_name, class_def, verbosity="High", element_typ
     return max_width, _snap_height_to_grid(height), has_members, has_functions
 
 
+def _get_relationship_type(arrow):
+    """Classify the relationship type from the arrow symbol.
+    
+    Returns one of: 'generalization', 'realization', 'aggregation', 'composition', 
+                    'association', 'dependency'
+    """
+    if arrow in ['--▷', '◁--']:
+        return 'generalization'
+    elif arrow in ['..▷', '◁..']:
+        return 'realization'
+    elif arrow in ['--◆', '◆--']:
+        return 'composition'
+    elif arrow in ['--◇', '◇--']:
+        return 'aggregation'
+    elif arrow in ['..>', '<..']:
+        return 'dependency'
+    elif arrow in ['--', '-->', '<--', '<-->']:
+        return 'association'
+    return 'association'  # default
+
+
+def _build_uml_layout_graph(diagram):
+    """Build position constraints based on UML standard conventions.
+    
+    Returns:
+        {
+            'above': [(superclass, subclass), ...],     # superclass above subclass
+            'below': [(subclass, superclass), ...],      # inverse of above
+            'left_of': [(whole, part), ...],              # whole left of part (aggregation/composition)
+            'right_of': [(part, whole), ...],             # inverse of left_of
+            'left_to_right': [(source, target), ...],     # general left-to-right
+        }
+    """
+    constraints = {
+        'above': [],      # Superclass/Interface above
+        'below': [],
+        'left_of': [],    # Whole/Client left of part/supplier
+        'right_of': [],
+        'left_to_right': [],
+        'peers': [],      # Horizontal peers (associations)
+    }
+    
+    for rel in diagram.relationships:
+        rel_type = _get_relationship_type(rel.arrow)
+        
+        if rel_type == 'generalization':
+            # Superclass above subclass
+            if rel.arrow == '--▷':  # source is subclass, target is superclass
+                constraints['below'].append((rel.source, rel.target))
+                constraints['above'].append((rel.target, rel.source))
+            else:  # ◁-- : source is superclass, target is subclass
+                constraints['above'].append((rel.source, rel.target))
+                constraints['below'].append((rel.target, rel.source))
+        
+        elif rel_type == 'realization':
+            # Interface above, implementing class below
+            if rel.arrow == '..▷':  # source implements, target is interface
+                constraints['below'].append((rel.source, rel.target))
+                constraints['above'].append((rel.target, rel.source))
+            else:  # ◁.. : source is interface, target implements
+                constraints['above'].append((rel.source, rel.target))
+                constraints['below'].append((rel.target, rel.source))
+        
+        elif rel_type in ['composition', 'aggregation']:
+            # Whole on left, part on right
+            if rel.arrow in ['--◆', '--◇']:  # source is whole, target is part
+                constraints['left_of'].append((rel.source, rel.target))
+                constraints['right_of'].append((rel.target, rel.source))
+            else:  # ◆--, ◇-- : source is part, target is whole
+                constraints['right_of'].append((rel.source, rel.target))
+                constraints['left_of'].append((rel.target, rel.source))
+        
+        elif rel_type == 'dependency':
+            # Client/source on left, supplier/target on right
+            if rel.arrow == '..>':  # source depends on target
+                constraints['left_to_right'].append((rel.source, rel.target))
+            else:  # <.. : target depends on source
+                constraints['left_to_right'].append((rel.target, rel.source))
+        
+        elif rel_type == 'association':
+            # Peers - keep horizontal
+            constraints['peers'].append((rel.source, rel.target))
+    
+    return constraints
+
+
+def _layout_classes_uml_standard(diagram, model, verbosity="High"):
+    """Compute positions for each class box following UML standard conventions.
+    
+    Implements:
+    - Generalization: superclass above subclass
+    - Realization: interface above implementing class
+    - Aggregation/Composition: whole left of part
+    - Dependency: client left of supplier
+    - Association: peers horizontally aligned
+    
+    Returns dict: class_name -> {x, y, width, height, has_members, has_functions, class_def, element_type}
+    """
+    # Collect unique class names from relationships
+    class_names = []
+    seen = set()
+    for rel in diagram.relationships:
+        if rel.source not in seen:
+            class_names.append(rel.source)
+            seen.add(rel.source)
+        if rel.target not in seen:
+            class_names.append(rel.target)
+            seen.add(rel.target)
+    
+    if not class_names:
+        return {}
+    
+    # Compute sizes for each class
+    boxes = {}
+    for name in class_names:
+        class_def = model.get_class(name)
+        element_type = diagram.element_types.get(name, "class")
+        w, h, has_m, has_f = _compute_class_box_size(name, class_def, verbosity, element_type)
+        boxes[name] = {
+            'width': w, 'height': h,
+            'has_members': has_m, 'has_functions': has_f,
+            'class_def': class_def, 'element_type': element_type
+        }
+    
+    # Build UML layout constraints
+    constraints = _build_uml_layout_graph(diagram)
+    
+    # Build position assignments using constraint information
+    positions = {}
+    
+    # Spacing parameters
+    required_spacing = _calculate_required_spacing(diagram, verbosity)
+    spacing_x = max(required_spacing, CLASS_SPACING_X + (15 if verbosity != "High" else 30))
+    spacing_y = CLASS_SPACING_Y + (10 if verbosity != "High" else 15)
+    
+    # Identify hierarchy roots (superclasses/interfaces with no parents)
+    has_parent = set()
+    for _, parent in constraints['above']:
+        has_parent.add(parent)
+    
+    hierarchy_roots = set(class_names) - has_parent
+    
+    # Position hierarchy roots at top, then cascade downward
+    current_y = MARGIN
+    
+    def position_hierarchy(root_name, x_pos, y_pos, level=0):
+        """Recursively position a class and its children."""
+        if root_name in positions:
+            return
+        
+        # Position this class
+        positions[root_name] = {
+            'x': x_pos,
+            'y': y_pos,
+            'width': boxes[root_name]['width'],
+            'height': boxes[root_name]['height'],
+            'has_members': boxes[root_name]['has_members'],
+            'has_functions': boxes[root_name]['has_functions'],
+            'class_def': boxes[root_name]['class_def'],
+            'element_type': boxes[root_name]['element_type'],
+        }
+        
+        # Find all children (classes below this one in hierarchy)
+        children = []
+        for above_class, below_class in constraints['below']:
+            if above_class == root_name:
+                children.append(below_class)
+        
+        # Position children horizontally next to this class
+        if children:
+            child_y = y_pos + boxes[root_name]['height'] + spacing_y
+            child_x = x_pos
+            for child in children:
+                position_hierarchy(child, child_x, child_y, level + 1)
+                # Move next child to the right of current one
+                if child in positions:
+                    child_x = positions[child]['x'] + positions[child]['width'] + spacing_x
+    
+    # Position hierarchy roots
+    current_x = MARGIN
+    for root in sorted(hierarchy_roots):
+        if root not in positions:
+            position_hierarchy(root, current_x, current_y)
+            # Move to next root position
+            if root in positions:
+                current_x = positions[root]['x'] + positions[root]['width'] + spacing_x * 2
+    
+    # Position remaining classes not in hierarchies
+    # Group by aggregation/composition relationships
+    positioned = set(positions.keys())
+    
+    for class_name in class_names:
+        if class_name in positioned:
+            continue
+        
+        # Find if this class is part of an aggregation/composition chain
+        # Left_of: this class is on the left (whole/owner)
+        # Right_of: this class is on the right (part/owned)
+        
+        chain_x = None
+        
+        for left_class, right_class in constraints['left_of']:
+            if left_class == class_name and right_class in positioned:
+                # Position to left of positioned class
+                chain_x = positions[right_class]['x'] - boxes[class_name]['width'] - spacing_x
+                break
+            elif right_class == class_name and left_class in positioned:
+                # Position to right of positioned class
+                chain_x = positions[left_class]['x'] + positions[left_class]['width'] + spacing_x
+                break
+        
+        if chain_x is not None:
+            positions[class_name] = {
+                'x': chain_x,
+                'y': current_y,
+                'width': boxes[class_name]['width'],
+                'height': boxes[class_name]['height'],
+                'has_members': boxes[class_name]['has_members'],
+                'has_functions': boxes[class_name]['has_functions'],
+                'class_def': boxes[class_name]['class_def'],
+                'element_type': boxes[class_name]['element_type'],
+            }
+            positioned.add(class_name)
+        else:
+            # Place in grid below current content
+            if current_x + boxes[class_name]['width'] + spacing_x > MARGIN + 800:
+                current_x = MARGIN
+                current_y += 200  # Estimated row height
+            
+            positions[class_name] = {
+                'x': current_x,
+                'y': current_y,
+                'width': boxes[class_name]['width'],
+                'height': boxes[class_name]['height'],
+                'has_members': boxes[class_name]['has_members'],
+                'has_functions': boxes[class_name]['has_functions'],
+                'class_def': boxes[class_name]['class_def'],
+                'element_type': boxes[class_name]['element_type'],
+            }
+            positioned.add(class_name)
+            current_x += boxes[class_name]['width'] + spacing_x
+    
+    return positions
+
+
 def _layout_classes(diagram, model, verbosity="High"):
     """Compute positions for each class box in the diagram.
     
@@ -1255,8 +1500,8 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     if not filtered_diagram.relationships:
         return _empty_svg(diagram.description or diagram.diagram_id)
     
-    # Layout class boxes
-    boxes = _layout_classes(filtered_diagram, model, verbosity_level)
+    # Layout class boxes using UML standard conventions
+    boxes = _layout_classes_uml_standard(filtered_diagram, model, verbosity_level)
     
     if not boxes:
         return _empty_svg(diagram.description or diagram.diagram_id)
