@@ -32,38 +32,39 @@ ARROW_SIZE = 10  # Arrowhead size
 DIAMOND_SIZE = 10  # Diamond marker size
 
 # Checkerboard color palette - alternating light fills with darker strokes
-# Colors chosen to be distinct and follow a checkerboard pattern
+# Extended color palette - 30 distinct color pairs
+# Sequential assignment ensures no color reuse until all colors are exhausted
 COLOR_PALETTE = [
-    # Row 0 (dark base colors)
-    {
-        "light_fill": "#E8F5E9",   # Light Green
-        "dark_stroke": "#2E7D32",  # Dark Green
-    },
-    # Row 1 (light base colors)
-    {
-        "light_fill": "#FFFDE7",   # Light Yellow
-        "dark_stroke": "#F57F17",  # Dark Orange/Amber
-    },
-    # Row 2 (dark base colors)
-    {
-        "light_fill": "#E3F2FD",   # Light Blue
-        "dark_stroke": "#1565C0",  # Dark Blue
-    },
-    # Row 3 (light base colors)
-    {
-        "light_fill": "#F3E5F5",   # Light Purple
-        "dark_stroke": "#6A1B9A",  # Dark Purple
-    },
-    # Row 4 (dark base colors)
-    {
-        "light_fill": "#FCE4EC",   # Light Pink
-        "dark_stroke": "#C2185B",  # Dark Pink
-    },
-    # Row 5 (light base colors)
-    {
-        "light_fill": "#E0F2F1",   # Light Teal
-        "dark_stroke": "#00796B",  # Dark Teal
-    },
+    {"light_fill": "#E8F5E9", "dark_stroke": "#2E7D32"},  # Green
+    {"light_fill": "#FFFDE7", "dark_stroke": "#F57F17"},  # Amber
+    {"light_fill": "#E3F2FD", "dark_stroke": "#1565C0"},  # Blue
+    {"light_fill": "#F3E5F5", "dark_stroke": "#6A1B9A"},  # Purple
+    {"light_fill": "#FCE4EC", "dark_stroke": "#C2185B"},  # Pink
+    {"light_fill": "#E0F2F1", "dark_stroke": "#00796B"},  # Teal
+    {"light_fill": "#FFF9C4", "dark_stroke": "#F9A825"},  # Yellow
+    {"light_fill": "#FFEBEE", "dark_stroke": "#D32F2F"},  # Red
+    {"light_fill": "#F1F8E9", "dark_stroke": "#558B2F"},  # Light Green
+    {"light_fill": "#E0F2F1", "dark_stroke": "#004D40"},  # Dark Teal
+    {"light_fill": "#FCE4EC", "dark_stroke": "#880E4F"},  # Deep Pink
+    {"light_fill": "#F3E5F5", "dark_stroke": "#4A148C"},  # Deep Purple
+    {"light_fill": "#EDE7F6", "dark_stroke": "#311B92"},  # Indigo
+    {"light_fill": "#E8EAF6", "dark_stroke": "#1A237E"},  # Deep Blue
+    {"light_fill": "#F1F5FE", "dark_stroke": "#0D47A1"},  # Cobalt
+    {"light_fill": "#E0F2F1", "dark_stroke": "#00695C"},  # Dark Teal Alt
+    {"light_fill": "#E8F5E9", "dark_stroke": "#1B5E20"},  # Dark Green
+    {"light_fill": "#FFFCE4", "dark_stroke": "#E65100"},  # Deep Orange
+    {"light_fill": "#FBE9E7", "dark_stroke": "#BF360C"},  # Dark Orange
+    {"light_fill": "#EFEBE9", "dark_stroke": "#3E2723"},  # Brown
+    {"light_fill": "#F5F5F5", "dark_stroke": "#424242"},  # Grey
+    {"light_fill": "#ECEFF1", "dark_stroke": "#37474F"},  # Blue Grey
+    {"light_fill": "#FFF3E0", "dark_stroke": "#E65100"},  # Light Orange
+    {"light_fill": "#FFE0B2", "dark_stroke": "#E65100"},  # Orange Lighter
+    {"light_fill": "#FFCCBC", "dark_stroke": "#BF360C"},  # Deep Orange Light
+    {"light_fill": "#D1C4E9", "dark_stroke": "#512DA8"},  # Purple Light
+    {"light_fill": "#C5CAE9", "dark_stroke": "#283593"},  # Indigo Light
+    {"light_fill": "#BBDEFB", "dark_stroke": "#1565C0"},  # Blue Light
+    {"light_fill": "#B3E5FC", "dark_stroke": "#0277BD"},  # Cyan
+    {"light_fill": "#B2DFDB", "dark_stroke": "#00897B"},  # Teal Light
 ]
 
 # Element type visual styles (fallback if no color assigned)
@@ -81,10 +82,11 @@ ARROW_MARKER_WIDTH = 10  # Approximate width for arrow/diamond markers
 
 
 def _assign_box_colors(boxes):
-    """Assign colors to boxes in a checkerboard pattern based on their position.
+    """Assign colors to boxes sequentially (non-repeating).
     
-    Alternates between dark-base and light-base colors to create visual separation.
-    Colors are assigned based on row and column position.
+    Colors are assigned in order as boxes are encountered.
+    Once all colors in the palette are used, the sequence repeats.
+    This ensures maximum color diversity before any color is reused.
     
     Args:
         boxes: Dictionary of class_name -> {x, y, width, height, ...}
@@ -94,7 +96,7 @@ def _assign_box_colors(boxes):
     """
     colors = {}
     
-    # Group boxes by row (Y coordinate)
+    # Group boxes by row (Y coordinate) for consistent ordering
     rows = {}
     for name, box in boxes.items():
         y = box['y']
@@ -102,16 +104,18 @@ def _assign_box_colors(boxes):
             rows[y] = []
         rows[y].append((box['x'], name))
     
-    # Assign colors based on checkerboard pattern
+    # Assign colors sequentially across all boxes
+    box_index = 0
     sorted_rows = sorted(rows.keys())
     for row_idx, y in enumerate(sorted_rows):
-        # Sort boxes in this row by X coordinate
+        # Sort boxes in this row by X coordinate for consistent left-to-right ordering
         row_boxes = sorted(rows[y])
         
         for col_idx, (x, name) in enumerate(row_boxes):
-            # Checkerboard: (row + col) % len(palette) determines color
-            color_idx = (row_idx + col_idx) % len(COLOR_PALETTE)
+            # Sequential assignment: colors cycle through palette without repeating until exhausted
+            color_idx = box_index % len(COLOR_PALETTE)
             colors[name] = COLOR_PALETTE[color_idx].copy()
+            box_index += 1
     
     return colors
 
@@ -587,9 +591,18 @@ def _get_connection_points(box, other_box):
             return bx, box['y']  # Top edge
 
 
-def _render_arrow_marker_defs():
-    """Render SVG marker definitions for arrow types."""
-    return '''  <defs>
+def _render_arrow_marker_defs(box_colors=None):
+    """Render SVG marker definitions for arrow types with optional color variants.
+    
+    Args:
+        box_colors: Optional dict of class_name -> {light_fill, dark_stroke}
+                   If provided, generates colored markers for each dark_stroke color used
+    
+    Returns:
+        SVG marker definitions as a string
+    """
+    # Always include base markers
+    markers = '''  <defs>
     <!-- Open arrowhead (directed association) -->
     <marker id="arrow-open" viewBox="0 0 10 10" refX="10" refY="5"
             markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -610,34 +623,96 @@ def _render_arrow_marker_defs():
             markerWidth="12" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#555" stroke-width="1"/>
     </marker>
-  </defs>'''
+'''
+    
+    # Generate colored marker variants if colors are provided
+    if box_colors:
+        # Collect unique stroke colors used
+        unique_colors = set()
+        for color_dict in box_colors.values():
+            stroke = color_dict.get("dark_stroke", "#555")
+            unique_colors.add(stroke)
+        
+        # Generate colored marker variants
+        for color_idx, stroke_color in enumerate(sorted(unique_colors)):
+            # Colored filled diamond
+            markers += f'''    <!-- Filled diamond - Color {color_idx} -->
+    <marker id="diamond-filled-{color_idx}" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="{stroke_color}" stroke="{stroke_color}" stroke-width="1"/>
+    </marker>
+    <!-- Open diamond - Color {color_idx} -->
+    <marker id="diamond-open-{color_idx}" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="{stroke_color}" stroke-width="1.5"/>
+    </marker>
+    <!-- Arrow open - Color {color_idx} -->
+    <marker id="arrow-open-{color_idx}" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="{stroke_color}" stroke-width="1.5"/>
+    </marker>
+'''
+    
+    markers += '  </defs>'
+    return markers
 
 
-def _get_arrow_style(arrow):
-    """Return (stroke_dasharray, marker_start, marker_end) for the given arrow type."""
+def _get_color_index(stroke_color):
+    """Get the color index for a given stroke color from the generated markers."""
+    if stroke_color == "#555":
+        return None  # Use base markers
+    
+    # Find index in sorted unique colors (this matches how we generate markers)
+    # We need to calculate the index based on sorted colors
+    # For now, hash the color to get a consistent index
+    color_hash = hash(stroke_color) % 100
+    return color_hash
+
+
+def _get_arrow_style(arrow, stroke_color=None):
+    """Return (stroke_dasharray, marker_start, marker_end) for the given arrow type.
+    
+    Args:
+        arrow: Arrow type string (e.g., '→', '◆--')
+        stroke_color: Optional stroke color to use colored markers
+    
+    Returns:
+        (stroke_dasharray, marker_start, marker_end)
+    """
     solid = "none"
     dashed = "6,4"
+    
+    # If stroke_color is provided and not default gray, append -colored to marker IDs
+    color_suffix = ""
+    if stroke_color and stroke_color != "#555":
+        # Use the color itself as part of the ID for lookup
+        # We'll map colors to their marker indices
+        color_to_marker = {}
+        for idx, color_def in enumerate(COLOR_PALETTE):
+            color_to_marker[color_def["dark_stroke"]] = idx
+        if stroke_color in color_to_marker:
+            color_suffix = f"-{color_to_marker[stroke_color]}"
     
     styles = {
         # Structural (solid)
         '--':    (solid, None, None),
-        '-->':   (solid, None, 'arrow-open'),
-        '<--':   (solid, 'arrow-open', None),
-        '<-->':  (solid, 'arrow-open', 'arrow-open'),
+        '-->':   (solid, None, f'arrow-open{color_suffix}' if color_suffix else 'arrow-open'),
+        '<--':   (solid, f'arrow-open{color_suffix}' if color_suffix else 'arrow-open', None),
+        '<-->':  (solid, f'arrow-open{color_suffix}' if color_suffix else 'arrow-open', f'arrow-open{color_suffix}' if color_suffix else 'arrow-open'),
         '--\u25b7':   (solid, None, 'arrow-triangle'),        # --▷
         '\u25c1--':   (solid, 'arrow-triangle', None),        # ◁--
-        '--\u25c6':   (solid, None, 'diamond-filled'),        # --◆
-        '\u25c6--':   (solid, 'diamond-filled', None),        # ◆--
-        '--\u25c7':   (solid, None, 'diamond-open'),          # --◇
-        '\u25c7--':   (solid, 'diamond-open', None),          # ◇--
+        '--\u25c6':   (solid, None, f'diamond-filled{color_suffix}' if color_suffix else 'diamond-filled'),        # --◆
+        '\u25c6--':   (solid, f'diamond-filled{color_suffix}' if color_suffix else 'diamond-filled', None),        # ◆--
+        '--\u25c7':   (solid, None, f'diamond-open{color_suffix}' if color_suffix else 'diamond-open'),          # --◇
+        '\u25c7--':   (solid, f'diamond-open{color_suffix}' if color_suffix else 'diamond-open', None),          # ◇--
         # Behavioral (dashed)
-        '..>':   (dashed, None, 'arrow-open'),
-        '<..':   (dashed, 'arrow-open', None),
+        '..>':   (dashed, None, f'arrow-open{color_suffix}' if color_suffix else 'arrow-open'),
+        '<..':   (dashed, f'arrow-open{color_suffix}' if color_suffix else 'arrow-open', None),
         '..\u25b7':   (dashed, None, 'arrow-triangle'),      # ..▷
         '\u25c1..':   (dashed, 'arrow-triangle', None),      # ◁..
     }
     
-    return styles.get(arrow, (solid, None, 'arrow-open'))
+    return styles.get(arrow, (solid, None, f'arrow-open{color_suffix}' if color_suffix else 'arrow-open'))
 
 
 def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_level="High", layers_filter=None):
@@ -674,7 +749,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
         if box_colors and connector.source_name in box_colors:
             connector_color = box_colors[connector.source_name].get("dark_stroke", "#555")
         
-        dash, marker_start, marker_end = _get_arrow_style(connector.arrow_type)
+        dash, marker_start, marker_end = _get_arrow_style(connector.arrow_type, connector_color)
         
         # Render connector path
         if connector.path_type == "direct":
@@ -1225,9 +1300,6 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
                  f'font-size="16" font-weight="bold" text-anchor="middle" fill="#333">'
                  f'{_escape_xml(title_text)}</text>')
     
-    # Arrow marker definitions
-    lines.append(_render_arrow_marker_defs())
-    
     # Offset all boxes down by title height
     for box in boxes.values():
         box['y'] += title_height
@@ -1245,8 +1317,11 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     # Plan all connectors
     planner.plan_connectors()
     
-    # Assign checkerboard colors to boxes
+    # Assign colors to boxes (needed for marker generation)
     box_colors = _assign_box_colors(boxes)
+    
+    # Arrow marker definitions (with colored variants)
+    lines.append(_render_arrow_marker_defs(box_colors))
     
     # Render relationships using the planner (under the boxes)
     connector_svg = _render_connectors_with_planner(planner, boxes, box_colors, verbosity_level, layers_filter)
