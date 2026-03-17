@@ -666,6 +666,9 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
     # Calculate abstraction levels (0 = most general, highest = most specific)
     levels = _calculate_abstraction_level(diagram)
     
+    if verbosity != "High":
+        print(f"DEBUG: Calculated levels = {levels}")
+    
     # Build ownership trees
     trees = _build_ownership_trees(diagram)
     
@@ -702,12 +705,14 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
         # Each tree has a root that owns other classes at this or lower levels
         
         current_x = MARGIN
+        row_y = level_y  # Track row within this level (for wrapping)
+        row_height = 0
         
         for class_name in classes_at_level:
             # Position this class at current location
             positions[class_name] = {
                 'x': current_x,
-                'y': level_y,
+                'y': row_y,
                 'width': boxes[class_name]['width'],
                 'height': boxes[class_name]['height'],
                 'has_members': boxes[class_name]['has_members'],
@@ -716,12 +721,14 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
                 'element_type': boxes[class_name]['element_type'],
             }
             
+            row_height = max(row_height, boxes[class_name]['height'])
             current_x += boxes[class_name]['width'] + spacing_x
             
-            # Wrap to next row if too wide
+            # Wrap to next row if too wide (but stay within same level row)
             if current_x > MARGIN + 1200:
                 current_x = MARGIN
-                level_y += boxes[class_name]['height'] + spacing_y
+                row_y += row_height + spacing_y
+                row_height = 0
     
     return positions
 
