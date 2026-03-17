@@ -682,12 +682,21 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
             level_groups[level] = []
         level_groups[level].append(cls)
     
+    # Pre-calculate Y positions for each level (level 0 at top, higher levels below)
+    level_positions = {}
+    current_y = MARGIN
+    for level_num in sorted(level_groups.keys()):
+        level_positions[level_num] = current_y
+        # Height of all classes at this level
+        level_height = max(boxes[c]['height'] for c in level_groups[level_num])
+        current_y += level_height + spacing_y * 2
+    
     # Position classes level by level
     positions = {}
-    current_y = MARGIN
     
     for level_num in sorted(level_groups.keys()):
         classes_at_level = level_groups[level_num]
+        level_y = level_positions[level_num]
         
         # For each level, organize into trees and position horizontally
         # Each tree has a root that owns other classes at this or lower levels
@@ -695,19 +704,10 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
         current_x = MARGIN
         
         for class_name in classes_at_level:
-            # Check if this class owns any children (is a tree root at this level)
-            children_at_level = []
-            owner_to_children = trees['owner_to_children']
-            
-            if class_name in owner_to_children:
-                for child in owner_to_children[class_name]:
-                    if levels.get(child, 0) == level_num + 1:
-                        children_at_level.append(child)
-            
             # Position this class at current location
             positions[class_name] = {
                 'x': current_x,
-                'y': current_y,
+                'y': level_y,
                 'width': boxes[class_name]['width'],
                 'height': boxes[class_name]['height'],
                 'has_members': boxes[class_name]['has_members'],
@@ -721,10 +721,7 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
             # Wrap to next row if too wide
             if current_x > MARGIN + 1200:
                 current_x = MARGIN
-                current_y += boxes[class_name]['height'] + spacing_y
-        
-        # Move to next level
-        current_y += max(boxes[c]['height'] for c in classes_at_level) + spacing_y * 2
+                level_y += boxes[class_name]['height'] + spacing_y
     
     return positions
 
