@@ -530,20 +530,107 @@ def _layout_tree_vertical(root_name, trees, boxes, spacing_x, spacing_y, x_base,
     }
 
 
+def _calculate_abstraction_level(diagram):
+    """Calculate abstraction level for each class.
+    
+    Level 0: Classes with no incoming edges (most general, appear at TOP)
+    Level N: Classes that depend on level N-1 (more specific, appear at BOTTOM)
+    
+    Considers ALL hierarchies: generalization, realization, composition, aggregation, dependency
+    
+    Returns: {class_name: level}
+    """
+    # Count incoming edges from more-specific-to-more-general relationships
+    in_degree = {}
+    outgoing = {}  # Track outgoing edges for topological sort
+    all_classes = set()
+    
+    for rel in diagram.relationships:
+        rel_type = _get_relationship_type(rel.arrow)
+        all_classes.add(rel.source)
+        all_classes.add(rel.target)
+        
+        # Determine parent (more general) and child (more specific)
+        parent = None
+        child = None
+        
+        if rel_type == 'generalization':
+            # Subclass depends on superclass -> superclass is parent
+            if rel.arrow == '--▷':  # source is subclass
+                child, parent = rel.source, rel.target
+            else:  # ◁--: source is superclass
+                parent, child = rel.source, rel.target
+                
+        elif rel_type == 'realization':
+            # Implementing class depends on interface -> interface is parent
+            if rel.arrow == '..▷':  # source implements
+                child, parent = rel.source, rel.target
+            else:  # ◁..: source is interface
+                parent, child = rel.source, rel.target
+                
+        elif rel_type in ['composition', 'aggregation']:
+            # Part depends on owner -> owner is parent (more general)
+            if rel.arrow in ['--◆', '--◇']:  # source is owner
+                parent, child = rel.source, rel.target
+            else:  # target is owner
+                parent, child = rel.target, rel.source
+                
+        elif rel_type == 'dependency':
+            # Client depends on supplier -> supplier is parent (more general)
+            if rel.arrow == '..>':  # source depends on target
+                child, parent = rel.source, rel.target
+            else:  # <..: target depends on source
+                child, parent = rel.target, rel.source
+        
+        if parent and child:
+            in_degree[child] = in_degree.get(child, 0) + 1
+            if parent not in outgoing:
+                outgoing[parent] = []
+            outgoing[parent].append(child)
+    
+    # Initialize all classes
+    for cls in all_classes:
+        if cls not in in_degree:
+            in_degree[cls] = 0
+        if cls not in outgoing:
+            outgoing[cls] = []
+    
+    # Topological sort with level assignment
+    levels = {}
+    queue = []
+    in_degree_copy = in_degree.copy()
+    
+    # Initialize queue with root nodes (no incoming edges)
+    for cls in all_classes:
+        if in_degree_copy[cls] == 0:
+            queue.append((cls, 0))
+            levels[cls] = 0
+    
+    # Process queue (Kahn's algorithm)
+    while queue:
+        cls, level = queue.pop(0)
+        
+        # Process all children
+        for child in outgoing.get(cls, []):
+            in_degree_copy[child] -= 1
+            if in_degree_copy[child] == 0:
+                # All parents of this child have been visited
+                # Child level = max(parent levels) + 1
+                child_level = level + 1
+                levels[child] = child_level
+                queue.append((child, child_level))
+    
+    return levels
+
+
 def _layout_classes_tree_based(diagram, model, verbosity="High"):
-    """Compute positions using tree-based hierarchical layout.
+    """Compute positions using level-based tree hierarchical layout.
     
     Layout Strategy:
-    1. Build ownership trees from composition/aggregation relationships
-    2. Position each tree vertically (parent → children in cascade)
-    3. Arrange trees in 2x2 grid blocks
-    4. Connect trees with dependency/association relationships
-    
-    Tree Layout Example:
-        FunctionDef           (row 0, depth 0)
-            -> ParamDef       (row 1, depth 1)
-            -> ReturnDef      (row 2, depth 1)
-                -> MemberVar  (row 3, depth 2)
+    1. Calculate abstraction level for each class
+    2. Group classes by level (level 0 at top, increasing downward)
+    3. Within each level, organize into tree groups (ownership trees)
+    4. Position trees horizontally in 2x2 grid blocks
     
     Returns dict: class_name -> {x, y, width, height, has_members, has_functions, class_def, element_type}
     """
@@ -576,6 +663,9 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
             'element_type': element_type,
         }
     
+    # Calculate abstraction levels (0 = most general, highest = most specific)
+    levels = _calculate_abstraction_level(diagram)
+    
     # Build ownership trees
     trees = _build_ownership_trees(diagram)
     
@@ -584,54 +674,37 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
     spacing_x = max(required_spacing, CLASS_SPACING_X + (15 if verbosity != "High" else 30))
     spacing_y = CLASS_SPACING_Y + (10 if verbosity != "High" else 15)
     
-    # Layout each tree and collect all positions
+    # Group classes by level
+    level_groups = {}
+    for cls in class_names:
+        level = levels.get(cls, 0)
+        if level not in level_groups:
+            level_groups[level] = []
+        level_groups[level].append(cls)
+    
+    # Position classes level by level
     positions = {}
-    positioned = set()
+    current_y = MARGIN
     
-    # Grid arrangement parameters
-    grid_col_width = 500   # Width allocated per column in 2x2 grid
-    grid_row_height = 400  # Height allocated per row in 2x2 grid
-    cols_per_row = 2       # Two trees per row in grid
-    
-    current_grid_col = 0
-    current_grid_row = 0
-    tree_count = 0
-    
-    for root in trees['roots']:
-        # Calculate base position for this tree in the grid
-        tree_x_base = MARGIN + current_grid_col * grid_col_width
-        tree_y_base = MARGIN + current_grid_row * grid_row_height
+    for level_num in sorted(level_groups.keys()):
+        classes_at_level = level_groups[level_num]
         
-        # Layout the tree
-        tree_layout = _layout_tree_vertical(root, trees, boxes, spacing_x, spacing_y, tree_x_base, tree_y_base)
+        # For each level, organize into trees and position horizontally
+        # Each tree has a root that owns other classes at this or lower levels
         
-        # Add all nodes from this tree to positions
-        for class_name, pos in tree_layout['positions'].items():
-            positions[class_name] = {
-                'x': pos['x'],
-                'y': pos['y'],
-                'width': pos['width'],
-                'height': pos['height'],
-                'has_members': pos['box_info']['has_members'],
-                'has_functions': pos['box_info']['has_functions'],
-                'class_def': pos['box_info']['class_def'],
-                'element_type': pos['box_info']['element_type'],
-            }
-            positioned.add(class_name)
+        current_x = MARGIN
         
-        # Move to next grid position
-        tree_count += 1
-        current_grid_col += 1
-        if current_grid_col >= cols_per_row:
-            current_grid_col = 0
-            current_grid_row += 1
-    
-    # Handle remaining classes not in ownership trees (hierarchies, standalone)
-    current_x = MARGIN
-    current_y = MARGIN + (current_grid_row + 1) * grid_row_height
-    
-    for class_name in class_names:
-        if class_name not in positioned:
+        for class_name in classes_at_level:
+            # Check if this class owns any children (is a tree root at this level)
+            children_at_level = []
+            owner_to_children = trees['owner_to_children']
+            
+            if class_name in owner_to_children:
+                for child in owner_to_children[class_name]:
+                    if levels.get(child, 0) == level_num + 1:
+                        children_at_level.append(child)
+            
+            # Position this class at current location
             positions[class_name] = {
                 'x': current_x,
                 'y': current_y,
@@ -642,10 +715,16 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
                 'class_def': boxes[class_name]['class_def'],
                 'element_type': boxes[class_name]['element_type'],
             }
+            
             current_x += boxes[class_name]['width'] + spacing_x
-            if current_x > MARGIN + 1200:  # Wrap to next row if too wide
+            
+            # Wrap to next row if too wide
+            if current_x > MARGIN + 1200:
                 current_x = MARGIN
                 current_y += boxes[class_name]['height'] + spacing_y
+        
+        # Move to next level
+        current_y += max(boxes[c]['height'] for c in classes_at_level) + spacing_y * 2
     
     return positions
 
