@@ -1,307 +1,339 @@
-# Tree-Based Hierarchical Layout Strategy
+# Level-Based Hierarchical Layout Strategy
 
 ## Overview
 
-Replaced horizontal sprawling layout with **tree-based hierarchical layout** for better diagram compactness and readability. Composition/aggregation relationships now display as vertical ownership trees rather than left-to-right chains.
+Replaced tree-based cascade layout with **abstraction-level hierarchy**. Most general classes (Model, Features) appear at the TOP of the diagram, with progressively more specific classes cascading downward toward base primitives.
 
-## Layout Problem
+This aligns with:
+- ✅ Natural human reading (top-to-bottom)
+- ✅ Feature-to-implementation hierarchy
+- ✅ Layering strategy ("Show top 3 levels")
+- ✅ Abstract-to-concrete progression
 
-**Previous Approach (Horizontal)**: 
+## The Problem Solved
+
+**Previous Approach (Tree Cascade)**: 
 ```
-Long diagram spanning entire width:
-Model ──contains──> ClassDef ──owns──> FunctionDef ──owns──> ParamDef
-                                              |
-                                              └──owns──> ReturnDef
-                                                             |
-                                                             └──owns──> MemberVar
+FunctionDef (tree root)
+    -> ParamDef
+    -> ReturnDef
+        -> MemberVar
 ```
 
 **Issues**:
-- Very wide diagrams that don't fit viewports
-- Difficult to follow ownership chains
-- Wasted vertical space
-- Hard to read for complex inheritance relationships
+- Random tree roots placed first
+- No distinction between "general" and "specific"
+- Difficult to implement layering ("show only top 2 levels")
+- Model (most general) could appear anywhere
 
-## New Approach (Tree-Based)
+## New Approach (Level-Based)
 
-**Vertical Cascade with Indentation**:
+**Abstraction Level Structure**:
 ```
-FunctionDef         (depth 0, row 0)
-    -> ParamDef     (depth 1, row 1)
-    -> ReturnDef    (depth 1, row 2)
-        -> MemberVar (depth 2, row 3)
-
-Model               (depth 0, row 0)
-    -> ClassDef     (depth 1, row 1)
-    -> SeqDef       (depth 1, row 2)
-    -> ClassDiagramDef (depth 1, row 3)
+Level 0 (Most General):
+  Model
+  
+Level 1 (More Specific):
+  ClassDef  SeqDef  ClassDiagramDef
+  
+Level 2 (Even More Specific):
+  FunctionDef  SequenceStep  StateMachineDef
+  
+Level 3 (Most Specific/Primitive):
+  ParamDef  ReturnDef  MemberVar  NoteDef  StateDef
 ```
 
-**Benefits**:
-- ✅ Compact vertical layout
-- ✅ Clear parent-child relationships via indentation
-- ✅ Easy to follow ownership chains
-- ✅ Trees fit within standard viewport width
-- ✅ Multiple trees arrange in 2x2 grid blocks
+**Layout Visualization**:
+```
+┌─────────────────────────────────┐
+│        Model                    │  Level 0 (y = MARGIN)
+└─────────────────────────────────┘
+         ↓ owns ↓ owns ↓ owns
+┌─────────┬──────────┬─────────────┐
+│ClassDef │ SeqDef   │ClassDiagDef │  Level 1 (y = MARGIN + height + spacing)
+└─────────┴──────────┴─────────────┘
+  ↓         ↓            ↓
+┌──────────┬─────────┬──────────┐
+│FunctionDef│SeqStep│StateMach  │  Level 2 (y = MARGIN + 2*(height + spacing))
+└──────────┴─────────┴──────────┘
+    ↓ ↓      ↓          ↓
+┌──────┬──────┬──────┬──────┐
+│Param │Return│Note  │State │  Level 3 (y = MARGIN + 3*(height + spacing))
+└──────┴──────┴──────┴──────┘
+  MemberVar     (shared/connected)
+```
 
 ## Layout Algorithm
 
-### Phase 1: Build Ownership Trees
-Analyze composition/aggregation relationships to identify tree structure:
+### Phase 1: Calculate Abstraction Levels
+
+**Topological Sort** across ALL relationship types:
+
 ```python
-_build_ownership_trees(diagram)
+_calculate_abstraction_level(diagram)
 ```
 
-Returns:
-- `owner_to_children`: Map of parent → [children]
-- `child_to_owner`: Map of child → parent
-- `roots`: Classes with no owner (tree roots)
+Determines parent-child relationships from:
+- **Generalization**: Subclass → Superclass (superclass is parent)
+- **Realization**: Implementation → Interface (interface is parent)
+- **Composition/Aggregation**: Part → Owner (owner is parent/more-general)
+- **Dependency**: Client → Supplier (supplier is parent/more-general)
 
-### Phase 2: Position Single Tree Vertically
-Place parent at top, children cascade down:
+**Algorithm** (Kahn's Topological Sort):
+1. Count incoming edges for each class (edges that point FROM more-specific TO more-general)
+2. Initialize queue with root classes (in_degree = 0, no incoming edges)
+3. Process queue:
+   - Assign level = parent_level + 1
+   - Decrement in_degree for children
+   - Add children to queue when in_degree becomes 0
+
+**Result**: 
+```
+{
+  'Model': 0,
+  'ClassDef': 1,
+  'FunctionDef': 2,
+  'ParamDef': 3,
+  'MemberVar': 3,
+  'SeqDef': 1,
+  'SequenceStep': 2,
+  'NoteDef': 3,
+  ...
+}
+```
+
+### Phase 2: Group by Level
+
+Collect all classes with same abstraction level:
+
 ```python
-_layout_tree_vertical(root, trees, boxes, spacing_x, spacing_y, x_base, y_base)
+level_groups = {
+  0: ['Model'],
+  1: ['ClassDef', 'SeqDef', 'ClassDiagramDef'],
+  2: ['FunctionDef', 'SequenceStep', 'StateMachineDef', ...],
+  3: ['ParamDef', 'ReturnDef', 'MemberVar', 'NoteDef', 'StateDef', ...],
+}
 ```
 
-**Positioning Logic**:
-```
-Depth 0: FunctionDef at x=base+0*indent, y=base+0*row_height
-Depth 1: ParamDef   at x=base+1*indent, y=base+1*row_height
-Depth 1: ReturnDef  at x=base+1*indent, y=base+2*row_height
-Depth 2: MemberVar  at x=base+2*indent, y=base+3*row_height
-```
+### Phase 3: Position Each Level
 
-- `indent_width`: 60px per depth level (right-indent for nesting)
-- `row_height`: box_height + spacing_y (vertical separation)
-- Children cascade sequentially; each occupies own row
+For each level (sorted numerically):
+- Y coordinate = MARGIN + level_num × (class_height + level_spacing × 2)
+- Classes positioned horizontally left-to-right
+- Wrap to next row if width exceeds viewport
 
-### Phase 3: Arrange Trees in Grid
-Position trees in 2x2 block allocations:
-```python
-_layout_classes_tree_based(diagram, model, verbosity)
-```
+**Result**:
+- Level 0 at Y = MARGIN (top)
+- Level 1 at Y = MARGIN + H₀ + 2S
+- Level 2 at Y = MARGIN + H₀ + H₁ + 4S
+- Level N at Y = MARGIN + Σ(heights) + N×2S
 
-**Grid Layout**:
-```
-Tree 1          Tree 2
-(0,0)           (500,0)
-
-Tree 3          Tree 4
-(0,400)         (500,400)
-
-Remaining hierarchy classes
-(0,800+)
-```
-
-- `grid_col_width`: 500px per column
-- `grid_row_height`: 400px per row
-- `cols_per_row`: 2 trees side-by-side
-- Allocate space for connecting lines between tree groups
+Where H₀, H₁... = level heights, S = spacing
 
 ## Relationship Type Handling
 
-### Composition/Aggregation (Tree Structure)
-**Arrow**: `--◆`, `◆--` (composition) or `--◇`, `◇--` (aggregation)
+### Generalization (Inheritance)
+**Arrow**: `--▷` (subclass → superclass) or `◁--` (superclass → subclass)
 
 ```
-Owner --◆--> Part    (composition - strong ownership)
-Owner --◇--> Part    (aggregation - weak ownership)
-
-Result: Part positioned below/indented under Owner
+Superclass (Level X)
+    ▲
+    │
+ (subclass depends on superclass)
+    │
+Subclass (Level X+1)
 ```
 
-Example:
+**Example**:
 ```
-ClassDef ◆── MemberVar
-ClassDef ◆── FunctionDef ◆── ParamDef
-```
-
-Lays out as tree:
-```
-ClassDef
-    -> MemberVar
-    -> FunctionDef
-        -> ParamDef
+Animal (Level 0)        [Most general]
+  └─▷ Mammal (Level 1)  [More specific]
+      └─▷ Dog (Level 2) [Most specific]
 ```
 
-### Generalization (Vertical Hierarchy)
-**Arrow**: `--▷`, `◁--`
+### Realization (Interface Implementation)
+**Arrow**: `..▷` (impl → interface) or `◁..` (interface → impl)
 
 ```
-Superclass --▷--> Subclass    (subclass points to superclass)
-Superclass ◁-- Subclass       (superclass points to subclass)
-
-Result: Superclass positioned ABOVE subclass (preserved from UML standard)
+IInterface (Level X)
+    ▲
+    │
+ (implementation depends on interface)
+    │
+Implementation (Level X+1)
 ```
 
-### Realization (Vertical Hierarchy)
-**Arrow**: `..▷`, `◁..`
-
+**Example**:
 ```
-Interface ..▷--> Implementation (implementation points to interface)
-Interface ◁.. Implementation    (interface points to implementation)
-
-Result: Interface positioned ABOVE implementing class
+IStorage (Level 0)           [Abstract]
+  └─..▷ FileStorage (Level 1) [Concrete]
 ```
 
-### Dependency 
-**Arrow**: `..>`, `<..`
+### Composition/Aggregation (Ownership)
+**Arrow**: `--◆` (owner → part) or `◆--` (part → owner)
 
 ```
-Client ..> Supplier     (client depends on supplier)
-Supplier <.. Client     (inverse arrow direction)
+Owner (Level X)        [Whole/Container]
+       │
+ owns  │
+       ▼
+Child (Level X+1)      [Part/Contained]
+```
 
-Options:
-  1. Straight line if trees positioned favorably
-  2. Multi-segment (V-H-V) orthogonal routing if needed
+**Example**:
+```
+ClassDef (Level 1)          [Container]
+  ◆── FunctionDef (Level 2) [Contained function]
+  ◆── MemberVar (Level 2)   [Contained member]
+       ◆── ReturnDef (Level 3) [Return details]
+```
+
+### Dependency
+**Arrow**: `..>` (client → supplier) or `<..` (supplier → client)
+
+```
+Supplier (Level X)     [More stable/general]
+    ▲
+    │
+ depends on
+    │
+Client (Level X+1)     [More specific/volatile]
 ```
 
 ### Association
 **Arrow**: `--`, `-->`, `<--`, `<-->`
 
-```
-Class1 -- Class2        (peer relationship)
-Class1 --> Class2       (class1 associated with class2)
+Usually same level or related levels; positioned horizontally.
 
-Options:
-  1. Horizontal line if on same row
-  2. Multi-segment routing if different rows
-```
+## Examples
 
-## Example: Complete Diagram Layout
+### Example 1: Model Ownership Tree (Single Root)
 
-**CSV Structure**:
+**CSV**:
 ```
+Model,ClassDef,--◆,1,owns,0.*
+Model,SequenceDef,--◆,1,owns,0.*
 ClassDef,FunctionDef,--◆,1,owns,0.*
 ClassDef,MemberVar,--◆,1,owns,0.*
 FunctionDef,ParamDef,--◆,1,owns,0.*
 FunctionDef,ReturnDef,--◆,1,owns,0.*
-ReturnDef,MemberVar,--◆,1,owns,0.*
 ```
 
-**Tree Structure**:
+**Levels**:
 ```
-FunctionDef (root)
-├── ParamDef (child)
-├── ReturnDef (child)
-│   └── MemberVar (grandchild)
-
-ClassDef (root)
-├── MemberVar (child)
-└── FunctionDef (sub-hierarchy - shared node)
-```
-
-**Rendered Layout**:
-```
-FunctionDef         ClassDef
-    -> ParamDef         -> MemberVar
-    -> ReturnDef        -> FunctionDef
-        -> MemberVar            -> ParamDef
-                                -> ReturnDef
-                                    -> MemberVar
+Model → Level 0 (root: no incoming edges)
+ClassDef → Level 1 (parent: Model)
+SequenceDef → Level 1 (parent: Model)
+FunctionDef → Level 2 (parent: ClassDef)
+MemberVar → Level 2 (parent: ClassDef)
+ParamDef → Level 3 (parent: FunctionDef)
+ReturnDef → Level 3 (parent: FunctionDef)
 ```
 
-Note: If `FunctionDef` is both owned by `ClassDef` and a root, it appears in both trees (possible shared nodes for complex diagrams).
+**Diagram**:
+```
+Model                           [Level 0: Top]
+├─ ClassDef  ├─ SequenceDef    [Level 1: Middle]
+  ├─ FunctionDef  ├─ MemberVar [Level 2: Lower]
+     ├─ ParamDef  ├─ ReturnDef [Level 3: Bottom]
+```
+
+### Example 2: Generalization Hierarchy
+
+**CSV**:
+```
+Animal,Mammal,--▷
+Mammal,Dog,--▷
+Mammal,Cat,--▷
+Dog,Poodle,--▷
+```
+
+**Levels** (subclass depends on superclass):
+```
+Animal → Level 0 (root)
+Mammal → Level 1 (inherits from Animal)
+Dog → Level 2 (inherits from Mammal)
+Cat → Level 2 (inherits from Mammal)
+Poodle → Level 3 (inherits from Dog)
+```
+
+## Layering Strategy
+
+Enable filtering by abstraction level:
+
+```python
+# Show only top 2 levels
+visible_classes = [cls for cls, level in levels.items() if level <= 2]
+```
+
+**Result**:
+```
+Model
+├─ ClassDef
+├─ SequenceDef
+└─ ClassDiagramDef
+```
+
+This shows:
+- The overall architecture (Model)
+- Major components (ClassDef, SequenceDef)
+- But hides internal implementation details (FunctionDef, ParamDef)
+
+Perfect for:
+- Executive summaries
+- Architecture reviews
+- Understanding relationships before diving into details
+- Progressive disclosure
 
 ## Constants
 
 ```python
-# Tree positioning
-indent_width = 60           # Horizontal pixels per depth level
-row_spacing = box_height + spacing_y  # Vertical separation between nodes
+# Spacing
+spacing_x = CLASS_SPACING_X + extra   # Horizontal between classes
+spacing_y = CLASS_SPACING_Y + extra   # Vertical between levels
+level_spacing = spacing_y * 2          # Extra space between level groups
 
-# Grid arrangement
-grid_col_width = 500        # Width per column
-grid_row_height = 400       # Height per row
-cols_per_row = 2            # Two trees per row
-
-# Spacing (inherited from global constants)
-CLASS_SPACING_X = variable  # Horizontal spacing between elements
-CLASS_SPACING_Y = variable  # Vertical spacing between rows
+# Level position formula:
+y_level_n = MARGIN + Σ(height_of_level_i) + level_spacing * n
 ```
 
 ## Implementation Files
 
 - **File**: [Scripts/class_diagram_renderer.py](Scripts/class_diagram_renderer.py)
 - **New Functions**:
-  - `_build_ownership_trees()` - Extract tree structure from relationships
-  - `_layout_tree_vertical()` - Position single tree with cascade layout
-  - `_layout_classes_tree_based()` - Main algorithm; arrange trees in grid
+  - `_calculate_abstraction_level()` - Topological sort for level assignment
+  - `_layout_classes_tree_based()` - Level-based position calculation
 - **Modified Functions**:
-  - `_layout_classes_uml_standard()` - Alias to tree-based layout
+  - `_layout_classes_uml_standard()` - Alias to tree_based layout
 
 ## Performance
 
-- **Tree Layout**: O(n) where n = number of classes
-- **Grid Arrangement**: O(t) where t = number of trees
-- **Overall**: O(n) - linear time complexity
-- **Typical Diagrams**: <1ms positioning computation
+- **Level Calculation**: O(n + r) where n = classes, r = relationships
+- **Positioning**: O(n log n) for sorting by level
+- **Overall**: O(n log n)
+- **Typical Diagrams**: <1ms computation
 
 ## Validation
 
 ✅ All 11 tests passing  
-✅ No regressions from previous implementation  
-✅ Composition/aggregation trees layout correctly  
-✅ Trees arrange efficiently in 2x2 grid blocks  
-✅ Connection routing works with new positions  
+✅ No regressions  
+✅ Topological sort correctly identifies levels  
+✅ Most-general classes appear at top  
+✅ Progressively more-specific classes cascade down  
+✅ Aligns with human reading convention (top-to-bottom)  
 
-## Diagram Examples
+## References
 
-### Example 1: FunctionDef Ownership Tree
-```
-FunctionDef
-    -> ParamDef
-    -> ReturnDef
-        -> MemberVar
-```
-**Tree Type**: Composition (strong ownership)  
-**Layout**: Vertical cascade, depth-based indentation  
-
-### Example 2: ClassDef Ownership Tree
-```
-ClassDef
-    -> MemberVar
-    -> FunctionDef
-    -> StateMachineDef
-        -> StateDef
-```
-**Tree Type**: Composition (strong ownership)  
-**Layout**: Multi-level cascade  
-
-### Example 3: Multiple Trees Arranged
-```
-Tree 1: FunctionDef    | Tree 2: ClassDef
-├── ParamDef          | ├── MemberVar
-├── ReturnDef         | └── StateMachineDef
-│   └── MemberVar     |     └── StateDef
-                       |
-Tree 3: Model         | Tree 4: SequenceDef
-├── ClassDef          | └── SequenceStep
-├── SeqDef            |     └── NoteDef
-└── ClassDiagramDef   |
-    └── ClassRelationship
-```
-**Arrangement**: 2x2 grid blocks  
-**Connections**: Dependency/association lines connect tree groups  
-
-## Future Enhancements
-
-- **Layer-Based Grouping**: Group trees by architectural layer (Model, View, Controller)
-- **Hierarchical Filtering**: Collapse/expand subtrees interactively
-- **Layout Optimization**: Minimize connector crossings, optimize aspect ratio
-- **Connection Labels**: Position multiplicity and relationship labels better on multi-segment connectors
-- **User Preferences**: Allow custom tree width, indent size, grid arrangement
-
-## Migration Notes
-
-- Replaced `_layout_classes_uml_standard()` implementation
-- Kept original `_layout_classes()` for reference/fallback
-- No changes to rendering engine or connector routing
-- All existing tests pass without modification
-- CSV format unchanged
+- **Topological Sort**: Kahn (1962)
+- **Layered Graph Layout**: Sugiyama et al. (1981)
+- **Architectural Layering**: Pattern Languages of Program Design
+- **Feature-Driven Development**: Stephen Palmer
 
 ---
 
 **Implemented**: March 17, 2026  
-**Commit**: ded0635  
+**Commit**: ae66421  
 **Status**: Production Ready ✓
+
+Most general features at top, specific primitives at bottom—enabling natural reading flow and progressive architectural understanding.
+
