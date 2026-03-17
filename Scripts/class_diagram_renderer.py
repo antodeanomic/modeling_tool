@@ -421,19 +421,133 @@ def _build_uml_layout_graph(diagram):
     return constraints
 
 
-def _layout_classes_uml_standard(diagram, model, verbosity="High"):
-    """Compute positions for each class box following UML standard conventions.
+def _build_ownership_trees(diagram):
+    """Build ownership hierarchies from composition/aggregation relationships.
     
-    Implements:
-    - Generalization: superclass above subclass
-    - Realization: interface above implementing class
-    - Aggregation/Composition: whole left of part
-    - Dependency: client left of supplier
-    - Association: peers horizontally aligned
+    Returns:
+        {
+            'owner_to_children': {owner: [children]},
+            'child_to_owner': {child: owner},
+            'roots': [classes with no owner]
+        }
+    """
+    owner_to_children = {}
+    child_to_owner = {}
+    
+    for rel in diagram.relationships:
+        rel_type = _get_relationship_type(rel.arrow)
+        
+        if rel_type in ['composition', 'aggregation']:
+            # Determine owner (whole) and child (part)
+            if rel.arrow in ['--◆', '--◇']:  # source is owner
+                owner, child = rel.source, rel.target
+            else:  # ◆--, ◇-- : target is owner
+                owner, child = rel.target, rel.source
+            
+            if owner not in owner_to_children:
+                owner_to_children[owner] = []
+            owner_to_children[owner].append(child)
+            child_to_owner[child] = owner
+    
+    # Find roots (no owner)
+    all_classes = set(owner_to_children.keys()) | set(child_to_owner.keys())
+    roots = [c for c in all_classes if c not in child_to_owner]
+    
+    return {
+        'owner_to_children': owner_to_children,
+        'child_to_owner': child_to_owner,
+        'roots': roots,
+    }
+
+
+def _layout_tree_vertical(root_name, trees, boxes, spacing_x, spacing_y, x_base, y_base):
+    """Layout a single ownership tree vertically (parent at top, children cascading down).
+    
+    Tree Structure (example):
+        FunctionDef           (depth 0, row 0)
+            -> ParamDef       (depth 1, row 1)
+            -> ReturnDef      (depth 1, row 2)
+                -> MemberVar  (depth 2, row 3)
+    
+    Returns:
+        {
+            'positions': {class: {x, y, ...}},
+            'width': tree width,
+            'height': tree height,
+        }
+    """
+    positions = {}
+    owner_to_children = trees['owner_to_children']
+    
+    row_counter = [0]  # Track current row index
+    indent_width = 60  # Horizontal indent per depth level
+    
+    def place_node(name, depth):
+        """Recursively place node and all its descendants."""
+        if name in positions:
+            return
+        
+        # Position this node at current row, indented by depth
+        x = x_base + depth * indent_width
+        y = y_base + row_counter[0] * (boxes[name]['height'] + spacing_y)
+        
+        positions[name] = {
+            'x': x,
+            'y': y,
+            'width': boxes[name]['width'],
+            'height': boxes[name]['height'],
+            'box_info': boxes[name],
+        }
+        
+        row_counter[0] += 1  # Move to next row for siblings/children
+        
+        # Place all children at next depth level
+        children = owner_to_children.get(name, [])
+        for child in children:
+            place_node(child, depth + 1)
+    
+    # Start placement from root
+    place_node(root_name, 0)
+    
+    # Calculate tree dimensions
+    if positions:
+        min_x = min(p['x'] for p in positions.values())
+        max_x = max(p['x'] + p['width'] for p in positions.values())
+        min_y = min(p['y'] for p in positions.values())
+        max_y = max(p['y'] + p['height'] for p in positions.values())
+        
+        tree_width = max_x - min_x
+        tree_height = max_y - min_y
+    else:
+        tree_width = boxes[root_name]['width']
+        tree_height = boxes[root_name]['height']
+    
+    return {
+        'positions': positions,
+        'width': tree_width,
+        'height': tree_height,
+        'row_count': row_counter[0],
+    }
+
+
+def _layout_classes_tree_based(diagram, model, verbosity="High"):
+    """Compute positions using tree-based hierarchical layout.
+    
+    Layout Strategy:
+    1. Build ownership trees from composition/aggregation relationships
+    2. Position each tree vertically (parent → children in cascade)
+    3. Arrange trees in 2x2 grid blocks
+    4. Connect trees with dependency/association relationships
+    
+    Tree Layout Example:
+        FunctionDef           (row 0, depth 0)
+            -> ParamDef       (row 1, depth 1)
+            -> ReturnDef      (row 2, depth 1)
+                -> MemberVar  (row 3, depth 2)
     
     Returns dict: class_name -> {x, y, width, height, has_members, has_functions, class_def, element_type}
     """
-    # Collect unique class names from relationships
+    # Collect unique class names
     class_names = []
     seen = set()
     for rel in diagram.relationships:
@@ -454,116 +568,70 @@ def _layout_classes_uml_standard(diagram, model, verbosity="High"):
         element_type = diagram.element_types.get(name, "class")
         w, h, has_m, has_f = _compute_class_box_size(name, class_def, verbosity, element_type)
         boxes[name] = {
-            'width': w, 'height': h,
-            'has_members': has_m, 'has_functions': has_f,
-            'class_def': class_def, 'element_type': element_type
+            'width': w,
+            'height': h,
+            'has_members': has_m,
+            'has_functions': has_f,
+            'class_def': class_def,
+            'element_type': element_type,
         }
     
-    # Build UML layout constraints
-    constraints = _build_uml_layout_graph(diagram)
-    
-    # Build position assignments using constraint information
-    positions = {}
+    # Build ownership trees
+    trees = _build_ownership_trees(diagram)
     
     # Spacing parameters
     required_spacing = _calculate_required_spacing(diagram, verbosity)
     spacing_x = max(required_spacing, CLASS_SPACING_X + (15 if verbosity != "High" else 30))
     spacing_y = CLASS_SPACING_Y + (10 if verbosity != "High" else 15)
     
-    # Identify hierarchy roots (superclasses/interfaces with no parents)
-    has_parent = set()
-    for _, parent in constraints['above']:
-        has_parent.add(parent)
+    # Layout each tree and collect all positions
+    positions = {}
+    positioned = set()
     
-    hierarchy_roots = set(class_names) - has_parent
+    # Grid arrangement parameters
+    grid_col_width = 500   # Width allocated per column in 2x2 grid
+    grid_row_height = 400  # Height allocated per row in 2x2 grid
+    cols_per_row = 2       # Two trees per row in grid
     
-    # Position hierarchy roots at top, then cascade downward
-    current_y = MARGIN
+    current_grid_col = 0
+    current_grid_row = 0
+    tree_count = 0
     
-    def position_hierarchy(root_name, x_pos, y_pos, level=0):
-        """Recursively position a class and its children."""
-        if root_name in positions:
-            return
+    for root in trees['roots']:
+        # Calculate base position for this tree in the grid
+        tree_x_base = MARGIN + current_grid_col * grid_col_width
+        tree_y_base = MARGIN + current_grid_row * grid_row_height
         
-        # Position this class
-        positions[root_name] = {
-            'x': x_pos,
-            'y': y_pos,
-            'width': boxes[root_name]['width'],
-            'height': boxes[root_name]['height'],
-            'has_members': boxes[root_name]['has_members'],
-            'has_functions': boxes[root_name]['has_functions'],
-            'class_def': boxes[root_name]['class_def'],
-            'element_type': boxes[root_name]['element_type'],
-        }
+        # Layout the tree
+        tree_layout = _layout_tree_vertical(root, trees, boxes, spacing_x, spacing_y, tree_x_base, tree_y_base)
         
-        # Find all children (classes below this one in hierarchy)
-        children = []
-        for above_class, below_class in constraints['below']:
-            if above_class == root_name:
-                children.append(below_class)
-        
-        # Position children horizontally next to this class
-        if children:
-            child_y = y_pos + boxes[root_name]['height'] + spacing_y
-            child_x = x_pos
-            for child in children:
-                position_hierarchy(child, child_x, child_y, level + 1)
-                # Move next child to the right of current one
-                if child in positions:
-                    child_x = positions[child]['x'] + positions[child]['width'] + spacing_x
-    
-    # Position hierarchy roots
-    current_x = MARGIN
-    for root in sorted(hierarchy_roots):
-        if root not in positions:
-            position_hierarchy(root, current_x, current_y)
-            # Move to next root position
-            if root in positions:
-                current_x = positions[root]['x'] + positions[root]['width'] + spacing_x * 2
-    
-    # Position remaining classes not in hierarchies
-    # Group by aggregation/composition relationships
-    positioned = set(positions.keys())
-    
-    for class_name in class_names:
-        if class_name in positioned:
-            continue
-        
-        # Find if this class is part of an aggregation/composition chain
-        # Left_of: this class is on the left (whole/owner)
-        # Right_of: this class is on the right (part/owned)
-        
-        chain_x = None
-        
-        for left_class, right_class in constraints['left_of']:
-            if left_class == class_name and right_class in positioned:
-                # Position to left of positioned class
-                chain_x = positions[right_class]['x'] - boxes[class_name]['width'] - spacing_x
-                break
-            elif right_class == class_name and left_class in positioned:
-                # Position to right of positioned class
-                chain_x = positions[left_class]['x'] + positions[left_class]['width'] + spacing_x
-                break
-        
-        if chain_x is not None:
+        # Add all nodes from this tree to positions
+        for class_name, pos in tree_layout['positions'].items():
             positions[class_name] = {
-                'x': chain_x,
-                'y': current_y,
-                'width': boxes[class_name]['width'],
-                'height': boxes[class_name]['height'],
-                'has_members': boxes[class_name]['has_members'],
-                'has_functions': boxes[class_name]['has_functions'],
-                'class_def': boxes[class_name]['class_def'],
-                'element_type': boxes[class_name]['element_type'],
+                'x': pos['x'],
+                'y': pos['y'],
+                'width': pos['width'],
+                'height': pos['height'],
+                'has_members': pos['box_info']['has_members'],
+                'has_functions': pos['box_info']['has_functions'],
+                'class_def': pos['box_info']['class_def'],
+                'element_type': pos['box_info']['element_type'],
             }
             positioned.add(class_name)
-        else:
-            # Place in grid below current content
-            if current_x + boxes[class_name]['width'] + spacing_x > MARGIN + 800:
-                current_x = MARGIN
-                current_y += 200  # Estimated row height
-            
+        
+        # Move to next grid position
+        tree_count += 1
+        current_grid_col += 1
+        if current_grid_col >= cols_per_row:
+            current_grid_col = 0
+            current_grid_row += 1
+    
+    # Handle remaining classes not in ownership trees (hierarchies, standalone)
+    current_x = MARGIN
+    current_y = MARGIN + (current_grid_row + 1) * grid_row_height
+    
+    for class_name in class_names:
+        if class_name not in positioned:
             positions[class_name] = {
                 'x': current_x,
                 'y': current_y,
@@ -574,10 +642,17 @@ def _layout_classes_uml_standard(diagram, model, verbosity="High"):
                 'class_def': boxes[class_name]['class_def'],
                 'element_type': boxes[class_name]['element_type'],
             }
-            positioned.add(class_name)
             current_x += boxes[class_name]['width'] + spacing_x
+            if current_x > MARGIN + 1200:  # Wrap to next row if too wide
+                current_x = MARGIN
+                current_y += boxes[class_name]['height'] + spacing_y
     
     return positions
+
+
+def _layout_classes_uml_standard(diagram, model, verbosity="High"):
+    """Alias to new tree-based layout algorithm."""
+    return _layout_classes_tree_based(diagram, model, verbosity)
 
 
 def _layout_classes(diagram, model, verbosity="High"):
