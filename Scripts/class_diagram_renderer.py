@@ -31,7 +31,42 @@ MARGIN = 40
 ARROW_SIZE = 10  # Arrowhead size
 DIAMOND_SIZE = 10  # Diamond marker size
 
-# Element type visual styles
+# Checkerboard color palette - alternating light fills with darker strokes
+# Colors chosen to be distinct and follow a checkerboard pattern
+COLOR_PALETTE = [
+    # Row 0 (dark base colors)
+    {
+        "light_fill": "#E8F5E9",   # Light Green
+        "dark_stroke": "#2E7D32",  # Dark Green
+    },
+    # Row 1 (light base colors)
+    {
+        "light_fill": "#FFFDE7",   # Light Yellow
+        "dark_stroke": "#F57F17",  # Dark Orange/Amber
+    },
+    # Row 2 (dark base colors)
+    {
+        "light_fill": "#E3F2FD",   # Light Blue
+        "dark_stroke": "#1565C0",  # Dark Blue
+    },
+    # Row 3 (light base colors)
+    {
+        "light_fill": "#F3E5F5",   # Light Purple
+        "dark_stroke": "#6A1B9A",  # Dark Purple
+    },
+    # Row 4 (dark base colors)
+    {
+        "light_fill": "#FCE4EC",   # Light Pink
+        "dark_stroke": "#C2185B",  # Dark Pink
+    },
+    # Row 5 (light base colors)
+    {
+        "light_fill": "#E0F2F1",   # Light Teal
+        "dark_stroke": "#00796B",  # Dark Teal
+    },
+]
+
+# Element type visual styles (fallback if no color assigned)
 ELEMENT_STYLES = {
     "class": {"fill": "#FAFAFA", "stroke": "#333", "stereotype": None},
     "component": {"fill": "#E8F5E9", "stroke": "#2E7D32", "stereotype": "\u00ABcomponent\u00BB"},
@@ -43,6 +78,42 @@ ELEMENT_STYLES = {
 CONNECTOR_MULTIPLICITY_MAX = 4  # Worst case: "1..*" = 4 characters
 TEXT_SPACING = 2  # Spaces between connector elements
 ARROW_MARKER_WIDTH = 10  # Approximate width for arrow/diamond markers
+
+
+def _assign_box_colors(boxes):
+    """Assign colors to boxes in a checkerboard pattern based on their position.
+    
+    Alternates between dark-base and light-base colors to create visual separation.
+    Colors are assigned based on row and column position.
+    
+    Args:
+        boxes: Dictionary of class_name -> {x, y, width, height, ...}
+    
+    Returns:
+        Dictionary of class_name -> {light_fill, dark_stroke}
+    """
+    colors = {}
+    
+    # Group boxes by row (Y coordinate)
+    rows = {}
+    for name, box in boxes.items():
+        y = box['y']
+        if y not in rows:
+            rows[y] = []
+        rows[y].append((box['x'], name))
+    
+    # Assign colors based on checkerboard pattern
+    sorted_rows = sorted(rows.keys())
+    for row_idx, y in enumerate(sorted_rows):
+        # Sort boxes in this row by X coordinate
+        row_boxes = sorted(rows[y])
+        
+        for col_idx, (x, name) in enumerate(row_boxes):
+            # Checkerboard: (row + col) % len(palette) determines color
+            color_idx = (row_idx + col_idx) % len(COLOR_PALETTE)
+            colors[name] = COLOR_PALETTE[color_idx].copy()
+    
+    return colors
 
 
 def _calculate_connector_text_width(multiplicity: str, label: str = "", char_width: float = CONNECTOR_CHAR_WIDTH) -> float:
@@ -365,10 +436,15 @@ def _layout_classes(diagram, model, verbosity="High"):
     return boxes
 
 
-def _render_class_box(box_info, class_name):
+def _render_class_box(box_info, class_name, box_color=None):
     """Render a single UML element box as SVG elements.
     
     Supports class, component, package, and object element types.
+    
+    Args:
+        box_info: Dictionary with box layout info (x, y, width, height, etc.)
+        class_name: Name of the class to render
+        box_color: Optional dict with 'light_fill' and 'dark_stroke' color overrides
     """
     x = box_info['x']
     y = box_info['y']
@@ -383,6 +459,11 @@ def _render_class_box(box_info, class_name):
     fill = style["fill"]
     stroke = style["stroke"]
     stereotype = style["stereotype"]
+    
+    # Use assigned colors if provided
+    if box_color:
+        fill = box_color.get("light_fill", fill)
+        stroke = box_color.get("dark_stroke", stroke)
     
     parts = []
     
@@ -559,7 +640,7 @@ def _get_arrow_style(arrow):
     return styles.get(arrow, (solid, None, 'arrow-open'))
 
 
-def _render_connectors_with_planner(planner, boxes, verbosity_level="High", layers_filter=None):
+def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_level="High", layers_filter=None):
     """Render all connectors using the grid-based connector planner system.
     
     Handles text placement for:
@@ -569,6 +650,7 @@ def _render_connectors_with_planner(planner, boxes, verbosity_level="High", laye
     Args:
         planner: ConnectorPlanner with all connectors planned
         boxes: Dictionary of class box positions and dimensions
+        box_colors: Optional dict of class_name -> {light_fill, dark_stroke}
         verbosity_level: "Low", "Normal", or "High" for multiplicity display
         layers_filter: Optional list of layers to include
     
@@ -587,6 +669,11 @@ def _render_connectors_with_planner(planner, boxes, verbosity_level="High", laye
         if connector.source_name not in boxes or connector.target_name not in boxes:
             continue
         
+        # Get connector color from source box (use source object's dark color)
+        connector_color = "#555"  # Default fallback
+        if box_colors and connector.source_name in box_colors:
+            connector_color = box_colors[connector.source_name].get("dark_stroke", "#555")
+        
         dash, marker_start, marker_end = _get_arrow_style(connector.arrow_type)
         
         # Render connector path
@@ -596,7 +683,7 @@ def _render_connectors_with_planner(planner, boxes, verbosity_level="High", laye
             
             parts.append(f'  <line x1="{connector.source_x}" y1="{connector.source_y}" '
                         f'x2="{connector.target_x}" y2="{connector.target_y}" '
-                        f'stroke="#555" stroke-width="1.5"')
+                        f'stroke="{connector_color}" stroke-width="1.5"')
             if dash != "none":
                 parts.append(f' stroke-dasharray="{dash}"')
             if marker_start:
@@ -693,7 +780,7 @@ def _render_connectors_with_planner(planner, boxes, verbosity_level="High", laye
                     path_d += f" L {x} {y}"
                 path_d += f" L {connector.target_x} {connector.target_y}"
                 
-                parts.append(f'  <path d="{path_d}" fill="none" stroke="#555" stroke-width="1.5"')
+                parts.append(f'  <path d="{path_d}" fill="none" stroke="{connector_color}" stroke-width="1.5"')
                 if dash != "none":
                     parts.append(f' stroke-dasharray="{dash}"')
                 if marker_start:
@@ -1158,14 +1245,18 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     # Plan all connectors
     planner.plan_connectors()
     
+    # Assign checkerboard colors to boxes
+    box_colors = _assign_box_colors(boxes)
+    
     # Render relationships using the planner (under the boxes)
-    connector_svg = _render_connectors_with_planner(planner, boxes, verbosity_level, layers_filter)
+    connector_svg = _render_connectors_with_planner(planner, boxes, box_colors, verbosity_level, layers_filter)
     if connector_svg:
         lines.append(connector_svg)
     
     # Render class boxes (on top of relationships)
     for name, box in boxes.items():
-        lines.append(_render_class_box(box, name))
+        color = box_colors.get(name)
+        lines.append(_render_class_box(box, name, color))
     
     # Show render version in bottom-right when High verbosity
     if verbosity_level == "High":
