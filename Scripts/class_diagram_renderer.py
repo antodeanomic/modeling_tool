@@ -570,9 +570,14 @@ def _calculate_abstraction_level(diagram):
                 
         elif rel_type in ['composition', 'aggregation']:
             # Part depends on owner -> owner is parent (more general)
-            if rel.arrow in ['--◆', '--◇']:  # source is owner
+            # Arrow notation: marker position indicates owner
+            # --◆ or --◇: marker at target (target is owner)
+            # ◆-- or ◇--: marker at source (source is owner)
+            if rel.arrow in ['--◆', '--◇']:  # marker at target = target is owner
+                parent, child = rel.target, rel.source
+            elif rel.arrow in ['◆--', '◇--']:  # marker at source = source is owner
                 parent, child = rel.source, rel.target
-            else:  # target is owner
+            else:  # default to target as owner
                 parent, child = rel.target, rel.source
                 
         elif rel_type == 'dependency':
