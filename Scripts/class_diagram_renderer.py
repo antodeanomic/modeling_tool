@@ -26,6 +26,7 @@ MEMBER_CHAR_WIDTH = 7.2
 ROW_HEIGHT = 18  # Line height for members/functions
 CLASS_SPACING_X = 60  # Horizontal gap between class boxes
 CLASS_SPACING_Y = 50  # Vertical gap between rows of classes
+GRID_BLOCK_HEIGHT = 40  # Grid block height (boxes sized in multiples of this)
 MARGIN = 40
 ARROW_SIZE = 10  # Arrowhead size
 DIAMOND_SIZE = 10  # Diamond marker size
@@ -169,6 +170,24 @@ def _escape_xml(text):
                 .replace('"', '&quot;'))
 
 
+def _snap_height_to_grid(height: float) -> float:
+    """Snap box height to nearest grid block multiple.
+    
+    Ensures all boxes have heights that are multiples of GRID_BLOCK_HEIGHT.
+    This guarantees that connection points on different-sized boxes will align
+    when they are on the same row.
+    
+    Args:
+        height: Calculated box height in pixels
+    
+    Returns:
+        Height rounded up to nearest GRID_BLOCK_HEIGHT multiple
+    """
+    import math
+    blocks = math.ceil(height / GRID_BLOCK_HEIGHT)
+    return blocks * GRID_BLOCK_HEIGHT
+
+
 def _measure_text(text, font_size=FONT_SIZE):
     """Estimate text width in pixels."""
     char_w = CHAR_WIDTH if font_size == FONT_SIZE else MEMBER_CHAR_WIDTH
@@ -238,7 +257,7 @@ def _compute_class_box_size(class_name, class_def, verbosity="High", element_typ
     if element_type == "component":
         max_width += 20  # Space for component icon
     
-    return max_width, height, has_members, has_functions
+    return max_width, _snap_height_to_grid(height), has_members, has_functions
 
 
 def _layout_classes(diagram, model, verbosity="High"):
