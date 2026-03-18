@@ -26,7 +26,16 @@ The connector router should detect when a proposed connection path passes throug
 
 ## Solution: Obstacle-Aware Routing
 
-### Phase 1: Detect Obstacles on Proposed Path
+### Overview
+The routing system uses a **preference cascade** approach:
+1. Try simplest path (direct)
+2. If blocked, try 2-segment
+3. If still blocked, try 3-segment (V-H-V)
+4. If still blocked, use advanced alternatives (N-segment)
+
+This ensures diagrams are as readable as possible with minimal connector bends.
+
+---
 
 **Algorithm**:
 1. Calculate the proposed connector path (direct line or 2-segment path)
@@ -235,22 +244,31 @@ class ObstacleAwareRouter:
         return [(sx, sy), (sx, mid_y), (tx, mid_y), (tx, ty)]
 ```
 
-### Phase 3: Path Selection Logic
+## Path Selection Logic
 
 **When to trigger obstacle avoidance**:
-1. **Always when**: Obstacles detected on initial proposed path
-2. **Skip when**: Connector is self-loop (source == target)
-3. **Skip when**: Objects are "allowed" to be crossed (e.g., connectors can cross other connectors)
+1. **Always when**: Any connector path (checking for obstacles is automatic)
+2. **Routing Preference Order**:
+   1. **Direct connection** (preferred - simplest)
+      - Straight line between source and target
+      - Used even if endpoints aren't geometrically aligned
+      - Only rejected if blocked by obstacles
+   2. **2-Segment connector** (alternative - 1 bend)
+      - V-H or H-V paths (vertical-horizontal or horizontal-vertical)
+      - Try both orientations, pick best (fewest obstacles)
+      - Use if clear or better than direct
+   3. **3-Segment connector** (V-H-V orthogonal - 2 bends)
+      - Standard multi-segment for maximum clarity
+      - Use when 2-segment path has too many obstacles
+      - Compare with 2-segment, keep better option
+   4. **N-Segment connector** (advanced alternatives - 3+ bends)
+      - Route left/right of obstacles (+/- 150px offset)
+      - Used only as fallback when simpler paths blocked
+      - Maximizes obstacle avoidance but adds complexity
 
-**Cost Function for Path Selection**:
-```
-cost(path) = (obstacle_count * 100) + (path_length * 0.1) + (turns * 50)
-```
-
-This prioritizes:
-1. Avoiding obstacles (highest cost)
-2. Shorter paths (low cost)
-3. Fewer turns (medium cost)
+**Skip obstacle avoidance for**:
+- Self-loops (source == target)
+- Already direct connections without alternatives
 
 ---
 
