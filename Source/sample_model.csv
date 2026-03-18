@@ -32,11 +32,20 @@ Class;Display;Shows current value and results
         State;ShowingResult;Displaying result
 
 Class;Keypad;Receives button presses
-    Function;ReadKey;Returns which key was pressed       
+    Function;ReadKey;Returns which key was pressed
+
+ClassDiagram;CalculatorDiagonalArchitecture;Calculator architecture with diagonal connectors;routing=diagonal
+    User;Display;-->;1;1;updates
+    User;Keypad;-->;1;1;reads
+    Keypad;Display;..>;;;notifies
+
+ClassDiagram;CalculatorOrthogonalArchitecture;Calculator architecture with orthogonal connectors;routing=orthogonal
+    User;Display;-->;1;1;updates
+    User;Keypad;-->;1;1;reads
+    Keypad;Display;..>;;;notifies
 
 Sequence;SoftReq0001;Initialization;This sequence initializes the system
-    User;Keypad;ReadKey;8;@Info;Valid key pressed - TEST AUTO UPDATE
-    Keypad;CalculatorCore;AppendDigit;42;8
+    User;Keypad;ReadKey;8;@Info;Valid key pressed
+    Keypad;Display;Update;42;8
     User;@Warning;Button held too long
-    User;CalculatorCore;Compute;42;1;Fast
     User;Display;Update;Done;42;@Info;Display updated successfully
