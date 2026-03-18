@@ -378,31 +378,50 @@ class ConnectorPlanner:
         # Determine if we should use direct or multi-segment
         should_use_direct = horizontally_aligned or vertically_aligned or src_is_horiz != tgt_is_horiz
         
-        if should_use_direct:
-            # Try direct line routing first
-            direct_path = [(x1, y1), (x2, y2)]
-            obstacles = self._detect_obstacles_on_path(connector.source_name, connector.target_name, direct_path)
-            
-            if obstacles > 0:
-                # Direct line has obstacles, try alternative paths
-                best_path = self._find_best_path(connector.source_name, connector.target_name, src_grid, tgt_grid)
-                connector.path_type = "multi_segment"
-                connector.segments = best_path
-            else:
-                # Direct line is clear
-                connector.path_type = "direct"
+        # Preference order: Direct -> 2-Segment -> 3-Segment (V-H-V) -> N-Segment
+        
+        # Step 1: Try direct line routing
+        direct_path = [(x1, y1), (x2, y2)]
+        obstacles = self._detect_obstacles_on_path(connector.source_name, connector.target_name, direct_path)
+        
+        if obstacles == 0:
+            # Direct line is clear - use it regardless of alignment
+            connector.path_type = "direct"
         else:
-            # Try multi-segment routing
-            self._route_multi_segment(connector)
+            # Step 2: Try 2-segment routing (V-H or H-V)
+            two_segment_vh = self._try_two_segment_vh(src_grid, tgt_grid)
+            two_segment_hv = self._try_two_segment_hv(src_grid, tgt_grid)
             
-            if connector.segments:
-                obstacles = self._detect_obstacles_on_path(connector.source_name, connector.target_name, 
-                                                          [connector.source_x, connector.source_y] + connector.segments)
+            obstacles_vh = self._detect_obstacles_on_path(connector.source_name, connector.target_name, two_segment_vh)
+            obstacles_hv = self._detect_obstacles_on_path(connector.source_name, connector.target_name, two_segment_hv)
+            
+            best_2seg = two_segment_vh if obstacles_vh <= obstacles_hv else two_segment_hv
+            best_2seg_obstacles = min(obstacles_vh, obstacles_hv)
+            
+            if best_2seg_obstacles == 0 or (should_use_direct and best_2seg_obstacles <= obstacles):
+                # 2-segment is clear or better than direct
+                connector.path_type = "multi_segment"
+                connector.segments = best_2seg
+            else:
+                # Step 3: Try 3-segment V-H-V routing
+                self._route_multi_segment(connector)
                 
-                if obstacles > 0:
-                    # Multi-segment has obstacles, try alternatives
+                if connector.segments:
+                    path_points = [(connector.source_x, connector.source_y)] + connector.segments
+                    obstacles_3seg = self._detect_obstacles_on_path(connector.source_name, connector.target_name, path_points)
+                    
+                    if obstacles_3seg <= best_2seg_obstacles:
+                        # 3-segment is as good or better
+                        connector.path_type = "multi_segment"
+                    else:
+                        # Use best 2-segment
+                        connector.segments = best_2seg
+                        connector.path_type = "multi_segment"
+                else:
+                    # Step 4: Fallback to best alternative routing
                     best_path = self._find_best_path(connector.source_name, connector.target_name, src_grid, tgt_grid)
                     connector.segments = best_path
+                    connector.path_type = "multi_segment"
     
     def _route_multi_segment(self, connector: ConnectorPath):
         """Create a multi-segment path (DOWN → RIGHT → UP → RIGHT or equivalent)."""
