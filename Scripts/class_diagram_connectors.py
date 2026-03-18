@@ -172,9 +172,10 @@ class ConnectorPath:
 class ConnectorPlanner:
     """Plans and routes connectors for a class diagram."""
     
-    def __init__(self):
+    def __init__(self, routing_mode: str = "diagonal"):
         self.grids: Dict[str, RectangleGrid] = {}
         self.connectors: List[ConnectorPath] = []
+        self.routing_mode = routing_mode  # 'diagonal', 'orthogonal', or 'mixed'
     
     def add_rectangle(self, name: str, x: float, y: float, width: float, height: float):
         """Register a rectangle in the planner."""
@@ -340,52 +341,40 @@ class ConnectorPlanner:
             self._route_connector(connector)
     
     def _route_connector(self, connector: ConnectorPath):
-        """Calculate the path for a connector (direct or multi-segment).
+        """Calculate the path for a connector based on routing mode.
         
-        Uses obstacle-aware routing: tries to find a path that avoids passing
-        through other objects on the diagram.
+        Routing modes:
+        - DIAGONAL: Uses simplified paths (Direct -> 2-Segment -> 3-Segment -> N-Segment)
+          Allows multi-segment bending for obstacle avoidance
+        - ORTHOGONAL: Only horizontal/vertical lines, requires objects pre-aligned
+          Only uses direct H or V connections
+        - MIXED: Uses diagonal when aligned, orthogonal when offset
+        """
+        if self.routing_mode == "diagonal":
+            self._route_connector_diagonal(connector)
+        elif self.routing_mode == "orthogonal":
+            self._route_connector_orthogonal(connector)
+        else:  # "mixed"
+            self._route_connector_mixed(connector)
+    
+    def _route_connector_diagonal(self, connector: ConnectorPath):
+        """Route diagonal connectors: Direct -> 2-Segment -> 3-Segment -> N-Segment.
         
-        Direct lines: When nodes are coordinate-aligned OR edges are on different axes
-        - Horizontal alignment: source_y == target_y (same row) → straight horizontal line
-        - Vertical alignment: source_x == target_x (same column) → straight vertical line
-        - Different axes: one edge horizontal, one vertical → diagonal line
-        
-        Multi-segment: When edges are on same axis and nodes aren't coordinate-aligned
-        - Both edges horizontal but different Y → needs vertical routing
-        - Both edges vertical but different X → needs horizontal routing
+        Uses preference cascade to favor simpler paths.
         """
         # Get source and target grids
         src_grid = self.grids[connector.source_name]
         tgt_grid = self.grids[connector.target_name]
         
-        src_edge = connector.source_edge
-        tgt_edge = connector.target_edge
-        
         x1, y1 = connector.source_x, connector.source_y
         x2, y2 = connector.target_x, connector.target_y
-        
-        # Tolerance for coordinate alignment
-        ALIGNMENT_TOLERANCE = 2.0
-        
-        # Check if nodes are coordinate-aligned
-        horizontally_aligned = abs(y1 - y2) < ALIGNMENT_TOLERANCE
-        vertically_aligned = abs(x1 - x2) < ALIGNMENT_TOLERANCE
-        
-        # Check edge orientation
-        src_is_horiz = src_edge in ['top', 'bottom']
-        tgt_is_horiz = tgt_edge in ['top', 'bottom']
-        
-        # Determine if we should use direct or multi-segment
-        should_use_direct = horizontally_aligned or vertically_aligned or src_is_horiz != tgt_is_horiz
-        
-        # Preference order: Direct -> 2-Segment -> 3-Segment (V-H-V) -> N-Segment
         
         # Step 1: Try direct line routing
         direct_path = [(x1, y1), (x2, y2)]
         obstacles = self._detect_obstacles_on_path(connector.source_name, connector.target_name, direct_path)
         
         if obstacles == 0:
-            # Direct line is clear - use it regardless of alignment
+            # Direct line is clear - use it
             connector.path_type = "direct"
         else:
             # Step 2: Try 2-segment routing (V-H or H-V)
@@ -398,8 +387,8 @@ class ConnectorPlanner:
             best_2seg = two_segment_vh if obstacles_vh <= obstacles_hv else two_segment_hv
             best_2seg_obstacles = min(obstacles_vh, obstacles_hv)
             
-            if best_2seg_obstacles == 0 or (should_use_direct and best_2seg_obstacles <= obstacles):
-                # 2-segment is clear or better than direct
+            if best_2seg_obstacles == 0 or best_2seg_obstacles <= obstacles:
+                # 2-segment is clear or equal/better than direct
                 connector.path_type = "multi_segment"
                 connector.segments = best_2seg
             else:
@@ -422,6 +411,23 @@ class ConnectorPlanner:
                     best_path = self._find_best_path(connector.source_name, connector.target_name, src_grid, tgt_grid)
                     connector.segments = best_path
                     connector.path_type = "multi_segment"
+    
+    def _route_connector_orthogonal(self, connector: ConnectorPath):
+        """Route orthogonal connectors: Only horizontal or vertical lines.
+        
+        For orthogonal routing to work well, objects must be pre-aligned
+        so their connection points match on horizontal or vertical axis.
+        No intermediate bends are introduced.
+        """
+        # Simply use direct line for orthogonal routing
+        # Objects should already be aligned for this to work
+        # If not aligned, we don't introduce bends - just use the direct line
+        connector.path_type = "direct"
+    
+    def _route_connector_mixed(self, connector: ConnectorPath):
+        """Route mixed connectors: Diagonal when aligned, orthogonal otherwise."""
+        # For now, treat mixed like diagonal (use preference cascade)
+        self._route_connector_diagonal(connector)
     
     def _route_multi_segment(self, connector: ConnectorPath):
         """Create a multi-segment path (DOWN → RIGHT → UP → RIGHT or equivalent)."""

@@ -1862,8 +1862,8 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     for box in boxes.values():
         box['y'] += title_height
     
-    # Create connector planner and register all boxes
-    planner = ConnectorPlanner()
+    # Create connector planner with routing mode from diagram
+    planner = ConnectorPlanner(routing_mode=filtered_diagram.routing)
     for name, box in boxes.items():
         planner.add_rectangle(name, box['x'], box['y'], box['width'], box['height'])
     
