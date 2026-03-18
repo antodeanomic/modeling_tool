@@ -342,6 +342,9 @@ class ConnectorPlanner:
     def _route_connector(self, connector: ConnectorPath):
         """Calculate the path for a connector (direct or multi-segment).
         
+        Uses obstacle-aware routing: tries to find a path that avoids passing
+        through other objects on the diagram.
+        
         Direct lines: When nodes are coordinate-aligned OR edges are on different axes
         - Horizontal alignment: source_y == target_y (same row) → straight horizontal line
         - Vertical alignment: source_x == target_x (same column) → straight vertical line
@@ -350,38 +353,56 @@ class ConnectorPlanner:
         Multi-segment: When edges are on same axis and nodes aren't coordinate-aligned
         - Both edges horizontal but different Y → needs vertical routing
         - Both edges vertical but different X → needs horizontal routing
-        
-        Examples:
-        - right -> left at same Y (same row): DIRECT horizontal line
-        - bottom -> top at same X (same column): DIRECT vertical line
-        - bottom -> left (different axes): DIRECT diagonal
-        - right -> left at different Y: MULTI-SEGMENT (need vertical segments)
-        - bottom -> bottom at different X: MULTI-SEGMENT (need horizontal segments)
         """
+        # Get source and target grids
+        src_grid = self.grids[connector.source_name]
+        tgt_grid = self.grids[connector.target_name]
+        
         src_edge = connector.source_edge
         tgt_edge = connector.target_edge
         
         x1, y1 = connector.source_x, connector.source_y
         x2, y2 = connector.target_x, connector.target_y
         
-        # Tolerance for coordinate alignment (in case of minor floating-point differences)
+        # Tolerance for coordinate alignment
         ALIGNMENT_TOLERANCE = 2.0
         
         # Check if nodes are coordinate-aligned
-        horizontally_aligned = abs(y1 - y2) < ALIGNMENT_TOLERANCE  # same row
-        vertically_aligned = abs(x1 - x2) < ALIGNMENT_TOLERANCE    # same column
+        horizontally_aligned = abs(y1 - y2) < ALIGNMENT_TOLERANCE
+        vertically_aligned = abs(x1 - x2) < ALIGNMENT_TOLERANCE
         
         # Check edge orientation
         src_is_horiz = src_edge in ['top', 'bottom']
         tgt_is_horiz = tgt_edge in ['top', 'bottom']
         
-        # If nodes are coordinate-aligned OR edges are on different axes, use direct line
-        if horizontally_aligned or vertically_aligned or src_is_horiz != tgt_is_horiz:
-            connector.path_type = "direct"
+        # Determine if we should use direct or multi-segment
+        should_use_direct = horizontally_aligned or vertically_aligned or src_is_horiz != tgt_is_horiz
+        
+        if should_use_direct:
+            # Try direct line routing first
+            direct_path = [(x1, y1), (x2, y2)]
+            obstacles = self._detect_obstacles_on_path(connector.source_name, connector.target_name, direct_path)
+            
+            if obstacles > 0:
+                # Direct line has obstacles, try alternative paths
+                best_path = self._find_best_path(connector.source_name, connector.target_name, src_grid, tgt_grid)
+                connector.path_type = "multi_segment"
+                connector.segments = best_path
+            else:
+                # Direct line is clear
+                connector.path_type = "direct"
         else:
-            # Same axis and nodes not aligned -> use multi-segment for clarity
-            connector.path_type = "multi_segment"
+            # Try multi-segment routing
             self._route_multi_segment(connector)
+            
+            if connector.segments:
+                obstacles = self._detect_obstacles_on_path(connector.source_name, connector.target_name, 
+                                                          [connector.source_x, connector.source_y] + connector.segments)
+                
+                if obstacles > 0:
+                    # Multi-segment has obstacles, try alternatives
+                    best_path = self._find_best_path(connector.source_name, connector.target_name, src_grid, tgt_grid)
+                    connector.segments = best_path
     
     def _route_multi_segment(self, connector: ConnectorPath):
         """Create a multi-segment path (DOWN → RIGHT → UP → RIGHT or equivalent)."""
@@ -440,6 +461,156 @@ class ConnectorPlanner:
                     (x2, y2)
                 ]
     
+    def _point_in_box(self, point_x: float, point_y: float, box_grid: RectangleGrid) -> bool:
+        """Check if a point (x, y) is inside a box (not including edges).
+        
+        Args:
+            point_x, point_y: Point coordinates
+            box_grid: RectangleGrid to check
+        
+        Returns:
+            True if point is inside box, False otherwise
+        """
+        return (box_grid.x < point_x < box_grid.x + box_grid.width and
+                box_grid.y < point_y < box_grid.y + box_grid.height)
+    
+    def _detect_obstacles_on_path(self, source_name: str, target_name: str, 
+                                 path_points: List[Tuple[float, float]]) -> int:
+        """Detect and count obstacles on a proposed connector path.
+        
+        Samples the path at grid intervals and counts how many obstacles are hit.
+        
+        Args:
+            source_name: Name of source box (excluded from obstacle check)
+            target_name: Name of target box (excluded from obstacle check)
+            path_points: List of (x, y) coordinates defining the path
+        
+        Returns:
+            Count of obstacles encountered (0 means clear path)
+        """
+        SAMPLE_INTERVAL = 16  # Grid block width - sample every block
+        obstacle_count = 0
+        
+        # Build list of obstacle boxes (exclude source and target)
+        obstacle_boxes = {
+            name: grid for name, grid in self.grids.items()
+            if name not in [source_name, target_name]
+        }
+        
+        # Sample each segment of the path
+        for i in range(len(path_points) - 1):
+            x1, y1 = path_points[i]
+            x2, y2 = path_points[i + 1]
+            
+            # Calculate segment length
+            dx = x2 - x1
+            dy = y2 - y1
+            segment_len = math.sqrt(dx*dx + dy*dy)
+            
+            if segment_len == 0:
+                continue
+            
+            # Sample points along this segment
+            samples = max(int(segment_len / SAMPLE_INTERVAL), 1)
+            for sample_idx in range(samples + 1):
+                t = sample_idx / max(samples, 1)
+                sample_x = x1 + dx * t
+                sample_y = y1 + dy * t
+                
+                # Check which obstacle boxes contain this point
+                for box_name, box_grid in obstacle_boxes.items():
+                    if self._point_in_box(sample_x, sample_y, box_grid):
+                        obstacle_count += 1
+                        break  # Count each box only once per segment
+        
+        return obstacle_count
+    
+    def _try_direct_line(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid) -> List[Tuple[float, float]]:
+        """Try direct line routing."""
+        sx = src_grid.x + src_grid.width / 2
+        sy = src_grid.y + src_grid.height / 2
+        tx = tgt_grid.x + tgt_grid.width / 2
+        ty = tgt_grid.y + tgt_grid.height / 2
+        return [(sx, sy), (tx, ty)]
+    
+    def _try_two_segment_vh(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid) -> List[Tuple[float, float]]:
+        """Try 2-segment V-H path (vertical then horizontal)."""
+        sx = src_grid.x + src_grid.width / 2
+        sy = src_grid.y + src_grid.height / 2
+        tx = tgt_grid.x + tgt_grid.width / 2
+        ty = tgt_grid.y + tgt_grid.height / 2
+        mid_y = (sy + ty) / 2
+        return [(sx, sy), (sx, mid_y), (tx, ty)]
+    
+    def _try_two_segment_hv(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid) -> List[Tuple[float, float]]:
+        """Try 2-segment H-V path (horizontal then vertical)."""
+        sx = src_grid.x + src_grid.width / 2
+        sy = src_grid.y + src_grid.height / 2
+        tx = tgt_grid.x + tgt_grid.width / 2
+        ty = tgt_grid.y + tgt_grid.height / 2
+        mid_x = (sx + tx) / 2
+        return [(sx, sy), (mid_x, sy), (tx, ty)]
+    
+    def _try_route_left(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid) -> List[Tuple[float, float]]:
+        """Try routing around left side of obstacles."""
+        sx = src_grid.x + src_grid.width / 2
+        sy = src_grid.y + src_grid.height / 2
+        tx = tgt_grid.x + tgt_grid.width / 2
+        ty = tgt_grid.y + tgt_grid.height / 2
+        offset_x = min(sx, tx) - 150
+        return [(sx, sy), (offset_x, sy), (offset_x, ty), (tx, ty)]
+    
+    def _try_route_right(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid) -> List[Tuple[float, float]]:
+        """Try routing around right side of obstacles."""
+        sx = src_grid.x + src_grid.width / 2
+        sy = src_grid.y + src_grid.height / 2
+        tx = tgt_grid.x + tgt_grid.width / 2
+        ty = tgt_grid.y + tgt_grid.height / 2
+        offset_x = max(sx, tx) + 150
+        return [(sx, sy), (offset_x, sy), (offset_x, ty), (tx, ty)]
+    
+    def _find_best_path(self, source_name: str, target_name: str, 
+                       src_grid: RectangleGrid, tgt_grid: RectangleGrid) -> List[Tuple[float, float]]:
+        """Find best connector path avoiding obstacles.
+        
+        Tries multiple routing strategies and selects the one with fewest obstacles.
+        
+        Args:
+            source_name: Name of source box
+            target_name: Name of target box
+            src_grid: Source RectangleGrid
+            tgt_grid: Target RectangleGrid
+        
+        Returns:
+            Best path as list of (x, y) coordinates
+        """
+        strategies = [
+            ("direct", self._try_direct_line),
+            ("v-h", self._try_two_segment_vh),
+            ("h-v", self._try_two_segment_hv),
+            ("left", self._try_route_left),
+            ("right", self._try_route_right),
+        ]
+        
+        best_path = None
+        best_obstacle_count = float('inf')
+        best_strategy_name = None
+        
+        for strategy_name, strategy_func in strategies:
+            path = strategy_func(src_grid, tgt_grid)
+            obstacles = self._detect_obstacles_on_path(source_name, target_name, path)
+            
+            if obstacles < best_obstacle_count:
+                best_path = path
+                best_obstacle_count = obstacles
+                best_strategy_name = strategy_name
+            
+            # If we find a clear path, use it immediately
+            if obstacles == 0:
+                break
+        
+        return best_path or self._try_direct_line(src_grid, tgt_grid)
+
     def get_connectors(self, layer_filter: Optional[str] = None) -> List[ConnectorPath]:
         """Get connectors, optionally filtered by layer."""
         if layer_filter is None:

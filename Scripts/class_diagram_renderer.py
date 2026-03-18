@@ -1404,6 +1404,79 @@ def _calculate_connector_offsets(relationships):
     return offsets
 
 
+def _arrow_has_marker(arrow, position="end"):
+    """Check if an arrow has a marker at the specified position.
+    
+    Args:
+        arrow: Arrow type string (e.g., '--', '-->',◆--', '--◆', etc.)
+        position: "start" or "end"
+    
+    Returns:
+        True if marker exists at the specified position, False otherwise
+    """
+    # Get style information
+    dash, marker_start, marker_end = _get_arrow_style(arrow)
+    
+    if position == "start":
+        return marker_start is not None
+    else:  # position == "end"
+        return marker_end is not None
+
+
+def _calculate_grid_cell_position(point_y, grid_height=32):
+    """Calculate which grid cell a Y coordinate falls into.
+    
+    Args:
+        point_y: SVG Y coordinate
+        grid_height: Height of each grid cell (default 32px = 2 line heights)
+    
+    Returns:
+        Y coordinate of the center of that grid cell
+    """
+    grid_row = int(point_y / grid_height)
+    grid_cell_y = grid_row * grid_height + grid_height / 2
+    return grid_cell_y
+
+
+def _render_multiplicity_at_grid_cells(rel, sx, sy, tx, ty, parts):
+    """Render multiplicity text at grid cells instead of along connector line.
+    
+    Used when endpoints don't have markers. Places source multiplicity at
+    source grid cell and target multiplicity at target grid cell.
+    
+    Args:
+        rel: ClassRelationship with src_mult and tgt_mult
+        sx, sy: Source connection point (x, y)
+        tx, ty: Target connection point (x, y)
+        parts: List to append SVG text elements to
+    """
+    # Grid parameters
+    GRID_HEIGHT = 32  # pixels per grid row
+    TEXT_OFFSET_X = -12  # pixels left of connector
+    
+    # Check which endpoints lack markers
+    has_source_marker = _arrow_has_marker(rel.arrow, "start")
+    has_target_marker = _arrow_has_marker(rel.arrow, "end")
+    
+    # Place source multiplicity at source grid cell if no marker
+    if rel.src_mult and not has_source_marker:
+        grid_y = _calculate_grid_cell_position(sy, GRID_HEIGHT)
+        text_x = sx + TEXT_OFFSET_X
+        text_y = grid_y
+        parts.append(f'  <text x="{text_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                     f'font-size="11" fill="#666" text-anchor="end">'
+                     f'{_escape_xml(rel.src_mult)}</text>')
+    
+    # Place target multiplicity at target grid cell if no marker
+    if rel.tgt_mult and not has_target_marker:
+        grid_y = _calculate_grid_cell_position(ty, GRID_HEIGHT)
+        text_x = tx + TEXT_OFFSET_X
+        text_y = grid_y
+        parts.append(f'  <text x="{text_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                     f'font-size="11" fill="#666" text-anchor="end">'
+                     f'{_escape_xml(rel.tgt_mult)}</text>')
+
+
 def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High", 
                          connector_offsets=None):
     """Render a single relationship line between two class boxes.
@@ -1480,14 +1553,26 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
         
         # Text placement for orthogonal connectors (only on High verbosity)
         if verbosity_level == "High":
+            # Check if endpoints have markers for positioning decision
+            has_source_marker = _arrow_has_marker(rel.arrow, "start")
+            has_target_marker = _arrow_has_marker(rel.arrow, "end")
+            
             if needs_horizontal:
                 # V-H-V routing: vertical-horizontal-vertical path
                 # Segment 1 (vertical sy->mid_y): source multiplicity on right
                 if rel.src_mult:
-                    my = sy + (mid_y - sy) * 0.3  # 30% along first vertical segment
-                    parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="start"'
-                                 f'>{_escape_xml(rel.src_mult)}</text>')
+                    if not has_source_marker:
+                        # No marker: place in source grid cell
+                        grid_y = _calculate_grid_cell_position(sy)
+                        parts.append(f'  <text x="{sx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="end"'
+                                     f'>{_escape_xml(rel.src_mult)}</text>')
+                    else:
+                        # Has marker: place along segment as normal
+                        my = sy + (mid_y - sy) * 0.3  # 30% along first vertical segment
+                        parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="start"'
+                                     f'>{_escape_xml(rel.src_mult)}</text>')
                 
                 # Segment 2 (horizontal mid_y): connector label above the line
                 if rel.label:
@@ -1499,18 +1584,34 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
                 
                 # Segment 3 (vertical mid_y->ty): target multiplicity on right
                 if rel.tgt_mult:
-                    my = mid_y + (ty - mid_y) * 0.7  # 70% along final vertical segment
-                    parts.append(f'  <text x="{tx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="start"'
-                                 f'>{_escape_xml(rel.tgt_mult)}</text>')
+                    if not has_target_marker:
+                        # No marker: place in target grid cell
+                        grid_y = _calculate_grid_cell_position(ty)
+                        parts.append(f'  <text x="{tx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="end"'
+                                     f'>{_escape_xml(rel.tgt_mult)}</text>')
+                    else:
+                        # Has marker: place along segment as normal
+                        my = mid_y + (ty - mid_y) * 0.7  # 70% along final vertical segment
+                        parts.append(f'  <text x="{tx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="start"'
+                                     f'>{_escape_xml(rel.tgt_mult)}</text>')
             else:
                 # Vertical-only routing: single vertical segment
                 # Position source multiplicity at 25% along vertical
                 if rel.src_mult:
-                    my = sy + (ty - sy) * 0.25
-                    parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="start"'
-                                 f'>{_escape_xml(rel.src_mult)}</text>')
+                    if not has_source_marker:
+                        # No marker: place in source grid cell
+                        grid_y = _calculate_grid_cell_position(sy)
+                        parts.append(f'  <text x="{sx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="end"'
+                                     f'>{_escape_xml(rel.src_mult)}</text>')
+                    else:
+                        # Has marker: place along segment as normal
+                        my = sy + (ty - sy) * 0.25
+                        parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="start"'
+                                     f'>{_escape_xml(rel.src_mult)}</text>')
                 
                 # Position connector label in the middle
                 if rel.label:
@@ -1521,10 +1622,18 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
                 
                 # Position target multiplicity at 75% along vertical
                 if rel.tgt_mult:
-                    my = sy + (ty - sy) * 0.75
-                    parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="start"'
-                                 f'>{_escape_xml(rel.tgt_mult)}</text>')
+                    if not has_target_marker:
+                        # No marker: place in target grid cell
+                        grid_y = _calculate_grid_cell_position(ty)
+                        parts.append(f'  <text x="{tx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="end"'
+                                     f'>{_escape_xml(rel.tgt_mult)}</text>')
+                    else:
+                        # Has marker: place along segment as normal
+                        my = sy + (ty - sy) * 0.75
+                        parts.append(f'  <text x="{sx + 8}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="start"'
+                                     f'>{_escape_xml(rel.tgt_mult)}</text>')
     else:
         # Diagonal routing: straight line between boxes
         # Check if this is a horizontal line (same Y coordinates within tolerance)
@@ -1541,42 +1650,73 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
         
         # For horizontal connectors, place all text centered ABOVE the line
         if is_horizontal and verbosity_level == "High":
-            # Calculate total width of all text elements
-            src_mult_text = rel.src_mult or ""
-            tgt_mult_text = rel.tgt_mult or ""
-            label_text = rel.label or ""
+            # Check for markers at endpoints
+            has_source_marker = _arrow_has_marker(rel.arrow, "start")
+            has_target_marker = _arrow_has_marker(rel.arrow, "end")
             
-            # Build text sequences with proper spacing
-            # Format: "mult1  label  mult2" or "mult1  mult2" if no label
-            if label_text:
-                total_text = f"{src_mult_text}  {label_text}  {tgt_mult_text}"
+            # If either endpoint lacks a marker, use grid cell positioning
+            if not has_source_marker or not has_target_marker:
+                if rel.src_mult and not has_source_marker:
+                    grid_y = _calculate_grid_cell_position(sy)
+                    parts.append(f'  <text x="{sx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="end">'
+                                 f'{_escape_xml(rel.src_mult)}</text>')
+                
+                if rel.tgt_mult and not has_target_marker:
+                    grid_y = _calculate_grid_cell_position(ty)
+                    parts.append(f'  <text x="{tx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="end">'
+                                 f'{_escape_xml(rel.tgt_mult)}</text>')
             else:
-                total_text = f"{src_mult_text}   {tgt_mult_text}"
-            
-            # Calculate position to center the entire text above the line
-            text_width = len(total_text) * CONNECTOR_CHAR_WIDTH
-            line_center_x = (sx + tx) / 2
-            text_start_x = line_center_x - (text_width / 2)
-            text_y = min(sy, ty) - 8  # Place above the line
-            
-            parts.append(f'  <text x="{text_start_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                         f'font-size="11" fill="#666" text-anchor="start">'
-                         f'{_escape_xml(total_text)}</text>')
+                # Both endpoints have markers: use normal centered positioning
+                # Calculate total width of all text elements
+                src_mult_text = rel.src_mult or ""
+                tgt_mult_text = rel.tgt_mult or ""
+                label_text = rel.label or ""
+                
+                # Build text sequences with proper spacing
+                # Format: "mult1  label  mult2" or "mult1  mult2" if no label
+                if label_text:
+                    total_text = f"{src_mult_text}  {label_text}  {tgt_mult_text}"
+                else:
+                    total_text = f"{src_mult_text}   {tgt_mult_text}"
+                
+                # Calculate position to center the entire text above the line
+                text_width = len(total_text) * CONNECTOR_CHAR_WIDTH
+                line_center_x = (sx + tx) / 2
+                text_start_x = line_center_x - (text_width / 2)
+                text_y = min(sy, ty) - 8  # Place above the line
+                
+                parts.append(f'  <text x="{text_start_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                             f'font-size="11" fill="#666" text-anchor="start">'
+                             f'{_escape_xml(total_text)}</text>')
         elif not is_horizontal and verbosity_level == "High":
             # Diagonal connector: determine if primarily vertical or primarily horizontal
             dx = abs(tx - sx)
             dy = abs(ty - sy)
             is_vertical_diagonal = dy > dx  # More vertical than horizontal
             
+            # Check for markers at endpoints
+            has_source_marker = _arrow_has_marker(rel.arrow, "start")
+            has_target_marker = _arrow_has_marker(rel.arrow, "end")
+            
             if is_vertical_diagonal:
                 # Nearly vertical diagonal: place text to the RIGHT of the line
                 # Source multiplicity near source
                 if rel.src_mult:
-                    mx = sx + 8  # To the right of the line
-                    my = sy + (ty - sy) * 0.2  # 20% along the connector
-                    parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="start">'
-                                 f'{_escape_xml(rel.src_mult)}</text>')
+                    if not has_source_marker:
+                        # No marker: place in source grid cell
+                        grid_y = _calculate_grid_cell_position(sy)
+                        parts.append(f'  <text x="{sx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="end">'
+                                     f'{_escape_xml(rel.src_mult)}</text>')
+                    else:
+                        # Has marker: place along connector
+                        mx = sx + 8  # To the right of the line
+                        my = sy + (ty - sy) * 0.2  # 20% along the connector
+                        parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="start">'
+                                     f'{_escape_xml(rel.src_mult)}</text>')
                 
                 # Connector label in the middle
                 if rel.label:
@@ -1588,33 +1728,53 @@ def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High",
                 
                 # Target multiplicity near target
                 if rel.tgt_mult:
-                    mx = tx + 8  # To the right of the line
-                    my = ty + (sy - ty) * 0.2  # 20% back from target
-                    parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="start">'
-                                 f'{_escape_xml(rel.tgt_mult)}</text>')
+                    if not has_target_marker:
+                        # No marker: place in target grid cell
+                        grid_y = _calculate_grid_cell_position(ty)
+                        parts.append(f'  <text x="{tx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="end">'
+                                     f'{_escape_xml(rel.tgt_mult)}</text>')
+                    else:
+                        # Has marker: place along connector
+                        mx = tx + 8  # To the right of the line
+                        my = ty + (sy - ty) * 0.2  # 20% back from target
+                        parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="start">'
+                                     f'{_escape_xml(rel.tgt_mult)}</text>')
             else:
-                # More horizontal diagonal: text positioned ABOVE the line as single formatted string
-                # Format: [arrow]  [src_mult]  [label]  [tgt_mult]
-                # Example: --  1  produces  1
-                
-                src_mult_str = rel.src_mult if rel.src_mult else ""
-                label_str = rel.label if rel.label else ""
-                tgt_mult_str = rel.tgt_mult if rel.tgt_mult else ""
-                
-                # Build single formatted text string with 2-space gaps
-                total_text = f"{rel.arrow}  {src_mult_str}  {label_str}  {tgt_mult_str}"
-                
-                # Calculate text width and center it on the connector
-                text_width = len(total_text) * CONNECTOR_CHAR_WIDTH
-                line_center_x = (sx + tx) / 2
-                text_start_x = line_center_x - (text_width / 2)
-                text_y = min(sy, ty) - 12  # ABOVE the line
-                
-                # Render as single text element
-                parts.append(f'  <text x="{text_start_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                             f'font-size="11" fill="#666" text-anchor="start">'
-                             f'{_escape_xml(total_text)}</text>')
+                # More horizontal diagonal: text positioned based on markers
+                if not has_source_marker or not has_target_marker:
+                    # At least one endpoint lacks marker: use grid cell positioning
+                    if rel.src_mult and not has_source_marker:
+                        grid_y = _calculate_grid_cell_position(sy)
+                        parts.append(f'  <text x="{sx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="end">'
+                                     f'{_escape_xml(rel.src_mult)}</text>')
+                    
+                    if rel.tgt_mult and not has_target_marker:
+                        grid_y = _calculate_grid_cell_position(ty)
+                        parts.append(f'  <text x="{tx - 12}" y="{grid_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="end">'
+                                     f'{_escape_xml(rel.tgt_mult)}</text>')
+                else:
+                    # Both have markers: use normal formatting
+                    src_mult_str = rel.src_mult if rel.src_mult else ""
+                    label_str = rel.label if rel.label else ""
+                    tgt_mult_str = rel.tgt_mult if rel.tgt_mult else ""
+                    
+                    # Build single formatted text string with 2-space gaps
+                    total_text = f"{rel.arrow}  {src_mult_str}  {label_str}  {tgt_mult_str}"
+                    
+                    # Calculate text width and center it on the connector
+                    text_width = len(total_text) * CONNECTOR_CHAR_WIDTH
+                    line_center_x = (sx + tx) / 2
+                    text_start_x = line_center_x - (text_width / 2)
+                    text_y = min(sy, ty) - 12  # ABOVE the line
+                    
+                    # Render as single text element
+                    parts.append(f'  <text x="{text_start_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                 f'font-size="11" fill="#666" text-anchor="start">'
+                                 f'{_escape_xml(total_text)}</text>')
         elif is_horizontal and rel.label:
             # Horizontal connector without multiplicity: just place label
             lx = (sx + tx) / 2
