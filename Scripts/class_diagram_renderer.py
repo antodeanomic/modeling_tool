@@ -738,9 +738,133 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
     return positions
 
 
-def _layout_classes_uml_standard(diagram, model, verbosity="High"):
-    """Alias to new tree-based layout algorithm."""
-    return _layout_classes_tree_based(diagram, model, verbosity)
+def _layout_classes_orthogonal(diagram, model, verbosity="High"):
+    """Layout for orthogonal (right-angle) routing with grid-aligned objects.
+    
+    Objects are positioned on a grid where:
+    - Connected objects tend to share X or Y coordinates
+    - Reduces multi-segment connectors to direct H or V lines
+    - Uses hierarchical levels with column-based positioning
+    
+    Returns dict: class_name -> {x, y, width, height, ...}
+    """
+    # Collect unique class names
+    class_names = []
+    seen = set()
+    for rel in diagram.relationships:
+        if rel.source not in seen:
+            class_names.append(rel.source)
+            seen.add(rel.source)
+        if rel.target not in seen:
+            class_names.append(rel.target)
+            seen.add(rel.target)
+    
+    if not class_names:
+        return {}
+    
+    # Compute sizes for each class
+    boxes = {}
+    for name in class_names:
+        class_def = model.get_class(name)
+        element_type = diagram.element_types.get(name, "class")
+        w, h, has_m, has_f = _compute_class_box_size(name, class_def, verbosity, element_type)
+        boxes[name] = {
+            'width': w,
+            'height': h,
+            'has_members': has_m,
+            'has_functions': has_f,
+            'class_def': class_def,
+            'element_type': element_type,
+        }
+    
+    # Calculate abstraction levels (depth from leaves)
+    levels = _calculate_abstraction_level(diagram)
+    
+    # Spacing parameters
+    required_spacing = _calculate_required_spacing(diagram, verbosity)
+    # For orthogonal, use more spacing to accommodate grid alignment
+    spacing_x = max(required_spacing, CLASS_SPACING_X + 40)
+    spacing_y = CLASS_SPACING_Y + 30
+    
+    # Pre-calculate fixed grid column positions based on max width at each level
+    level_groups = {}
+    for cls in class_names:
+        level = levels.get(cls, 0)
+        if level not in level_groups:
+            level_groups[level] = []
+        level_groups[level].append(cls)
+    
+    # Pre-calculate column widths (max width of any box at that level + spacing)
+    column_widths = {}
+    for level_num in level_groups:
+        max_width = max(boxes[c]['width'] for c in level_groups[level_num])
+        column_widths[level_num] = max_width + spacing_x
+    
+    # Pre-calculate Y positions for each level (fixed grid rows)
+    level_positions = {}
+    current_y = MARGIN
+    for level_num in sorted(level_groups.keys()):
+        level_positions[level_num] = current_y
+        # All boxes at this level share the same Y coordinate (grid row alignment)
+        level_height = max(boxes[c]['height'] for c in level_groups[level_num])
+        current_y += level_height + spacing_y
+    
+    # Position classes on the grid
+    positions = {}
+    level_x_offset = {}  # Track X offset for next object at each level
+    
+    for level_num in sorted(level_groups.keys()):
+        classes_at_level = level_groups[level_num]
+        level_y = level_positions[level_num]
+        
+        if level_num not in level_x_offset:
+            level_x_offset[level_num] = MARGIN
+        
+        current_x = level_x_offset[level_num]
+        
+        for class_name in classes_at_level:
+            # Position this class at fixed grid aligned to level's Y
+            positions[class_name] = {
+                'x': current_x,
+                'y': level_y,
+                'width': boxes[class_name]['width'],
+                'height': boxes[class_name]['height'],
+                'has_members': boxes[class_name]['has_members'],
+                'has_functions': boxes[class_name]['has_functions'],
+                'class_def': boxes[class_name]['class_def'],
+                'element_type': boxes[class_name]['element_type'],
+            }
+            
+            # Move to next X position (grid column)
+            current_x += boxes[class_name]['width'] + spacing_x
+            
+            # Wrap to next row if too wide
+            if current_x > MARGIN + 1400:
+                current_x = MARGIN
+                level_y += boxes[class_name]['height'] + spacing_y
+        
+        level_x_offset[level_num] = current_x
+    
+    return positions
+
+
+def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="diagonal"):
+    """Select layout strategy based on routing mode.
+    
+    Args:
+        diagram: ClassDiagramDef with relationships
+        model: Model with class definitions
+        verbosity: Verbosity level for box sizing
+        routing: Routing mode - "diagonal", "orthogonal", or "mixed"
+    
+    Returns:
+        Dictionary of class positions
+    """
+    if routing == "orthogonal":
+        return _layout_classes_orthogonal(diagram, model, verbosity)
+    else:
+        # Use tree-based layout for diagonal and mixed routing
+        return _layout_classes_tree_based(diagram, model, verbosity)
 
 
 def _layout_classes(diagram, model, verbosity="High"):
@@ -1823,8 +1947,9 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     if not filtered_diagram.relationships:
         return _empty_svg(diagram.description or diagram.diagram_id)
     
-    # Layout class boxes using UML standard conventions
-    boxes = _layout_classes_uml_standard(filtered_diagram, model, verbosity_level)
+    # Layout class boxes using routing-aware positioning
+    # Orthogonal routing uses grid-aligned layout, diagonal uses tree-based layout
+    boxes = _layout_classes_uml_standard(filtered_diagram, model, verbosity_level, routing=filtered_diagram.routing)
     
     if not boxes:
         return _empty_svg(diagram.description or diagram.diagram_id)

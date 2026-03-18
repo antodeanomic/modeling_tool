@@ -213,11 +213,11 @@ class ConnectorPlanner:
         dx = tgt_cx - src_cx
         dy = tgt_cy - src_cy
         
-        # Prioritize horizontal movement, then vertical
-        if abs(dx) > abs(dy):
-            return 'right' if dx > 0 else 'left'
-        else:
+        # Prioritize vertical movement when objects are vertically stacked
+        if abs(dy) > abs(dx):
             return 'bottom' if dy > 0 else 'top'
+        else:
+            return 'right' if dx > 0 else 'left'
     
     def _get_opposite_edge(self, edge: str) -> str:
         """Get the opposite edge."""
@@ -241,6 +241,87 @@ class ConnectorPlanner:
         else:  # left or right
             # Fallback to horizontal edges
             return ['bottom', 'top']
+    
+    def _find_aligned_connection_points(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid,
+                                       exit_edge: str, entry_edge: str, used_points: dict,
+                                       src_name: str, tgt_name: str):
+        """Find connection points that maintain grid alignment for vertical/horizontal connectors.
+        
+        When objects are aligned on one axis, find connection points that
+        maintain that alignment to enable straight lines.
+        
+        Handles:
+        - Vertical edges (left/right): finds Y-aligned points (dy < 1)
+        - Horizontal edges (top/bottom) for X-aligned boxes: finds best X-aligned pair
+        
+        Returns: (src_point, tgt_point) or (None, None) if no aligned pair found
+        """
+        src_points = src_grid.get_points(exit_edge)
+        tgt_points = tgt_grid.get_points(entry_edge)
+        
+        # Detect if source and target boxes are X-aligned (left edges)
+        dx_left = abs(tgt_grid.x - src_grid.x)
+        is_x_aligned = dx_left < 1
+        
+        # For horizontal edges (top/bottom): look for X-aligned points if boxes are X-aligned
+        if exit_edge in ['top', 'bottom'] and entry_edge in ['top', 'bottom'] and is_x_aligned:
+            best_src = None
+            best_tgt = None
+            best_dx = float('inf')
+            
+            for src_pt in src_points:
+                if src_grid.is_corner_point(exit_edge, src_pt.index):
+                    continue
+                if (src_name, exit_edge, src_pt.index) in used_points:
+                    continue
+                
+                for tgt_pt in tgt_points:
+                    if tgt_grid.is_corner_point(entry_edge, tgt_pt.index):
+                        continue
+                    if (tgt_name, entry_edge, tgt_pt.index) in used_points:
+                        continue
+                    
+                    # Measure X alignment
+                    dx = abs(tgt_pt.x - src_pt.x)
+                    if dx < best_dx:
+                        best_dx = dx
+                        best_src = src_pt
+                        best_tgt = tgt_pt
+            
+            # Return if we found reasonable alignment (best match even if > 1px)
+            if best_src and best_dx < 20:  # Allow some tolerance for width differences
+                return (best_src, best_tgt)
+        
+        # For vertical edges (left/right): find Y-aligned points
+        elif exit_edge in ['left', 'right'] and entry_edge in ['left', 'right']:
+            best_src = None
+            best_tgt = None
+            best_dy = float('inf')
+            
+            for src_pt in src_points:
+                if src_grid.is_corner_point(exit_edge, src_pt.index):
+                    continue
+                if (src_name, exit_edge, src_pt.index) in used_points:
+                    continue
+                
+                for tgt_pt in tgt_points:
+                    if tgt_grid.is_corner_point(entry_edge, tgt_pt.index):
+                        continue
+                    if (tgt_name, entry_edge, tgt_pt.index) in used_points:
+                        continue
+                    
+                    # Measure Y alignment
+                    dy = abs(tgt_pt.y - src_pt.y)
+                    if dy < best_dy:
+                        best_dy = dy
+                        best_src = src_pt
+                        best_tgt = tgt_pt
+            
+            # Return only if significantly aligned (dy < 1 pixel)
+            if best_dy < 1:
+                return (best_src, best_tgt)
+        
+        return (None, None)
     
     def plan_connectors(self):
         """Plan all connectors: assign connection points and calculate routes.
@@ -294,6 +375,29 @@ class ConnectorPlanner:
             exit_edge = self._select_exit_edge(src_grid, tgt_grid)
             entry_edge = self._get_opposite_edge(exit_edge)
             
+            # For orthogonal routing: try to find aligned connection points first
+            if self.routing_mode == "orthogonal":
+                src_pt, tgt_pt = self._find_aligned_connection_points(src_grid, tgt_grid, exit_edge, entry_edge, used_points, connector.source_name, connector.target_name)
+                
+                if src_pt and tgt_pt:
+                    # Found aligned points! Use them
+                    connector.source_edge = exit_edge
+                    connector.source_point_idx = src_pt.index
+                    connector.source_x = src_pt.x
+                    connector.source_y = src_pt.y
+                    used_points[(connector.source_name, exit_edge, src_pt.index)] = 'outgoing'
+                    
+                    connector.target_edge = entry_edge
+                    connector.target_point_idx = tgt_pt.index
+                    connector.target_x = tgt_pt.x
+                    connector.target_y = tgt_pt.y
+                    used_points[(connector.target_name, entry_edge, tgt_pt.index)] = 'incoming'
+                    
+                    # Route and skip to next connector
+                    self._route_connector(connector)
+                    continue
+            
+            # Standard (non-aligned) point selection
             # Assign outgoing point: find closest to target on exit_edge
             src_pt = None
             best_dist = float('inf')
@@ -413,16 +517,66 @@ class ConnectorPlanner:
                     connector.path_type = "multi_segment"
     
     def _route_connector_orthogonal(self, connector: ConnectorPath):
-        """Route orthogonal connectors: Only horizontal or vertical lines.
+        """Route orthogonal connectors: Only horizontal or vertical lines with right angles.
         
-        For orthogonal routing to work well, objects must be pre-aligned
-        so their connection points match on horizontal or vertical axis.
-        No intermediate bends are introduced.
+        Strategy:
+        1. FIRST: Check if connection points are already aligned (grid-snapped objects)
+           - If Y coordinates match → direct horizontal line
+           - If X coordinates match → direct vertical line
+        2. ONLY IF NOT ALIGNED: Create V-H-V or H-V-H multi-segment paths
+        
+        This ensures grid-aligned objects use direct routing without unnecessary bends.
         """
-        # Simply use direct line for orthogonal routing
-        # Objects should already be aligned for this to work
-        # If not aligned, we don't introduce bends - just use the direct line
-        connector.path_type = "direct"
+        x1, y1 = connector.source_x, connector.source_y
+        x2, y2 = connector.target_x, connector.target_y
+        
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        
+        # STEP 1: Check if connection points are already aligned (grid-snapped)
+        # Allow tolerance for floating point precision and connection point offset
+        # Tolerance increases with larger deltas to allow "nearly aligned" connectors
+        if dy < 1:
+            # Y coordinates are aligned → use direct HORIZONTAL line
+            connector.path_type = "direct"
+            return
+        
+        # For vertical alignment: allow offset up to ~5px when dy is large (>50px)
+        # This accounts for connection points not being at exact same x within the box center
+        if dx < 5 and dy > 50:
+            # X coordinates are effectively aligned → use direct VERTICAL line
+            connector.path_type = "direct"
+            return
+            
+        if dx < 1:
+            # X coordinates are precisely aligned → use direct VERTICAL line
+            connector.path_type = "direct"
+            return
+        
+        # STEP 2: Connection points NOT aligned - create multi-segment routing
+        if dx < 10 and dy < 10:
+            # Source and target are very close - just use direct diagonal
+            connector.path_type = "direct"
+        elif dx < dy:
+            # More vertical than horizontal: V-H-V routing
+            # Go vertical first, then horizontal, then vertical to target
+            mid_y = (y1 + y2) / 2
+            connector.segments = [
+                (x1, mid_y),    # Vertical segment to middle Y
+                (x2, mid_y),    # Horizontal segment to target X
+                (x2, y2)        # Vertical segment to target
+            ]
+            connector.path_type = "multi_segment"
+        else:
+            # More horizontal than vertical: H-V-H routing
+            # Go horizontal first, then vertical, then horizontal to target
+            mid_x = (x1 + x2) / 2
+            connector.segments = [
+                (mid_x, y1),    # Horizontal segment to middle X
+                (mid_x, y2),    # Vertical segment to target Y
+                (x2, y2)        # Horizontal segment to target
+            ]
+            connector.path_type = "multi_segment"
     
     def _route_connector_mixed(self, connector: ConnectorPath):
         """Route mixed connectors: Diagonal when aligned, orthogonal otherwise."""
