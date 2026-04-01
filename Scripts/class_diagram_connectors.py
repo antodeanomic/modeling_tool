@@ -7,7 +7,7 @@ Provides:
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Set
 import math
 
 
@@ -176,6 +176,11 @@ class ConnectorPlanner:
         self.grids: Dict[str, RectangleGrid] = {}
         self.connectors: List[ConnectorPath] = []
         self.routing_mode = routing_mode  # 'diagonal', 'orthogonal', or 'mixed'
+        # Track-oriented occupancy map for orthogonal connector segments.
+        # Key: (grid_x, grid_y, axis) where axis is 'h' or 'v'.
+        self._occupied_connector_cells: Dict[Tuple[int, int, str], int] = {}
+        self._grid_cell_width = 16
+        self._grid_cell_height = 32
     
     def add_rectangle(self, name: str, x: float, y: float, width: float, height: float):
         """Register a rectangle in the planner."""
@@ -200,10 +205,16 @@ class ConnectorPlanner:
         )
         self.connectors.append(connector)
     
-    def _select_exit_edge(self, source_grid: RectangleGrid, target_grid: RectangleGrid) -> str:
-        """Select the primary exit edge based on target direction.
+    def _select_exit_edge(self, source_grid: RectangleGrid, target_grid: RectangleGrid, arrow_type: str = '') -> str:
+        """Select the primary exit edge based on target direction and relationship semantics.
         
-        Simple rule: Choose the edge pointing toward the target center.
+        Rules:
+        1. For ownership/containment relationships (◆, ◇): prefer vertical routing to show hierarchy
+           - If target is below, exit from bottom
+           - If target is above, exit from top
+        2. For other relationships: choose based on which distance is dominant
+           - If vertical distance is larger, exit from top/bottom
+           - If horizontal distance is larger, exit from left/right
         """
         src_cx = source_grid.x + source_grid.width / 2
         src_cy = source_grid.y + source_grid.height / 2
@@ -213,7 +224,16 @@ class ConnectorPlanner:
         dx = tgt_cx - src_cx
         dy = tgt_cy - src_cy
         
-        # Prioritize vertical movement when objects are vertically stacked
+        # Check if this is an ownership/containment relationship
+        is_ownership_relationship = '◆' in arrow_type or '◇' in arrow_type
+        
+        if is_ownership_relationship and abs(dy) > 0:
+            # For ownership relationships, prefer vertical exit if target is notably above or below
+            # This shows the parent-child hierarchy more clearly
+            if abs(dy) > 50:  # Significant vertical distance
+                return 'bottom' if dy > 0 else 'top'
+        
+        # Default: Prioritize direction with larger distance
         if abs(dy) > abs(dx):
             return 'bottom' if dy > 0 else 'top'
         else:
@@ -322,6 +342,112 @@ class ConnectorPlanner:
                 return (best_src, best_tgt)
         
         return (None, None)
+
+    def _is_hierarchy_connector(self, connector: ConnectorPath) -> bool:
+        """Return True for ownership/composition relationships in downward hierarchy."""
+        if '◆' not in connector.arrow_type and '◇' not in connector.arrow_type:
+            return False
+
+        src_grid = self.grids.get(connector.source_name)
+        tgt_grid = self.grids.get(connector.target_name)
+        if not src_grid or not tgt_grid:
+            return False
+
+        src_cx, src_cy = src_grid.get_center()
+        tgt_cx, tgt_cy = tgt_grid.get_center()
+        return tgt_cy > src_cy + 5
+
+    def _ordered_hierarchy_connectors(self) -> Dict[int, Tuple[int, int]]:
+        """Return left-to-right sibling order metadata keyed by connector id.
+
+        For each source object, ownership connectors to children below are ordered
+        by target X center so connectors are processed left-to-right.
+        """
+        grouped: Dict[str, List[ConnectorPath]] = {}
+        for connector in self.connectors:
+            if self._is_hierarchy_connector(connector):
+                grouped.setdefault(connector.source_name, []).append(connector)
+
+        metadata: Dict[int, Tuple[int, int]] = {}
+        for source_name, items in grouped.items():
+            items.sort(key=lambda c: self.grids[c.target_name].get_center()[0])
+            total = len(items)
+            for idx, connector in enumerate(items):
+                metadata[id(connector)] = (idx, total)
+
+        return metadata
+
+    def _build_spaced_indices(self, edge_point_count: int, connector_count: int) -> List[int]:
+        """Build evenly spaced non-corner point indices from left to right."""
+        usable = list(range(2, edge_point_count))
+        if not usable:
+            return []
+
+        if connector_count <= 1:
+            return [usable[0]]
+
+        if connector_count >= len(usable):
+            return usable
+
+        result: List[int] = []
+        step = (len(usable) - 1) / (connector_count - 1)
+        for i in range(connector_count):
+            idx = int(round(i * step))
+            idx = max(0, min(idx, len(usable) - 1))
+            result.append(usable[idx])
+
+        # De-duplicate while preserving order, then fill any missing slots.
+        deduped: List[int] = []
+        for idx in result:
+            if idx not in deduped:
+                deduped.append(idx)
+
+        if len(deduped) < connector_count:
+            for idx in usable:
+                if idx not in deduped:
+                    deduped.append(idx)
+                if len(deduped) >= connector_count:
+                    break
+
+        return deduped[:connector_count]
+
+    def _select_hierarchy_source_point(self, src_grid: RectangleGrid, sibling_idx: int,
+                                       sibling_count: int, used_points: Dict[Tuple[str, str, int], str],
+                                       source_name: str) -> Optional[ConnectionPoint]:
+        """Select bottom-edge source point for hierarchy connectors, left-to-right."""
+        bottom_points = src_grid.get_points('bottom')
+        if not bottom_points:
+            return None
+
+        candidate_indices = self._build_spaced_indices(len(bottom_points), max(1, sibling_count))
+        if not candidate_indices:
+            return None
+
+        preferred_index = candidate_indices[min(sibling_idx, len(candidate_indices) - 1)]
+        preferred_point = src_grid.get_point('bottom', preferred_index)
+
+        if preferred_point and (source_name, 'bottom', preferred_point.index) not in used_points:
+            return preferred_point
+
+        # Fallback: nearest available candidate by index distance.
+        available: List[ConnectionPoint] = []
+        for idx in candidate_indices:
+            pt = src_grid.get_point('bottom', idx)
+            if pt and (source_name, 'bottom', pt.index) not in used_points:
+                available.append(pt)
+
+        if not available:
+            for pt in bottom_points:
+                if src_grid.is_corner_point('bottom', pt.index):
+                    continue
+                if (source_name, 'bottom', pt.index) in used_points:
+                    continue
+                available.append(pt)
+
+        if not available:
+            return None
+
+        return min(available, key=lambda pt: abs(pt.index - preferred_index))
     
     def plan_connectors(self):
         """Plan all connectors: assign connection points and calculate routes.
@@ -338,6 +464,9 @@ class ConnectorPlanner:
         - Corner points (index 1 and last on each edge) are reserved (non-connector zones)
         - Use the connection point closest to the object connected to
         """
+        # Reset occupancy map each planning run.
+        self._occupied_connector_cells = {}
+
         # Step 1: Calculate distances (using center-to-center for initial estimate)
         for connector in self.connectors:
             src_grid = self.grids[connector.source_name]
@@ -354,7 +483,15 @@ class ConnectorPlanner:
             connector.target_y = tgt_cy
         
         # Step 2 & 3: Sort and assign points
-        self.connectors.sort(key=lambda c: c.calculate_distance())
+        hierarchy_order = self._ordered_hierarchy_connectors()
+        self.connectors.sort(
+            key=lambda c: (
+                0 if id(c) in hierarchy_order else 1,
+                c.source_name,
+                hierarchy_order.get(id(c), (0, 0))[0],
+                c.calculate_distance()
+            )
+        )
         
         # Track used points: (box_name, edge, index) -> ('outgoing'|'incoming')
         used_points: Dict[Tuple[str, str, int], str] = {}
@@ -372,11 +509,18 @@ class ConnectorPlanner:
             src_cy = connector.source_y
             
             # Select exit and entry edges based on target direction
-            exit_edge = self._select_exit_edge(src_grid, tgt_grid)
-            entry_edge = self._get_opposite_edge(exit_edge)
+            is_hierarchy = id(connector) in hierarchy_order
+            if is_hierarchy:
+                exit_edge = 'bottom'
+                entry_edge = 'top'
+            else:
+                exit_edge = self._select_exit_edge(src_grid, tgt_grid, connector.arrow_type)
+                entry_edge = self._get_opposite_edge(exit_edge)
             
             # For orthogonal routing: try to find aligned connection points first
-            if self.routing_mode == "orthogonal":
+            # Hierarchy connectors intentionally skip this shortcut so left-to-right
+            # bottom-edge assignment remains deterministic.
+            if self.routing_mode == "orthogonal" and not is_hierarchy:
                 src_pt, tgt_pt = self._find_aligned_connection_points(src_grid, tgt_grid, exit_edge, entry_edge, used_points, connector.source_name, connector.target_name)
                 
                 if src_pt and tgt_pt:
@@ -395,22 +539,33 @@ class ConnectorPlanner:
                     
                     # Route and skip to next connector
                     self._route_connector(connector)
+                    self._register_connector_occupancy(connector)
                     continue
             
             # Standard (non-aligned) point selection
-            # Assign outgoing point: find closest to target on exit_edge
+            # Assign outgoing point: hierarchy uses deterministic left-to-right bottom points.
             src_pt = None
             best_dist = float('inf')
-            for pt in src_grid.get_points(exit_edge):
-                if src_grid.is_corner_point(exit_edge, pt.index):
-                    continue
-                if (connector.source_name, exit_edge, pt.index) in used_points:
-                    continue
-                # Calculate distance from this point to target center
-                dist = (pt.x - tgt_cx)**2 + (pt.y - tgt_cy)**2
-                if dist < best_dist:
-                    best_dist = dist
-                    src_pt = pt
+            if is_hierarchy:
+                sibling_idx, sibling_count = hierarchy_order[id(connector)]
+                src_pt = self._select_hierarchy_source_point(
+                    src_grid,
+                    sibling_idx,
+                    sibling_count,
+                    used_points,
+                    connector.source_name
+                )
+            else:
+                for pt in src_grid.get_points(exit_edge):
+                    if src_grid.is_corner_point(exit_edge, pt.index):
+                        continue
+                    if (connector.source_name, exit_edge, pt.index) in used_points:
+                        continue
+                    # Calculate distance from this point to target center
+                    dist = (pt.x - tgt_cx)**2 + (pt.y - tgt_cy)**2
+                    if dist < best_dist:
+                        best_dist = dist
+                        src_pt = pt
             
             if src_pt:
                 connector.source_edge = exit_edge
@@ -422,16 +577,28 @@ class ConnectorPlanner:
             # Assign incoming point: find closest to source on entry_edge
             tgt_pt = None
             best_dist = float('inf')
-            for pt in tgt_grid.get_points(entry_edge):
-                if tgt_grid.is_corner_point(entry_edge, pt.index):
-                    continue
-                if (connector.target_name, entry_edge, pt.index) in used_points:
-                    continue
-                # Calculate distance from this point to source center
-                dist = (pt.x - src_cx)**2 + (pt.y - src_cy)**2
-                if dist < best_dist:
-                    best_dist = dist
-                    tgt_pt = pt
+            if is_hierarchy and src_pt is not None:
+                # Keep the first branch as vertical as possible by aligning target top point to source X.
+                for pt in tgt_grid.get_points(entry_edge):
+                    if tgt_grid.is_corner_point(entry_edge, pt.index):
+                        continue
+                    if (connector.target_name, entry_edge, pt.index) in used_points:
+                        continue
+                    dist = abs(pt.x - src_pt.x)
+                    if dist < best_dist:
+                        best_dist = dist
+                        tgt_pt = pt
+            else:
+                for pt in tgt_grid.get_points(entry_edge):
+                    if tgt_grid.is_corner_point(entry_edge, pt.index):
+                        continue
+                    if (connector.target_name, entry_edge, pt.index) in used_points:
+                        continue
+                    # Calculate distance from this point to source center
+                    dist = (pt.x - src_cx)**2 + (pt.y - src_cy)**2
+                    if dist < best_dist:
+                        best_dist = dist
+                        tgt_pt = pt
             
             if tgt_pt:
                 connector.target_edge = entry_edge
@@ -443,6 +610,121 @@ class ConnectorPlanner:
             # Determine if we need multi-segment routing
             # Use multi-segment when source and target are not aligned on primary axis
             self._route_connector(connector)
+            self._register_connector_occupancy(connector)
+
+    def _to_grid_cell(self, x: float, y: float) -> Tuple[int, int]:
+        """Convert SVG coordinates to connector occupancy grid coordinates."""
+        gx = int(round(x / self._grid_cell_width))
+        gy = int(round(y / self._grid_cell_height))
+        return (gx, gy)
+
+    def _collect_segment_cells(self, x1: float, y1: float, x2: float, y2: float, axis: str) -> Set[Tuple[int, int, str]]:
+        """Collect occupied grid cells for a segment using axis-aware keys."""
+        cells: Set[Tuple[int, int, str]] = set()
+        dx = x2 - x1
+        dy = y2 - y1
+        segment_len = max(abs(dx), abs(dy))
+        if segment_len < 0.001:
+            gx, gy = self._to_grid_cell(x1, y1)
+            cells.add((gx, gy, axis))
+            return cells
+
+        sample_step = max(self._grid_cell_width / 2, 8)
+        samples = max(int(segment_len / sample_step), 1)
+        for idx in range(samples + 1):
+            t = idx / samples
+            sx = x1 + dx * t
+            sy = y1 + dy * t
+            gx, gy = self._to_grid_cell(sx, sy)
+            cells.add((gx, gy, axis))
+        return cells
+
+    def _collect_path_cells(self, path_points: List[Tuple[float, float]]) -> Set[Tuple[int, int, str]]:
+        """Collect occupied grid cells for an orthogonal path.
+
+        Same-axis overlap in the same cell is considered a routing conflict.
+        Perpendicular intersections remain valid because axis is part of the key.
+        """
+        cells: Set[Tuple[int, int, str]] = set()
+        for idx in range(len(path_points) - 1):
+            x1, y1 = path_points[idx]
+            x2, y2 = path_points[idx + 1]
+            if abs(y2 - y1) <= 1:
+                axis = 'h'
+            elif abs(x2 - x1) <= 1:
+                axis = 'v'
+            else:
+                # Diagonal fallback: mark both axes to avoid unsafe re-use.
+                cells.update(self._collect_segment_cells(x1, y1, x2, y2, 'h'))
+                cells.update(self._collect_segment_cells(x1, y1, x2, y2, 'v'))
+                continue
+            cells.update(self._collect_segment_cells(x1, y1, x2, y2, axis))
+        return cells
+
+    def _count_path_overlaps(self, path_points: List[Tuple[float, float]]) -> int:
+        """Count how many occupied connector cells this path would re-use."""
+        overlaps = 0
+        for cell_key in self._collect_path_cells(path_points):
+            overlaps += self._occupied_connector_cells.get(cell_key, 0)
+        return overlaps
+
+    def _register_connector_occupancy(self, connector: ConnectorPath):
+        """Register routed connector cells so later connectors can avoid overlaps."""
+        if connector.path_type == "multi_segment" and connector.segments:
+            path_points = [(connector.source_x, connector.source_y)] + connector.segments + [(connector.target_x, connector.target_y)]
+        else:
+            path_points = [(connector.source_x, connector.source_y), (connector.target_x, connector.target_y)]
+
+        for cell_key in self._collect_path_cells(path_points):
+            self._occupied_connector_cells[cell_key] = self._occupied_connector_cells.get(cell_key, 0) + 1
+
+    def _choose_best_orthogonal_segments(self, connector: ConnectorPath, mode: str) -> List[Tuple[float, float]]:
+        """Pick orthogonal segments that minimize same-axis grid-cell overlap.
+
+        Args:
+            connector: Connector being routed
+            mode: 'vhv' or 'hvh'
+        """
+        x1, y1 = connector.source_x, connector.source_y
+        x2, y2 = connector.target_x, connector.target_y
+
+        best_segments: List[Tuple[float, float]] = []
+        best_score = float('inf')
+        track_step = self._grid_cell_height / 2 if mode == 'vhv' else self._grid_cell_width / 2
+
+        for track_idx in [0, 1, -1, 2, -2, 3, -3]:
+            if mode == 'vhv':
+                mid = (y1 + y2) / 2 + track_idx * track_step
+                candidate_segments = [
+                    (x1, mid),
+                    (x2, mid),
+                    (x2, y2)
+                ]
+            else:
+                mid = (x1 + x2) / 2 + track_idx * track_step
+                candidate_segments = [
+                    (mid, y1),
+                    (mid, y2),
+                    (x2, y2)
+                ]
+
+            path_points = [(x1, y1)] + candidate_segments + [(x2, y2)]
+            overlap_penalty = self._count_path_overlaps(path_points)
+            obstacle_penalty = self._detect_obstacles_on_path(
+                connector.source_name,
+                connector.target_name,
+                path_points
+            )
+            score = overlap_penalty * 1000 + obstacle_penalty * 10 + abs(track_idx)
+
+            if score < best_score:
+                best_score = score
+                best_segments = candidate_segments
+
+            if overlap_penalty == 0 and obstacle_penalty == 0 and track_idx == 0:
+                break
+
+        return best_segments
     
     def _route_connector(self, connector: ConnectorPath):
         """Calculate the path for a connector based on routing mode.
@@ -524,6 +806,8 @@ class ConnectorPlanner:
            - If Y coordinates match → direct horizontal line
            - If X coordinates match → direct vertical line
         2. ONLY IF NOT ALIGNED: Create V-H-V or H-V-H multi-segment paths
+           - CONSTRAINED by source_edge: if exits from top/bottom, must use V-H-V
+           - If exits from left/right, must use H-V-H
         
         This ensures grid-aligned objects use direct routing without unnecessary bends.
         """
@@ -557,25 +841,22 @@ class ConnectorPlanner:
         if dx < 10 and dy < 10:
             # Source and target are very close - just use direct diagonal
             connector.path_type = "direct"
-        elif dx < dy:
-            # More vertical than horizontal: V-H-V routing
-            # Go vertical first, then horizontal, then vertical to target
-            mid_y = (y1 + y2) / 2
-            connector.segments = [
-                (x1, mid_y),    # Vertical segment to middle Y
-                (x2, mid_y),    # Horizontal segment to target X
-                (x2, y2)        # Vertical segment to target
-            ]
-            connector.path_type = "multi_segment"
         else:
-            # More horizontal than vertical: H-V-H routing
-            # Go horizontal first, then vertical, then horizontal to target
-            mid_x = (x1 + x2) / 2
-            connector.segments = [
-                (mid_x, y1),    # Horizontal segment to middle X
-                (mid_x, y2),    # Vertical segment to target Y
-                (x2, y2)        # Horizontal segment to target
-            ]
+            # CONSTRAIN routing by exit edge
+            src_edge = connector.source_edge
+            
+            # If exiting from top/bottom, MUST use V-H-V routing (vertical first)
+            if src_edge in ['top', 'bottom']:
+                connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
+            # If exiting from left/right, MUST use H-V-H routing (horizontal first)
+            elif src_edge in ['left', 'right']:
+                connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+            else:
+                # Fallback: use coordinate-based routing
+                if dx < dy:
+                    connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
+                else:
+                    connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
             connector.path_type = "multi_segment"
     
     def _route_connector_mixed(self, connector: ConnectorPath):
