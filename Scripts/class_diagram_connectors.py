@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional, Set
 import math
 
+GRID_CELL_SIZE_PX = 20
+
 
 @dataclass
 class ConnectionPoint:
@@ -57,33 +59,33 @@ class RectangleGrid:
         Corner points (indices 1 and last on each edge) are reserved as non-connector zones.
         """
         # Top edge (y = self.y, x varies)
-        # 7 total points, indices 1-7, but corners (1 and 7) are non-connector zones
-        num_horizontal = 7
+        # Grid columns are derived from fixed-size square cells.
+        num_horizontal = max(3, int(round(self.width / GRID_CELL_SIZE_PX)))
         self._points_top = []
         for i in range(1, num_horizontal + 1):
-            x = self.x + (i - 1) * self.width / (num_horizontal - 1)
+            x = self.x + (i - 1) * GRID_CELL_SIZE_PX
             pt = ConnectionPoint(edge='top', index=i, x=x, y=self.y)
             self._points_top.append(pt)
         
         # Bottom edge (y = self.y + height, x varies)
         self._points_bottom = []
         for i in range(1, num_horizontal + 1):
-            x = self.x + (i - 1) * self.width / (num_horizontal - 1)
+            x = self.x + (i - 1) * GRID_CELL_SIZE_PX
             pt = ConnectionPoint(edge='bottom', index=i, x=x, y=self.y + self.height)
             self._points_bottom.append(pt)
         
         # Left edge (x = self.x, y varies)
-        num_vertical = max(3, int(self.height / 20))  # ~20px per point
+        num_vertical = max(3, int(round(self.height / GRID_CELL_SIZE_PX)))
         self._points_left = []
         for i in range(1, num_vertical + 1):
-            y = self.y + (i - 1) * self.height / (num_vertical - 1)
+            y = self.y + (i - 1) * GRID_CELL_SIZE_PX
             pt = ConnectionPoint(edge='left', index=i, x=self.x, y=y)
             self._points_left.append(pt)
         
         # Right edge (x = self.x + width, y varies)
         self._points_right = []
         for i in range(1, num_vertical + 1):
-            y = self.y + (i - 1) * self.height / (num_vertical - 1)
+            y = self.y + (i - 1) * GRID_CELL_SIZE_PX
             pt = ConnectionPoint(edge='right', index=i, x=self.x + self.width, y=y)
             self._points_right.append(pt)
     

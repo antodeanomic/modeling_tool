@@ -27,6 +27,7 @@ ROW_HEIGHT = 18  # Line height for members/functions
 CLASS_SPACING_X = 60  # Horizontal gap between class boxes
 CLASS_SPACING_Y = 50  # Vertical gap between rows of classes
 GRID_BLOCK_HEIGHT = 40  # Grid block height (boxes sized in multiples of this)
+GRID_CELL_SIZE_PX = 20  # Mandatory object grid cell size (square)
 MARGIN = 40
 ARROW_SIZE = 10  # Arrowhead size
 DIAMOND_SIZE = 10  # Diamond marker size
@@ -263,6 +264,12 @@ def _snap_height_to_grid(height: float) -> float:
     return blocks * GRID_BLOCK_HEIGHT
 
 
+def _snap_width_to_grid(width: float) -> float:
+    """Snap box width to fixed-size object grid cells (20px per column)."""
+    import math
+    return math.ceil(width / GRID_CELL_SIZE_PX) * GRID_CELL_SIZE_PX
+
+
 def _measure_text(text, font_size=FONT_SIZE):
     """Estimate text width in pixels."""
     char_w = CHAR_WIDTH if font_size == FONT_SIZE else MEMBER_CHAR_WIDTH
@@ -332,7 +339,8 @@ def _compute_class_box_size(class_name, class_def, verbosity="High", element_typ
     if element_type == "component":
         max_width += 20  # Space for component icon
     
-    return max_width, _snap_height_to_grid(height), has_members, has_functions
+    snapped_width = _snap_width_to_grid(max_width)
+    return snapped_width, _snap_height_to_grid(height), has_members, has_functions
 
 
 def _get_relationship_type(arrow):
@@ -628,224 +636,269 @@ def _calculate_abstraction_level(diagram):
     return levels
 
 
-def _layout_classes_tree_based(diagram, model, verbosity="High"):
-    """Compute positions using level-based tree hierarchical layout.
-    
-    Layout Strategy:
-    1. Calculate abstraction level for each class
-    2. Group classes by level (level 0 at top, increasing downward)
-    3. Within each level, organize into tree groups (ownership trees)
-    4. Position trees horizontally in 2x2 grid blocks
-    
-    Returns dict: class_name -> {x, y, width, height, has_members, has_functions, class_def, element_type}
-    """
-    # Collect unique class names
+# ---------------------------------------------------------------------------
+# Layout helpers: tree-centered iterative layout
+# ---------------------------------------------------------------------------
+
+def _collect_and_size_classes(diagram, model, verbosity):
+    """Collect all class names from diagram relationships and compute their box sizes."""
     class_names = []
     seen = set()
     for rel in diagram.relationships:
-        if rel.source not in seen:
-            class_names.append(rel.source)
-            seen.add(rel.source)
-        if rel.target not in seen:
-            class_names.append(rel.target)
-            seen.add(rel.target)
-    
-    if not class_names:
-        return {}
-    
-    # Compute sizes for each class
+        for nm in (rel.source, rel.target):
+            if nm not in seen:
+                class_names.append(nm)
+                seen.add(nm)
+
     boxes = {}
     for name in class_names:
         class_def = model.get_class(name)
         element_type = diagram.element_types.get(name, "class")
         w, h, has_m, has_f = _compute_class_box_size(name, class_def, verbosity, element_type)
         boxes[name] = {
-            'width': w,
-            'height': h,
-            'has_members': has_m,
-            'has_functions': has_f,
-            'class_def': class_def,
-            'element_type': element_type,
+            'width': w, 'height': h,
+            'has_members': has_m, 'has_functions': has_f,
+            'class_def': class_def, 'element_type': element_type,
         }
-    
-    # Calculate abstraction levels (0 = most general, highest = most specific)
-    levels = _calculate_abstraction_level(diagram)
-    
-    if verbosity != "High":
-        print(f"DEBUG: Calculated levels = {levels}")
-    
-    # Build ownership trees
-    trees = _build_ownership_trees(diagram)
-    
-    # Spacing parameters
-    required_spacing = _calculate_required_spacing(diagram, verbosity)
-    spacing_x = max(required_spacing, CLASS_SPACING_X + (15 if verbosity != "High" else 30))
-    spacing_y = CLASS_SPACING_Y + (10 if verbosity != "High" else 15)
-    
-    # Group classes by level
+    return class_names, boxes
+
+
+def _build_spanning_forest(diagram, levels):
+    """Build a spanning forest for tree-centered layout.
+
+    For each relationship where source.level != target.level the lower-level
+    node is the parent and the higher-level node is the child.  Each child is
+    claimed by the first parent encountered so every node appears in at most
+    one subtree.
+
+    Returns:
+        parent_children   - {parent: [children, ...]}
+        claimed_children  - set of nodes that have been assigned a parent
+    """
+    parent_children = {}
+    claimed_children = set()
+
+    for rel in diagram.relationships:
+        s_lvl = levels.get(rel.source, 0)
+        t_lvl = levels.get(rel.target, 0)
+        if s_lvl < t_lvl:
+            parent, child = rel.source, rel.target
+        elif t_lvl < s_lvl:
+            parent, child = rel.target, rel.source
+        else:
+            continue  # same level - no parent-child relationship for layout
+
+        if child not in claimed_children:
+            parent_children.setdefault(parent, [])
+            if child not in parent_children[parent]:
+                parent_children[parent].append(child)
+            claimed_children.add(child)
+
+    return parent_children, claimed_children
+
+
+def _aligned_tree_layout(class_names, boxes, levels, parent_children,
+                         claimed_children, base_sx, spacing_y, diagram):
+    """Top-left anchored tree layout with iterative spacing refinement.
+
+    Algorithm
+    ---------
+    1. Place objects in fixed horizontal level-bands (same Y for each level).
+    2. Keep the hierarchy root at the top-left and layout each subtree from
+       left-to-right (tree view format is mandatory).
+    3. Detect same-level overlaps and connectors whose horizontal segment
+       would pass through another box.
+    4. If conflicts exist, widen the horizontal spacing and redo (max 3 passes).
+    """
+    # Group by level
     level_groups = {}
     for cls in class_names:
-        level = levels.get(cls, 0)
-        if level not in level_groups:
-            level_groups[level] = []
-        level_groups[level].append(cls)
-    
-    # Pre-calculate Y positions for each level (level 0 at top, higher levels below)
-    level_positions = {}
-    current_y = MARGIN
-    for level_num in sorted(level_groups.keys()):
-        level_positions[level_num] = current_y
-        # Height of all classes at this level
-        level_height = max(boxes[c]['height'] for c in level_groups[level_num])
-        current_y += level_height + spacing_y * 2
-    
-    # Position classes level by level
-    positions = {}
-    
-    for level_num in sorted(level_groups.keys()):
-        classes_at_level = level_groups[level_num]
-        level_y = level_positions[level_num]
-        
-        # For each level, organize into trees and position horizontally
-        # Each tree has a root that owns other classes at this or lower levels
-        
-        current_x = MARGIN
-        row_y = level_y  # Track row within this level (for wrapping)
-        row_height = 0
-        
-        for class_name in classes_at_level:
-            # Position this class at current location
-            positions[class_name] = {
-                'x': current_x,
-                'y': row_y,
-                'width': boxes[class_name]['width'],
-                'height': boxes[class_name]['height'],
-                'has_members': boxes[class_name]['has_members'],
-                'has_functions': boxes[class_name]['has_functions'],
-                'class_def': boxes[class_name]['class_def'],
-                'element_type': boxes[class_name]['element_type'],
+        level_groups.setdefault(levels.get(cls, 0), []).append(cls)
+
+    def make_level_y():
+        ly = {}
+        cy = MARGIN
+        for lvl in sorted(level_groups):
+            ly[lvl] = cy
+            cy += max(boxes[c]['height'] for c in level_groups[lvl]) + spacing_y
+        return ly
+
+    def do_layout(sx):
+        """One full top-left anchored placement pass with spacing sx."""
+        level_y = make_level_y()
+        memo = {}
+
+        def sw(name):
+            """Minimum width needed to contain name's entire subtree."""
+            if name in memo:
+                return memo[name]
+            children = parent_children.get(name, [])
+            if not children:
+                v = boxes[name]['width']
+            else:
+                v = max(boxes[name]['width'],
+                        sum(sw(c) for c in children) + sx * (len(children) - 1))
+            memo[name] = v
+            return v
+
+        out = {}
+
+        def place(name, left_x):
+            """Place name at left_x, then place children left-to-right below it."""
+            lvl = levels.get(name, 0)
+            out[name] = {
+                'x':          left_x,
+                'y':          level_y.get(lvl, MARGIN),
+                'width':      boxes[name]['width'],
+                'height':     boxes[name]['height'],
+                'has_members':  boxes[name]['has_members'],
+                'has_functions': boxes[name]['has_functions'],
+                'class_def':  boxes[name]['class_def'],
+                'element_type': boxes[name]['element_type'],
             }
-            
-            row_height = max(row_height, boxes[class_name]['height'])
-            current_x += boxes[class_name]['width'] + spacing_x
-            
-            # Wrap to next row if too wide (but stay within same level row)
-            if current_x > MARGIN + 1200:
-                current_x = MARGIN
-                row_y += row_height + spacing_y
-                row_height = 0
-    
+            children = parent_children.get(name, [])
+            if not children:
+                return
+            xl = left_x
+            for child in children:
+                csw = sw(child)
+                place(child, xl)
+                xl += csw + sx
+
+        # Place each root tree left-to-right
+        roots = [c for c in class_names if c not in claimed_children]
+        cur_x = MARGIN
+        for root in roots:
+            root_sw = sw(root)
+            place(root, cur_x)
+            cur_x += root_sw + sx
+
+        # Orphaned nodes not reached by any tree
+        for cls in class_names:
+            if cls not in out:
+                lvl = levels.get(cls, 0)
+                out[cls] = {
+                    'x':          cur_x,
+                    'y':          level_y.get(lvl, MARGIN),
+                    'width':      boxes[cls]['width'],
+                    'height':     boxes[cls]['height'],
+                    'has_members':  boxes[cls]['has_members'],
+                    'has_functions': boxes[cls]['has_functions'],
+                    'class_def':  boxes[cls]['class_def'],
+                    'element_type': boxes[cls]['element_type'],
+                }
+                cur_x += boxes[cls]['width'] + sx
+        return out
+
+    # ----- Phase 1: initial placement -----
+    current_sx = base_sx
+    positions = do_layout(current_sx)
+
+    # ----- Phases 2-4: iterative refinement -----
+    MAX_ITER = 3
+    for _iter in range(MAX_ITER):
+        extra_needed = 0.0
+
+        # Check 1: same-level boxes that are too close together (or overlapping)
+        level_nodes = {}
+        for cls, pos in positions.items():
+            level_nodes.setdefault(levels.get(cls, 0), []).append((cls, pos))
+
+        for lvl, lnodes in level_nodes.items():
+            lnodes.sort(key=lambda t: t[1]['x'])
+            for i in range(len(lnodes) - 1):
+                _, a = lnodes[i]
+                _, b = lnodes[i + 1]
+                gap = b['x'] - (a['x'] + a['width'])
+                if gap < current_sx * 0.5:
+                    extra_needed = max(extra_needed, current_sx * 0.5 - gap + 20)
+
+        # Check 2: connector horizontal mid-segments blocked by an intermediate box
+        for rel in diagram.relationships:
+            sp = positions.get(rel.source)
+            tp = positions.get(rel.target)
+            if not sp or not tp:
+                continue
+            if sp['y'] >= tp['y']:
+                continue  # same-level or upward – skip
+            s_cx = sp['x'] + sp['width'] / 2
+            t_cx = tp['x'] + tp['width'] / 2
+            if abs(s_cx - t_cx) < 5:
+                continue  # nearly-vertical connector needs no horizontal segment
+            mid_y = (sp['y'] + sp['height'] + tp['y']) / 2
+            x_lo = min(s_cx, t_cx) - 5
+            x_hi = max(s_cx, t_cx) + 5
+            for obs_cls, obs in positions.items():
+                if obs_cls in (rel.source, rel.target):
+                    continue
+                if (obs['y'] < mid_y < obs['y'] + obs['height'] and
+                        obs['x'] < x_hi and obs['x'] + obs['width'] > x_lo):
+                    extra_needed = max(extra_needed, current_sx * 0.25 + 15)
+
+        if extra_needed < 5:
+            break  # converged
+
+        current_sx += extra_needed
+        positions = do_layout(current_sx)
+
     return positions
+
+
+def _layout_classes_tree_based(diagram, model, verbosity="High"):
+    """Tree-centered layout for diagonal/mixed routing.
+
+    Parents are centred directly above their children subtrees so that
+    hierarchy connectors run in straight vertical (or near-vertical) lines
+    instead of long diagonals.  An iterative spacing pass widens the layout
+    when connectors would otherwise route through other boxes.
+    """
+    class_names, boxes = _collect_and_size_classes(diagram, model, verbosity)
+    if not class_names:
+        return {}
+
+    levels = _calculate_abstraction_level(diagram)
+    if verbosity != "High":
+        print(f"DEBUG: Calculated levels = {levels}")
+
+    parent_children, claimed_children = _build_spanning_forest(diagram, levels)
+
+    required_spacing = _calculate_required_spacing(diagram, verbosity)
+    spacing_x = max(required_spacing, CLASS_SPACING_X + 30)
+    spacing_y = CLASS_SPACING_Y + 15
+
+    return _aligned_tree_layout(
+        class_names, boxes, levels, parent_children, claimed_children,
+        spacing_x, spacing_y, diagram
+    )
 
 
 def _layout_classes_orthogonal(diagram, model, verbosity="High"):
-    """Layout for orthogonal (right-angle) routing with grid-aligned objects.
-    
-    Objects are positioned on a grid where:
-    - Connected objects tend to share X or Y coordinates
-    - Reduces multi-segment connectors to direct H or V lines
-    - Uses hierarchical levels with column-based positioning
-    
+    """Tree-centered layout for orthogonal (right-angle) routing.
+
+    Parents are centred directly above their children subtrees so that
+    hierarchy connectors become straight vertical lines.  Extra horizontal
+    spacing accommodates the side-track segments needed for right-angle
+    routing.  An iterative refinement pass widens the layout further when
+    connector horizontal segments would otherwise pass through other boxes.
+
     Returns dict: class_name -> {x, y, width, height, ...}
     """
-    # Collect unique class names
-    class_names = []
-    seen = set()
-    for rel in diagram.relationships:
-        if rel.source not in seen:
-            class_names.append(rel.source)
-            seen.add(rel.source)
-        if rel.target not in seen:
-            class_names.append(rel.target)
-            seen.add(rel.target)
-    
+    class_names, boxes = _collect_and_size_classes(diagram, model, verbosity)
     if not class_names:
         return {}
-    
-    # Compute sizes for each class
-    boxes = {}
-    for name in class_names:
-        class_def = model.get_class(name)
-        element_type = diagram.element_types.get(name, "class")
-        w, h, has_m, has_f = _compute_class_box_size(name, class_def, verbosity, element_type)
-        boxes[name] = {
-            'width': w,
-            'height': h,
-            'has_members': has_m,
-            'has_functions': has_f,
-            'class_def': class_def,
-            'element_type': element_type,
-        }
-    
-    # Calculate abstraction levels (depth from leaves)
+
     levels = _calculate_abstraction_level(diagram)
-    
-    # Spacing parameters
+    parent_children, claimed_children = _build_spanning_forest(diagram, levels)
+
     required_spacing = _calculate_required_spacing(diagram, verbosity)
-    # For orthogonal, use more spacing to accommodate grid alignment
+    # Extra spacing compared to diagonal mode to accommodate routing tracks
     spacing_x = max(required_spacing, CLASS_SPACING_X + 40)
     spacing_y = CLASS_SPACING_Y + 30
-    
-    # Pre-calculate fixed grid column positions based on max width at each level
-    level_groups = {}
-    for cls in class_names:
-        level = levels.get(cls, 0)
-        if level not in level_groups:
-            level_groups[level] = []
-        level_groups[level].append(cls)
-    
-    # Pre-calculate column widths (max width of any box at that level + spacing)
-    column_widths = {}
-    for level_num in level_groups:
-        max_width = max(boxes[c]['width'] for c in level_groups[level_num])
-        column_widths[level_num] = max_width + spacing_x
-    
-    # Pre-calculate Y positions for each level (fixed grid rows)
-    level_positions = {}
-    current_y = MARGIN
-    for level_num in sorted(level_groups.keys()):
-        level_positions[level_num] = current_y
-        # All boxes at this level share the same Y coordinate (grid row alignment)
-        level_height = max(boxes[c]['height'] for c in level_groups[level_num])
-        current_y += level_height + spacing_y
-    
-    # Position classes on the grid
-    positions = {}
-    level_x_offset = {}  # Track X offset for next object at each level
-    
-    for level_num in sorted(level_groups.keys()):
-        classes_at_level = level_groups[level_num]
-        level_y = level_positions[level_num]
-        
-        if level_num not in level_x_offset:
-            level_x_offset[level_num] = MARGIN
-        
-        current_x = level_x_offset[level_num]
-        
-        for class_name in classes_at_level:
-            # Position this class at fixed grid aligned to level's Y
-            positions[class_name] = {
-                'x': current_x,
-                'y': level_y,
-                'width': boxes[class_name]['width'],
-                'height': boxes[class_name]['height'],
-                'has_members': boxes[class_name]['has_members'],
-                'has_functions': boxes[class_name]['has_functions'],
-                'class_def': boxes[class_name]['class_def'],
-                'element_type': boxes[class_name]['element_type'],
-            }
-            
-            # Move to next X position (grid column)
-            current_x += boxes[class_name]['width'] + spacing_x
-            
-            # Wrap to next row if too wide
-            if current_x > MARGIN + 1400:
-                current_x = MARGIN
-                level_y += boxes[class_name]['height'] + spacing_y
-        
-        level_x_offset[level_num] = current_x
-    
-    return positions
+
+    return _aligned_tree_layout(
+        class_names, boxes, levels, parent_children, claimed_children,
+        spacing_x, spacing_y, diagram
+    )
 
 
 def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="diagonal"):

@@ -1,0 +1,12 @@
+Testing routing-aware layout selection...
+Diagram: DataModelRelationships
+Routing mode: orthogonal
+
+1. Testing orthogonal layout...
+   [OK] Orthogonal layout produced 13 objects
+   [OK] Objects on 4 grid rows
+
+2. Testing diagonal layout...
+   [OK] Diagonal layout produced 13 objects
+
+[SUCCESS] Routing-aware layout working!

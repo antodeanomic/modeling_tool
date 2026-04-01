@@ -24,7 +24,7 @@ Text              Routing
 '1'                            |
 'owns'                         +--+
 '0.*'                             |
-                                  ◆
+                                   ◆
 
 
 ==================================================================================================================================
@@ -108,4 +108,3 @@ KEY RULES ENFORCED:
 5. Empty text lines (for endpoints and intermediate segments) use blank left column
 6. '+' marks show corners and MUST ALIGN with vertical '|' and horizontal '-' lines
 7. Alignment is critical: ASCII routing reflects segment positions relative to text
-
