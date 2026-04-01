@@ -47,8 +47,9 @@ Structure_0002;Feature;Requirement;Render UML Class elements with name/attribute
 Structure_0003;Feature;Requirement;Render UML Component elements with component stereotype and ports;-;Structure_0001;Proposed
 Structure_0004;Feature;Requirement;Render UML Package elements as tabbed folders containing other elements;-;Structure_0001;Proposed
 Structure_0005;Feature;Requirement;Render UML Object elements with name:Type underlined header and slot values;-;Structure_0001;Proposed
-Structure_0006;Feature;Requirement;Support layer filtering by element type or custom grouping in Structure diagrams;-;"Structure_0001;Diagram_0001";Proposed
-Structure_0007;Feature;Requirement;Support verbosity levels in Structure diagrams controlling attribute/operation visibility;-;"Structure_0001;Diagram_0002";Proposed
+Structure_0006;Feature;Requirement;Support layer filtering by element type or custom grouping in Structure diagrams;-;"Structure_0001;Diagram_0001";ProposedStructure_0007;Constraint;Requirement;Class diagram grid cells must be fixed 20px x 20px squares (monospace 2-character width/height equivalence);Structure_0001;Implemented
+Structure_0008;Constraint;Requirement;Class diagram layout must use top-left anchored tree-view (not centered) for hierarchical object relationships;Structure_0001;Implemented
+Structure_0009;Constraint;Requirement;Hierarchy connectors must avoid corner grid cells (indices 1 and last on each edge) to prevent visual ambiguity;Structure_0001;ImplementedStructure_0007;Feature;Requirement;Support verbosity levels in Structure diagrams controlling attribute/operation visibility;-;"Structure_0001;Diagram_0002";Proposed
 Connector_0001;System;Requirement;Support configurable connector routing styles for relationship lines;-;"Connector_0002;Connector_0003;Connector_0004";Proposed
 Connector_0002;Feature;Requirement;Support diagonal (straight-line) connectors between elements;-;Connector_0001;Implemented
 Connector_0002a;Component;Requirement;Diagonal connectors render text (labels & multiplicity) along connector line with proper spacing and wrapping;-;Connector_0002;In Progress
