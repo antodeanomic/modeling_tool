@@ -933,11 +933,8 @@ def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="diag
     Returns:
         Dictionary of class positions
     """
-    if routing == "orthogonal":
-        return _layout_classes_orthogonal(diagram, model, verbosity)
-    else:
-        # Use tree-based layout for diagonal and mixed routing
-        return _layout_classes_tree_based(diagram, model, verbosity)
+    # Temporary policy: class diagrams use orthogonal routing only.
+    return _layout_classes_orthogonal(diagram, model, verbosity)
 
 
 def _layout_classes(diagram, model, verbosity="High"):
@@ -2022,7 +2019,8 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     
     # Layout class boxes using routing-aware positioning
     # Orthogonal routing uses grid-aligned layout, diagonal uses tree-based layout
-    boxes = _layout_classes_uml_standard(filtered_diagram, model, verbosity_level, routing=filtered_diagram.routing)
+    effective_routing = "orthogonal"
+    boxes = _layout_classes_uml_standard(filtered_diagram, model, verbosity_level, routing=effective_routing)
     
     if not boxes:
         return _empty_svg(diagram.description or diagram.diagram_id)
@@ -2061,7 +2059,7 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
         box['y'] += title_height
     
     # Create connector planner with routing mode from diagram
-    planner = ConnectorPlanner(routing_mode=filtered_diagram.routing)
+    planner = ConnectorPlanner(routing_mode=effective_routing)
     for name, box in boxes.items():
         planner.add_rectangle(name, box['x'], box['y'], box['width'], box['height'])
     

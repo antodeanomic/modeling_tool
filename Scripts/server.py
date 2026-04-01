@@ -379,9 +379,8 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 if not class_diagram:
                     raise ValueError(f"Class diagram '{diagram_id}' not found")
                 
-                # Override routing if specified in the request
-                if routing and routing in {'diagonal', 'orthogonal', 'mixed'}:
-                    class_diagram.routing = routing
+                # Temporary policy: class diagrams are orthogonal-only.
+                class_diagram.routing = 'orthogonal'
                 
                 # Handle layers filter: if 'lanes' parameter is present (even if empty),
                 # treat it as an explicit filter. If absent, show all.

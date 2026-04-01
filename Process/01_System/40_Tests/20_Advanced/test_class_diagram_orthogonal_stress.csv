@@ -1,0 +1,90 @@
+Type;Name;Description
+# Orthogonal routing stress test focused on overlap pressure and connector label density
+Class;Gateway;Inbound API gateway
+    MemberVar;routes;Routing table
+    MemberVar;rateLimiter;Rate limiter state
+    Function;+dispatch();Route request to service
+Class;AuthService;Authentication and token validation
+    MemberVar;tokenStore;Token cache
+    Function;+validate();Validate identity
+Class;SessionStore;Session persistence
+    MemberVar;sessions;Session map
+    Function;+load();Load session
+    Function;+save();Save session
+Class;UserService;User profile and account data
+    MemberVar;repo;Repository link
+    Function;+getUser();Load user
+Class;OrderService;Order orchestration
+    MemberVar;queue;Background queue
+    Function;+createOrder();Create order
+Class;InventoryService;Inventory checks and reservations
+    MemberVar;stockCache;In-memory stock cache
+    Function;+reserve();Reserve quantity
+Class;PaymentService;Payment authorization
+    MemberVar;provider;Payment provider
+    Function;+authorize();Authorize payment
+Class;NotificationService;Event notifications
+    MemberVar;templates;Message templates
+    Function;+send();Send notification
+Class;AuditLog;Append-only audit records
+    MemberVar;entries;Audit entries
+    Function;+append();Append record
+Class;MetricsCollector;Operational metrics and counters
+    MemberVar;counters;Metric counters
+    Function;+record();Record measurement
+Class;RetryPolicy;Retry and backoff strategy
+    MemberVar;attempts;Retry attempts
+    Function;+nextDelay();Compute delay
+Class;CircuitBreaker;Failure isolation
+    MemberVar;state;Circuit state
+    Function;+allow();Check request permission
+Class;RequestDto;Incoming request payload
+Class;UserDto;User data payload
+Class;OrderDto;Order data payload
+Class;PaymentResult;Payment result payload
+Class;InventoryResult;Inventory result payload
+Class;NotificationEvent;Notification payload
+Class;AuditEvent;Audit payload
+Class;TraceContext;Correlation and trace identifiers
+
+ClassDiagram;OrthogonalStressDense;Dense right-angle routing stress test;routing=orthogonal
+    Gateway;AuthService;-->;1;1;auth;core
+    Gateway;UserService;-->;1;1;profile;core
+    Gateway;OrderService;-->;1;1;orders;core
+    Gateway;SessionStore;..>;;;session_lookup;core
+    Gateway;TraceContext;..>;;;trace;core
+
+    AuthService;SessionStore;..>;;;session_io;security
+    AuthService;UserService;..>;;;user_claims;security
+    AuthService;AuditLog;..>;;;audit_auth;security
+
+    OrderService;InventoryService;-->;1;1;reserve_stock;domain
+    OrderService;PaymentService;-->;1;1;charge;domain
+    OrderService;NotificationService;..>;;;notify_order;domain
+    OrderService;RetryPolicy;..>;;;retry_flow;domain
+    OrderService;CircuitBreaker;..>;;;resilience;domain
+
+    InventoryService;InventoryResult;◆--;1;1;produces;domain
+    PaymentService;PaymentResult;◆--;1;1;produces;domain
+    UserService;UserDto;◆--;1;1;produces;domain
+    OrderService;OrderDto;◆--;1;1;produces;domain
+
+    Gateway;RequestDto;◆--;1;1;accepts;edge
+    NotificationService;NotificationEvent;◆--;1;1;emits;edge
+    AuditLog;AuditEvent;◆--;1;1;emits;edge
+
+    PaymentService;AuditLog;..>;;;audit_payment;infrastructure
+    InventoryService;AuditLog;..>;;;audit_inventory;infrastructure
+    NotificationService;AuditLog;..>;;;audit_notify;infrastructure
+    MetricsCollector;AuditLog;..>;;;audit_metrics;infrastructure
+
+    Gateway;MetricsCollector;..>;;;metrics_in;observability
+    AuthService;MetricsCollector;..>;;;metrics_auth;observability
+    OrderService;MetricsCollector;..>;;;metrics_order;observability
+    PaymentService;MetricsCollector;..>;;;metrics_payment;observability
+    InventoryService;MetricsCollector;..>;;;metrics_inventory;observability
+    NotificationService;MetricsCollector;..>;;;metrics_notify;observability
+
+    RetryPolicy;CircuitBreaker;..>;;;backoff_state;resilience
+    CircuitBreaker;PaymentService;..>;;;guard_payment;resilience
+    CircuitBreaker;InventoryService;..>;;;guard_inventory;resilience

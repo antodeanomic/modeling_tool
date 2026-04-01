@@ -479,7 +479,7 @@
             sequence: '',          // selected sequence ID (for sequence diagrams)
             classDiagramId: '',    // selected class diagram ID
             verbosity: 'High',
-            routing: 'diagonal',   // 'diagonal', 'orthogonal', or 'mixed' for class diagrams
+            routing: 'orthogonal',   // temporary: class diagrams are orthogonal-only
             selectedLanes: [],
             allLanes: [],
             allDiagrams: [],       // aggregated from all CSVs
@@ -633,11 +633,9 @@
                 });
                 
                 // Populate routing options (once)
-                const routingModes = ["diagonal", "orthogonal", "mixed"];
+                const routingModes = ["orthogonal"];
                 const routingLabels = {
-                    "diagonal": "Diagonal Lines",
-                    "orthogonal": "Right Angles",
-                    "mixed": "Mixed"
+                    "orthogonal": "Right Angles (Temporary Default)"
                 };
                 routingModes.forEach(mode => {
                     const div = document.createElement('div');
