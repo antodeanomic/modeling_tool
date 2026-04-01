@@ -729,15 +729,27 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
         memo = {}
 
         def sw(name):
-            """Minimum width needed to contain name's entire subtree."""
+            """Occupied width of name's subtree using current sibling spacing rules."""
             if name in memo:
                 return memo[name]
             children = parent_children.get(name, [])
             if not children:
                 v = boxes[name]['width']
             else:
-                v = max(boxes[name]['width'],
-                        sum(sw(c) for c in children) + sx * (len(children) - 1))
+                lvl = levels.get(name, 0)
+                child_left = 0.0
+                max_right = boxes[name]['width']
+                for child in children:
+                    child_span = sw(child)
+                    max_right = max(max_right, child_left + child_span)
+
+                    if lvl <= 0:
+                        # Top-level branches reserve full child branch span.
+                        child_left += child_span + sx
+                    else:
+                        # Inner branches compact by child box width.
+                        child_left += boxes[child]['width'] + sx
+                v = max_right
             memo[name] = v
             return v
 
@@ -760,10 +772,17 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
             if not children:
                 return
             xl = left_x
+            lvl = levels.get(name, 0)
             for child in children:
-                csw = sw(child)
                 place(child, xl)
-                xl += csw + sx
+                if lvl <= 0:
+                    # At top levels, reserve full subtree width so independent
+                    # branches do not overlap each other.
+                    xl += sw(child) + sx
+                else:
+                    # Inside a branch, compact siblings by their own box width
+                    # to avoid unnecessary horizontal expansion.
+                    xl += boxes[child]['width'] + sx
 
         # Place each root tree left-to-right
         roots = [c for c in class_names if c not in claimed_children]
@@ -798,6 +817,7 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
     MAX_ITER = 3
     for _iter in range(MAX_ITER):
         extra_needed = 0.0
+        desired_gap = max(base_sx * 0.25, 30)
 
         # Check 1: same-level boxes that are too close together (or overlapping)
         level_nodes = {}
@@ -810,8 +830,8 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
                 _, a = lnodes[i]
                 _, b = lnodes[i + 1]
                 gap = b['x'] - (a['x'] + a['width'])
-                if gap < current_sx * 0.5:
-                    extra_needed = max(extra_needed, current_sx * 0.5 - gap + 20)
+                if gap < desired_gap:
+                    extra_needed = max(extra_needed, desired_gap - gap + 10)
 
         # Check 2: connector horizontal mid-segments blocked by an intermediate box
         for rel in diagram.relationships:
@@ -833,7 +853,7 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
                     continue
                 if (obs['y'] < mid_y < obs['y'] + obs['height'] and
                         obs['x'] < x_hi and obs['x'] + obs['width'] > x_lo):
-                    extra_needed = max(extra_needed, current_sx * 0.25 + 15)
+                    extra_needed = max(extra_needed, desired_gap + 15)
 
         if extra_needed < 5:
             break  # converged
