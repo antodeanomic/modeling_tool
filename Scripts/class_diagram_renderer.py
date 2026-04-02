@@ -10,6 +10,7 @@ Supports layer filtering to show subsets of relationships.
 from model import Model, ClassDiagramDef, ClassRelationship, ClassDef, ELEMENT_TYPES
 from class_diagram_connectors import ConnectorPlanner
 from datetime import datetime
+from typing import Tuple
 
 # Layout constants
 FONT_SIZE = 13
@@ -36,36 +37,22 @@ DIAMOND_SIZE = 10  # Diamond marker size
 # Extended color palette - 30 distinct color pairs
 # Sequential assignment ensures no color reuse until all colors are exhausted
 COLOR_PALETTE = [
-    {"light_fill": "#E8F5E9", "dark_stroke": "#2E7D32"},  # Green
-    {"light_fill": "#FFFDE7", "dark_stroke": "#F57F17"},  # Amber
-    {"light_fill": "#E3F2FD", "dark_stroke": "#1565C0"},  # Blue
-    {"light_fill": "#F3E5F5", "dark_stroke": "#6A1B9A"},  # Purple
-    {"light_fill": "#FCE4EC", "dark_stroke": "#C2185B"},  # Pink
-    {"light_fill": "#E0F2F1", "dark_stroke": "#00796B"},  # Teal
-    {"light_fill": "#FFF9C4", "dark_stroke": "#F9A825"},  # Yellow
-    {"light_fill": "#FFEBEE", "dark_stroke": "#D32F2F"},  # Red
-    {"light_fill": "#F1F8E9", "dark_stroke": "#558B2F"},  # Light Green
-    {"light_fill": "#E0F2F1", "dark_stroke": "#004D40"},  # Dark Teal
-    {"light_fill": "#FCE4EC", "dark_stroke": "#880E4F"},  # Deep Pink
-    {"light_fill": "#F3E5F5", "dark_stroke": "#4A148C"},  # Deep Purple
-    {"light_fill": "#EDE7F6", "dark_stroke": "#311B92"},  # Indigo
-    {"light_fill": "#E8EAF6", "dark_stroke": "#1A237E"},  # Deep Blue
-    {"light_fill": "#F1F5FE", "dark_stroke": "#0D47A1"},  # Cobalt
-    {"light_fill": "#E0F2F1", "dark_stroke": "#00695C"},  # Dark Teal Alt
-    {"light_fill": "#E8F5E9", "dark_stroke": "#1B5E20"},  # Dark Green
-    {"light_fill": "#FFFCE4", "dark_stroke": "#E65100"},  # Deep Orange
-    {"light_fill": "#FBE9E7", "dark_stroke": "#BF360C"},  # Dark Orange
-    {"light_fill": "#EFEBE9", "dark_stroke": "#3E2723"},  # Brown
-    {"light_fill": "#F5F5F5", "dark_stroke": "#424242"},  # Grey
-    {"light_fill": "#ECEFF1", "dark_stroke": "#37474F"},  # Blue Grey
-    {"light_fill": "#FFF3E0", "dark_stroke": "#E65100"},  # Light Orange
-    {"light_fill": "#FFE0B2", "dark_stroke": "#E65100"},  # Orange Lighter
-    {"light_fill": "#FFCCBC", "dark_stroke": "#BF360C"},  # Deep Orange Light
-    {"light_fill": "#D1C4E9", "dark_stroke": "#512DA8"},  # Purple Light
-    {"light_fill": "#C5CAE9", "dark_stroke": "#283593"},  # Indigo Light
-    {"light_fill": "#BBDEFB", "dark_stroke": "#1565C0"},  # Blue Light
-    {"light_fill": "#B3E5FC", "dark_stroke": "#0277BD"},  # Cyan
-    {"light_fill": "#B2DFDB", "dark_stroke": "#00897B"},  # Teal Light
+    {"light_fill": "#E8F1FF", "dark_stroke": "#0057B8"},
+    {"light_fill": "#FFE9EC", "dark_stroke": "#B00020"},
+    {"light_fill": "#EAF7EA", "dark_stroke": "#006E1C"},
+    {"light_fill": "#FFF1E6", "dark_stroke": "#C45A00"},
+    {"light_fill": "#F3E9FF", "dark_stroke": "#6A1B9A"},
+    {"light_fill": "#E6FAFC", "dark_stroke": "#007C91"},
+    {"light_fill": "#F5ECE6", "dark_stroke": "#6D4C41"},
+    {"light_fill": "#ECEFF3", "dark_stroke": "#37474F"},
+    {"light_fill": "#FFF7D6", "dark_stroke": "#A66A00"},
+    {"light_fill": "#EAF4FF", "dark_stroke": "#1A237E"},
+    {"light_fill": "#FDEBF5", "dark_stroke": "#AD1457"},
+    {"light_fill": "#E9F8F1", "dark_stroke": "#00796B"},
+    {"light_fill": "#FBEFE3", "dark_stroke": "#BF360C"},
+    {"light_fill": "#EFEAFE", "dark_stroke": "#4527A0"},
+    {"light_fill": "#E8F8FB", "dark_stroke": "#006064"},
+    {"light_fill": "#F3F3F3", "dark_stroke": "#263238"},
 ]
 
 # Element type visual styles (fallback if no color assigned)
@@ -697,6 +684,80 @@ def _build_spanning_forest(diagram, levels):
     return parent_children, claimed_children
 
 
+def _apply_source_cluster_alignment(positions, diagram, levels, spacing_x):
+    """Apply column clustering in filtered views to bring dependencies closer.
+    
+    When displaying a filtered subset of layers, adjacent dependency targets
+    are shifted horizontally closer to their sources (within the same row band)
+    to reduce connector lengths and improve local readability.
+    
+    This only applies to same-level dependencies and respects grid spacing and
+    minimum box buffers. Does not modify row (Y) positions or create new overlaps.
+    
+    Args:
+        positions: Layout dict {class_name -> {x, y, width, height, ...}}
+        diagram: ClassDiagramDef with relationships
+        levels: Dict {class_name -> abstraction_level}
+        spacing_x: Minimum horizontal spacing between boxes
+    
+    Returns:
+        Modified positions dict with adjusted X coordinates
+    """
+    # Identify dependency edges within the same level
+    same_level_deps = []
+    for rel in diagram.relationships:
+        # Check if this is a dotted/dashed dependency arrow
+        if '..' in rel.arrow:  # Dashed lines: .., <.., ..▷, ◁..
+            s_lvl = levels.get(rel.source, 0)
+            t_lvl = levels.get(rel.target, 0)
+            if s_lvl == t_lvl:
+                same_level_deps.append((rel.source, rel.target))
+    
+    if not same_level_deps:
+        return positions  # No same-level dependencies, no adjustment needed
+    
+    # For each same-level dependency, try to move target closer to source
+    # by shifting it left if there's space, without creating new overlaps
+    min_buffer = spacing_x * 0.3  # Min gap between boxes
+    
+    for source, target in same_level_deps:
+        if source not in positions or target not in positions:
+            continue  # One or both not in current layout
+        
+        src_pos = positions[source]
+        tgt_pos = positions[target]
+        
+        # Only move target if it's to the right of source
+        src_right = src_pos['x'] + src_pos['width']
+        tgt_x = tgt_pos['x']
+        
+        if tgt_x <= src_right:
+            continue  # Target already left of or overlapping source
+        
+        # Desired position: just after source with min buffer
+        desired_x = src_right + min_buffer
+        
+        # Check if target can move left without hitting boxes in between or before
+        can_move = True
+        for other_name, other_pos in positions.items():
+            if other_name in (source, target):
+                continue  # Skip source and target themselves
+            if abs(other_pos['y'] - tgt_pos['y']) < 1:  # On same row
+                # Check if other box would block the move
+                other_left = other_pos['x']
+                other_right = other_pos['x'] + other_pos['width']
+                # If moving target to desired_x would overlap other, can't move
+                if desired_x < other_right + min_buffer and tgt_x > other_left - min_buffer:
+                    can_move = False
+                    break
+        
+        if can_move and desired_x < tgt_x:
+            # Move target closer to source
+            tgt_pos['x'] = desired_x
+    
+    return positions
+
+
 def _aligned_tree_layout(class_names, boxes, levels, parent_children,
                          claimed_children, base_sx, spacing_y, diagram):
     """Top-left anchored tree layout with iterative spacing refinement.
@@ -860,6 +921,9 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
 
         current_sx += extra_needed
         positions = do_layout(current_sx)
+
+    # Apply source-cluster alignment for filtered views (post-processing)
+    positions = _apply_source_cluster_alignment(positions, diagram, levels, current_sx)
 
     return positions
 
@@ -1325,6 +1389,30 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
         SVG string with all connector lines
     """
     parts = []
+
+    def _nudge_text_outside_boxes(x: float, y: float) -> Tuple[float, float]:
+        """Move text out of any class box if it lands inside one."""
+        tx, ty = x, y
+        for _ in range(8):
+            moved = False
+            for box in boxes.values():
+                left = box['x'] - 4
+                right = box['x'] + box['width'] + 4
+                top = box['y'] - 4
+                bottom = box['y'] + box['height'] + 4
+                if left <= tx <= right and top <= ty <= bottom:
+                    # Push text above or below the box depending on nearest side.
+                    dist_top = abs(ty - top)
+                    dist_bottom = abs(bottom - ty)
+                    if dist_top <= dist_bottom:
+                        ty = top - 8
+                    else:
+                        ty = bottom + 14
+                    moved = True
+                    break
+            if not moved:
+                break
+        return tx, ty
     
     # Get planned connectors (filtered by layer if needed)
     connectors = planner.get_connectors(layer_filter=None)
@@ -1362,26 +1450,35 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
             # Text placement for direct paths
             if verbosity_level == "High":
                 if is_horizontal:
-                    # Horizontal line: center all text ABOVE (safe distance from markers)
-                    src_mult_text = connector.src_mult or ""
-                    tgt_mult_text = connector.tgt_mult or ""
-                    label_text = connector.label or ""
-                    
-                    # Account for marker width (diamonds/arrows are ~10px each)
-                    # Format: "  mult  label  mult  " with marker clearance
-                    if label_text:
-                        total_text = f"  {src_mult_text}  {label_text}  {tgt_mult_text}  "
-                    else:
-                        total_text = f"  {src_mult_text}     {tgt_mult_text}  "
-                    
-                    text_width = len(total_text) * CONNECTOR_CHAR_WIDTH
-                    line_center_x = (connector.source_x + connector.target_x) / 2
-                    text_start_x = line_center_x - (text_width / 2)
-                    text_y = min(connector.source_y, connector.target_y) - 12  # Further above to avoid markers
-                    
-                    parts.append(f'  <text x="{text_start_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                 f'font-size="11" fill="#666" text-anchor="start">'
-                                 f'{_escape_xml(total_text)}</text>')
+                    # Horizontal straight connector: keep multiplicity near endpoints
+                    # and place label near the source after the source multiplicity.
+                    direction = 1 if connector.target_x >= connector.source_x else -1
+                    base_y = min(connector.source_y, connector.target_y) - 8
+
+                    if connector.src_mult:
+                        src_x = connector.source_x + direction * 10
+                        src_anchor = 'start' if direction > 0 else 'end'
+                        src_x, src_y = _nudge_text_outside_boxes(src_x, base_y)
+                        parts.append(f'  <text x="{src_x}" y="{src_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="{src_anchor}">'
+                                     f'{_escape_xml(connector.src_mult)}</text>')
+
+                    if connector.label:
+                        label_gap = 10 + ((len(connector.src_mult or "") + 2) * CONNECTOR_CHAR_WIDTH)
+                        label_x = connector.source_x + direction * label_gap
+                        label_anchor = 'start' if direction > 0 else 'end'
+                        label_x, label_y = _nudge_text_outside_boxes(label_x, base_y)
+                        parts.append(f'  <text x="{label_x}" y="{label_y}" font-family="{FONT_FAMILY}" '
+                                     f'font-size="11" font-style="italic" fill="#444" text-anchor="{label_anchor}">'
+                                     f'{_escape_xml(connector.label)}</text>')
+
+                    if connector.tgt_mult:
+                        tgt_x = connector.target_x - direction * 10
+                        tgt_anchor = 'end' if direction > 0 else 'start'
+                        tgt_x, tgt_y = _nudge_text_outside_boxes(tgt_x, base_y)
+                        parts.append(f'  <text x="{tgt_x}" y="{tgt_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
+                                     f'font-size="11" fill="#666" text-anchor="{tgt_anchor}">'
+                                     f'{_escape_xml(connector.tgt_mult)}</text>')
                 else:
                     # Diagonal line: determine if vertical or horizontal-dominant
                     dx = abs(connector.target_x - connector.source_x)
@@ -1393,6 +1490,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         if connector.src_mult:
                             mx = connector.source_x + 8
                             my = connector.source_y + (connector.target_y - connector.source_y) * 0.2
+                            mx, my = _nudge_text_outside_boxes(mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="start">'
                                          f'{_escape_xml(connector.src_mult)}</text>')
@@ -1400,6 +1498,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         if connector.label:
                             mx = connector.source_x + 8
                             my = (connector.source_y + connector.target_y) / 2
+                            mx, my = _nudge_text_outside_boxes(mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="start">'
                                          f'{_escape_xml(connector.label)}</text>')
@@ -1407,6 +1506,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         if connector.tgt_mult:
                             mx = connector.target_x + 8
                             my = connector.target_y + (connector.source_y - connector.target_y) * 0.2
+                            mx, my = _nudge_text_outside_boxes(mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="start">'
                                          f'{_escape_xml(connector.tgt_mult)}</text>')
@@ -1426,7 +1526,8 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         text_width = len(total_text) * CONNECTOR_CHAR_WIDTH
                         line_center_x = (connector.source_x + connector.target_x) / 2
                         text_start_x = line_center_x - (text_width / 2)
-                        text_y = min(connector.source_y, connector.target_y) - 12  # ABOVE the line
+                        text_y = min(connector.source_y, connector.target_y) - 8  # ABOVE the line (consistent with orthogonal)
+                        text_start_x, text_y = _nudge_text_outside_boxes(text_start_x, text_y)
                         
                         # Render as single text element
                         parts.append(f'  <text x="{text_start_x}" y="{text_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
@@ -1443,9 +1544,13 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
             # Multi-segment path (V-H-V orthogonal routing)
             if connector.segments:
                 path_d = f"M {connector.source_x} {connector.source_y}"
-                for x, y in connector.segments:
+                path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
+                # Avoid appending a duplicate target point. A zero-length final segment
+                # can cause marker orientation to fall back to an incorrect direction.
+                if not connector.segments or connector.segments[-1] != (connector.target_x, connector.target_y):
+                    path_points.append((connector.target_x, connector.target_y))
+                for x, y in path_points[1:]:
                     path_d += f" L {x} {y}"
-                path_d += f" L {connector.target_x} {connector.target_y}"
                 
                 parts.append(f'  <path d="{path_d}" fill="none" stroke="{connector_color}" stroke-width="1.5"')
                 if dash != "none":
@@ -1459,54 +1564,81 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                 # Text placement for multi-segment paths
                 # Analyze segments to determine if V-H-V or other pattern
                 if verbosity_level == "High" and len(connector.segments) >= 2:
-                    # Find the first horizontal segment (if V-H-V path)
-                    mid_x = None
-                    mid_y = None
-                    for i, (x, y) in enumerate(connector.segments):
-                        if i > 0:
-                            prev_x, prev_y = connector.segments[i-1]
-                            # Check if this segment is horizontal (same Y)
-                            if abs(prev_y - y) < 1:
-                                mid_x = x
-                                mid_y = y
-                                break
+                    path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
+                    if path_points[-1] != (connector.target_x, connector.target_y):
+                        path_points.append((connector.target_x, connector.target_y))
+
+                    first_seg = (path_points[0], path_points[1])
+                    last_seg = (path_points[-2], path_points[-1])
+
+                    horizontal_seg = None
+                    for i in range(len(path_points) - 1):
+                        p1 = path_points[i]
+                        p2 = path_points[i + 1]
+                        if abs(p1[1] - p2[1]) < 1:
+                            horizontal_seg = (p1, p2)
+                            break
                     
-                    if mid_x is not None and mid_y is not None:
-                        # V-H-V routing detected - text distributed across segments
-                        # Each segment gets: [arrow]  [text_for_segment]
-                        
-                        # Segment 1: Source multiplicity on first vertical segment
+                    if horizontal_seg is not None:
+                        (hx1, hy1), (hx2, hy2) = horizontal_seg
+
+                        # Place source multiplicity very close to the source endpoint.
                         if connector.src_mult:
-                            my = connector.source_y + (mid_y - connector.source_y) * 0.3
-                            text_seg1 = f"{connector.src_mult}"
-                            parts.append(f'  <text x="{connector.source_x + 8}" y="{my}" '
+                            if abs(first_seg[0][1] - first_seg[1][1]) < 1:
+                                direction = 1 if first_seg[1][0] >= first_seg[0][0] else -1
+                                text_x = connector.source_x + direction * 10
+                                text_y = connector.source_y - 8
+                                anchor = 'start' if direction > 0 else 'end'
+                            else:
+                                text_x = connector.source_x + 8
+                                text_y = connector.source_y + (hy1 - connector.source_y) * 0.3
+                                anchor = 'start'
+                            text_x, text_y = _nudge_text_outside_boxes(text_x, text_y)
+                            parts.append(f'  <text x="{text_x}" y="{text_y}" '
                                          f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '
-                                         f'fill="#666" text-anchor="start">'
-                                         f'{_escape_xml(text_seg1)}</text>')
-                        
-                        # Segment 2: Label on horizontal segment
+                                         f'fill="#666" text-anchor="{anchor}">'
+                                         f'{_escape_xml(connector.src_mult)}</text>')
+
+                        # Place connector label near the source when the route begins horizontally.
                         if connector.label:
-                            lx = mid_x
-                            ly = mid_y - 8
-                            text_seg2 = f"{connector.label}"
+                            if abs(first_seg[0][1] - first_seg[1][1]) < 1:
+                                direction = 1 if first_seg[1][0] >= first_seg[0][0] else -1
+                                label_gap = 10 + ((len(connector.src_mult or "") + 2) * CONNECTOR_CHAR_WIDTH)
+                                lx = connector.source_x + direction * label_gap
+                                ly = connector.source_y - 8
+                                anchor = 'start' if direction > 0 else 'end'
+                            else:
+                                lx = (hx1 + hx2) / 2
+                                ly = hy1 - 8
+                                anchor = 'middle'
+                            lx, ly = _nudge_text_outside_boxes(lx, ly)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
-                                         f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
-                                         f'{_escape_xml(text_seg2)}</text>')
-                        
-                        # Segment 3: Target multiplicity on final vertical segment
+                                         f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
+                                         f'{_escape_xml(connector.label)}</text>')
+
+                        # Place target multiplicity close to the target endpoint.
                         if connector.tgt_mult:
-                            my = mid_y + (connector.target_y - mid_y) * 0.7
-                            text_seg3 = f"{connector.tgt_mult}"
-                            parts.append(f'  <text x="{connector.target_x + 8}" y="{my}" '
+                            if abs(last_seg[0][1] - last_seg[1][1]) < 1:
+                                direction = 1 if last_seg[1][0] >= last_seg[0][0] else -1
+                                text_x = connector.target_x - direction * 10
+                                text_y = connector.target_y - 8
+                                anchor = 'end' if direction > 0 else 'start'
+                            else:
+                                text_x = connector.target_x + 8
+                                text_y = hy1 + (connector.target_y - hy1) * 0.7
+                                anchor = 'start'
+                            text_x, text_y = _nudge_text_outside_boxes(text_x, text_y)
+                            parts.append(f'  <text x="{text_x}" y="{text_y}" '
                                          f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '
-                                         f'fill="#666" text-anchor="start">'
-                                         f'{_escape_xml(text_seg3)}</text>')
+                                         f'fill="#666" text-anchor="{anchor}">'
+                                         f'{_escape_xml(connector.tgt_mult)}</text>')
                     else:
                         # Fallback: simple perpendicular positioning for multi-segment without clear horizontal
                         if connector.src_mult:
                             mx = connector.source_x + (connector.target_x - connector.source_x) * 0.12
                             my = connector.source_y + (connector.target_y - connector.source_y) * 0.12 + 12
                             text = f"{connector.src_mult}"
+                            mx, my = _nudge_text_outside_boxes(mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="middle">'
                                          f'{_escape_xml(text)}</text>')
@@ -1515,6 +1647,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                             lx = (connector.source_x + connector.target_x) / 2
                             ly = (connector.source_y + connector.target_y) / 2
                             text = f"{connector.label}"
+                            lx, ly = _nudge_text_outside_boxes(lx, ly)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" fill="#444" text-anchor="middle">'
                                          f'{_escape_xml(text)}</text>')
@@ -1523,6 +1656,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                             mx = connector.target_x + (connector.source_x - connector.target_x) * 0.20
                             my = connector.target_y + (connector.source_y - connector.target_y) * 0.20 + 12
                             text = f"{connector.tgt_mult}"
+                            mx, my = _nudge_text_outside_boxes(mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="middle">'
                                          f'{_escape_xml(text)}</text>')
@@ -1535,6 +1669,8 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     else:
                         lx = (connector.source_x + connector.target_x) / 2
                         ly = (connector.source_y + connector.target_y) / 2 - 3
+
+                    lx, ly = _nudge_text_outside_boxes(lx, ly)
                     
                     parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                  f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'

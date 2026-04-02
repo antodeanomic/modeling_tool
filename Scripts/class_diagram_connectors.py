@@ -488,9 +488,9 @@ class ConnectorPlanner:
         hierarchy_order = self._ordered_hierarchy_connectors()
         self.connectors.sort(
             key=lambda c: (
-                0 if id(c) in hierarchy_order else 1,
+                1 if '..' in c.arrow_type else 0,
                 c.source_name,
-                hierarchy_order.get(id(c), (0, 0))[0],
+                hierarchy_order.get(id(c), (999, 0))[0],
                 c.calculate_distance()
             )
         )
@@ -539,8 +539,27 @@ class ConnectorPlanner:
                     connector.target_y = tgt_pt.y
                     used_points[(connector.target_name, entry_edge, tgt_pt.index)] = 'incoming'
                     
-                    # Route and skip to next connector
+                    # Route and, if needed, try an alternate target point to avoid
+                    # overlaps or obstacle underpasses even in the aligned-point path.
                     self._route_connector(connector)
+
+                    if self._has_critical_conflict(connector):
+                        best_alt_tgt = self._find_alternative_target_point(
+                            tgt_grid, entry_edge, connector.source_name, connector.target_name,
+                            used_points, connector
+                        )
+                        if best_alt_tgt and best_alt_tgt != tgt_pt:
+                            if tgt_pt is not None:
+                                old_key = (connector.target_name, entry_edge, tgt_pt.index)
+                                if old_key in used_points:
+                                    del used_points[old_key]
+
+                            connector.target_point_idx = best_alt_tgt.index
+                            connector.target_x = best_alt_tgt.x
+                            connector.target_y = best_alt_tgt.y
+                            used_points[(connector.target_name, entry_edge, best_alt_tgt.index)] = 'incoming'
+                            self._route_connector(connector)
+
                     self._register_connector_occupancy(connector)
                     continue
             
@@ -612,6 +631,30 @@ class ConnectorPlanner:
             # Determine if we need multi-segment routing
             # Use multi-segment when source and target are not aligned on primary axis
             self._route_connector(connector)
+            
+            # Check for critical conflicts (overlaps with objects or heavy connector overlaps)
+            # If detected, try alternative target connection points
+            if self._has_critical_conflict(connector):
+                best_alt_tgt = self._find_alternative_target_point(
+                    tgt_grid, entry_edge, connector.source_name, connector.target_name,
+                    used_points, connector
+                )
+                if best_alt_tgt and best_alt_tgt != tgt_pt:
+                    # Use alternative target point
+                    if tgt_pt is not None:
+                        old_key = (connector.target_name, entry_edge, tgt_pt.index)
+                        if old_key in used_points:
+                            del used_points[old_key]
+                    
+                    connector.target_point_idx = best_alt_tgt.index
+                    connector.target_x = best_alt_tgt.x
+                    connector.target_y = best_alt_tgt.y
+                    new_key = (connector.target_name, entry_edge, best_alt_tgt.index)
+                    used_points[new_key] = 'incoming'
+                    
+                    # Re-route with the new target point
+                    self._route_connector(connector)
+            
             self._register_connector_occupancy(connector)
 
     def _to_grid_cell(self, x: float, y: float) -> Tuple[int, int]:
@@ -692,9 +735,42 @@ class ConnectorPlanner:
 
         best_segments: List[Tuple[float, float]] = []
         best_score = float('inf')
+        best_non_overlapping: List[Tuple[float, float]] = []
+        best_non_overlapping_score = float('inf')
         track_step = self._grid_cell_height / 2 if mode == 'vhv' else self._grid_cell_width / 2
 
-        for track_idx in [0, 1, -1, 2, -2, 3, -3]:
+        is_dotted = '..' in connector.arrow_type
+        xdir = x2 - x1
+        ydir = y2 - y1
+        if is_dotted:
+            # Larger stepping helps dotted connectors escape already occupied tracks.
+            track_step = self._grid_cell_height if mode == 'vhv' else self._grid_cell_width
+
+        def track_candidates() -> List[int]:
+            # Wider search space reduces forced overlaps in dense diagrams.
+            base = [0]
+            span = 30 if is_dotted else 12
+            neg = list(range(-1, -span - 1, -1))
+            pos = list(range(1, span + 1))
+            # Dependency-like dotted connectors should prefer tracks on the geometric side
+            # toward the target to avoid unnecessary underpasses around objects.
+            if is_dotted and mode == 'vhv':
+                if ydir < 0:
+                    preferred = neg + pos
+                else:
+                    preferred = pos + neg
+            elif is_dotted and mode == 'hvh':
+                if xdir < 0:
+                    preferred = neg + pos
+                else:
+                    preferred = pos + neg
+            else:
+                preferred = []
+                for idx in range(1, span + 1):
+                    preferred.extend([idx, -idx])
+            return base + preferred
+
+        for track_idx in track_candidates():
             if mode == 'vhv':
                 mid = (y1 + y2) / 2 + track_idx * track_step
                 candidate_segments = [
@@ -717,7 +793,13 @@ class ConnectorPlanner:
                 connector.target_name,
                 path_points
             )
-            score = overlap_penalty * 1000 + obstacle_penalty * 10 + abs(track_idx)
+            # Obstacle avoidance has priority over connector overlap so lines do
+            # not pass through/under boxes in dense scenarios.
+            score = obstacle_penalty * 1000000 + overlap_penalty * 1000 + abs(track_idx)
+
+            if overlap_penalty == 0 and obstacle_penalty == 0 and score < best_non_overlapping_score:
+                best_non_overlapping = candidate_segments
+                best_non_overlapping_score = score
 
             if score < best_score:
                 best_score = score
@@ -725,6 +807,10 @@ class ConnectorPlanner:
 
             if overlap_penalty == 0 and obstacle_penalty == 0 and track_idx == 0:
                 break
+
+        # Strong preference: never overlap existing routed connectors when a clean path exists.
+        if best_non_overlapping:
+            return best_non_overlapping
 
         return best_segments
     
@@ -951,6 +1037,7 @@ class ConnectorPlanner:
             Count of obstacles encountered (0 means clear path)
         """
         SAMPLE_INTERVAL = 16  # Grid block width - sample every block
+        CLEARANCE_MARGIN = 20  # Treat near-edge skimming under objects as blocked (increased from 10)
         obstacle_count = 0
         
         # Build list of obstacle boxes (exclude source and target)
@@ -981,11 +1068,125 @@ class ConnectorPlanner:
                 
                 # Check which obstacle boxes contain this point
                 for box_name, box_grid in obstacle_boxes.items():
-                    if self._point_in_box(sample_x, sample_y, box_grid):
+                    if (box_grid.x - CLEARANCE_MARGIN <= sample_x <= box_grid.x + box_grid.width + CLEARANCE_MARGIN and
+                            box_grid.y - CLEARANCE_MARGIN <= sample_y <= box_grid.y + box_grid.height + CLEARANCE_MARGIN):
                         obstacle_count += 1
                         break  # Count each box only once per segment
         
         return obstacle_count
+    
+    def _has_critical_conflict(self, connector: ConnectorPath) -> bool:
+        """Check if this connector has a critical conflict.
+        
+        Critical conflicts include:
+        - Routing through/under an obstacle box (high obstacle count)
+        - Heavy overlap with existing connector cells
+        
+        Returns True if conflict is detected.
+        """
+        # Check for obstacles
+        if connector.path_type == "multi_segment" and connector.segments:
+            path_points = [(connector.source_x, connector.source_y)] + connector.segments + [(connector.target_x, connector.target_y)]
+        else:
+            path_points = [(connector.source_x, connector.source_y), (connector.target_x, connector.target_y)]
+        
+        obstacle_count = self._detect_obstacles_on_path(
+            connector.source_name, connector.target_name, path_points
+        )
+        
+        # If more than 2 obstacle samples hit, there's likely an obstacle in the way
+        if obstacle_count > 2:
+            return True
+        
+        # Check for heavy overlap with already-routed connectors (same-axis in same cells)
+        overlap_count = self._count_path_overlaps(path_points)
+        
+        # Dotted dependency connectors should avoid same-axis overlap entirely when possible.
+        if '..' in connector.arrow_type and overlap_count > 0:
+            return True
+
+        # For other connectors, allow light overlap but reject heavier conflicts.
+        if overlap_count > 3:
+            return True
+        
+        return False
+
+    def _build_path_points(self, connector: ConnectorPath) -> List[Tuple[float, float]]:
+        """Return full path points for a connector including source and target."""
+        if connector.path_type == "multi_segment" and connector.segments:
+            return [(connector.source_x, connector.source_y)] + connector.segments + [(connector.target_x, connector.target_y)]
+        return [(connector.source_x, connector.source_y), (connector.target_x, connector.target_y)]
+
+    def _score_path(self, source_name: str, target_name: str, path_points: List[Tuple[float, float]]) -> int:
+        """Score a path with obstacle-first priority.
+
+        Obstacle overlap with boxes is prioritized over connector overlap so
+        routes do not pass under or through objects even in dense diagrams.
+        """
+        obstacle_penalty = self._detect_obstacles_on_path(source_name, target_name, path_points)
+        overlap_penalty = self._count_path_overlaps(path_points)
+        return obstacle_penalty * 1000000 + overlap_penalty * 1000
+    
+    def _find_alternative_target_point(self, tgt_grid: RectangleGrid, entry_edge: str,
+                                       source_name: str, target_name: str,
+                                       used_points: Dict, current_connector: ConnectorPath) -> Optional[ConnectionPoint]:
+        """Find an alternative target connection point that might avoid conflicts.
+        
+        Tries points starting from the opposite end of the edge (e.g., bottom if last used top).
+        This encourages spreading connectors across different track levels.
+        
+        Returns the best alternative point, or None if no better option found.
+        """
+        available_points = tgt_grid.get_points(entry_edge)
+        
+        # Filter to non-corner points. For dotted dependencies, allow reuse of
+        # incoming target points to escape heavy overlap/obstacle conflicts.
+        allow_reuse_for_dotted = '..' in current_connector.arrow_type
+        candidates = []
+        for pt in available_points:
+            if tgt_grid.is_corner_point(entry_edge, pt.index):
+                continue
+            key = (target_name, entry_edge, pt.index)
+            if key in used_points and not allow_reuse_for_dotted:
+                continue
+            candidates.append(pt)
+        
+        if not candidates:
+            return None
+        
+        # Current route score baseline. Alternatives must beat this.
+        current_points = self._build_path_points(current_connector)
+        current_score = self._score_path(source_name, target_name, current_points)
+
+        # Try each candidate and estimate how many conflicts it would have
+        best_candidate = None
+        best_score = current_score
+        src_cx = current_connector.source_x
+        src_cy = current_connector.source_y
+        
+        for candidate in candidates:
+            # Create a test path using this alternative point
+            test_connector = ConnectorPath(
+                source_name=current_connector.source_name,
+                target_name=current_connector.target_name,
+                arrow_type=current_connector.arrow_type
+            )
+            test_connector.source_x = src_cx
+            test_connector.source_y = src_cy
+            test_connector.target_x = candidate.x
+            test_connector.target_y = candidate.y
+            
+            # Route with this alternative point
+            self._route_connector(test_connector)
+            
+            path_points = self._build_path_points(test_connector)
+            score = self._score_path(source_name, target_name, path_points)
+            
+            if score < best_score:
+                best_score = score
+                best_candidate = candidate
+
+        return best_candidate
     
     def _try_direct_line(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid) -> List[Tuple[float, float]]:
         """Try direct line routing."""
