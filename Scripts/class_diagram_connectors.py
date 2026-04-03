@@ -360,86 +360,86 @@ class ConnectorPlanner:
         if connector.target_edge == 'bottom':
             return dy < 0 and abs(dx) <= clearance
         return True
-    
+
     def _find_aligned_connection_points(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid,
                                        exit_edge: str, entry_edge: str, used_points: dict,
                                        src_name: str, tgt_name: str):
         """Find connection points that maintain grid alignment for vertical/horizontal connectors.
-        
+
         When objects are aligned on one axis, find connection points that
         maintain that alignment to enable straight lines.
-        
+
         Handles:
         - Vertical edges (left/right): finds Y-aligned points (dy < 1)
         - Horizontal edges (top/bottom) for X-aligned boxes: finds best X-aligned pair
-        
+
         Returns: (src_point, tgt_point) or (None, None) if no aligned pair found
         """
         src_points = src_grid.get_points(exit_edge)
         tgt_points = tgt_grid.get_points(entry_edge)
-        
+
         # Detect if source and target boxes are X-aligned (left edges)
         dx_left = abs(tgt_grid.x - src_grid.x)
         is_x_aligned = dx_left < 1
-        
+
         # For horizontal edges (top/bottom): look for X-aligned points if boxes are X-aligned
         if exit_edge in ['top', 'bottom'] and entry_edge in ['top', 'bottom'] and is_x_aligned:
             best_src = None
             best_tgt = None
             best_dx = float('inf')
-            
+
             for src_pt in src_points:
                 if src_grid.is_reserved_point(exit_edge, src_pt.index):
                     continue
                 if (src_name, exit_edge, src_pt.index) in used_points:
                     continue
-                
+
                 for tgt_pt in tgt_points:
                     if tgt_grid.is_corner_point(entry_edge, tgt_pt.index):
                         continue
                     if (tgt_name, entry_edge, tgt_pt.index) in used_points:
                         continue
-                    
+
                     # Measure X alignment
                     dx = abs(tgt_pt.x - src_pt.x)
                     if dx < best_dx:
                         best_dx = dx
                         best_src = src_pt
                         best_tgt = tgt_pt
-            
+
             # Return if we found reasonable alignment (best match even if > 1px)
             if best_src and best_dx < 20:  # Allow some tolerance for width differences
                 return (best_src, best_tgt)
-        
+
         # For vertical edges (left/right): find Y-aligned points
         elif exit_edge in ['left', 'right'] and entry_edge in ['left', 'right']:
             best_src = None
             best_tgt = None
             best_dy = float('inf')
-            
+
             for src_pt in src_points:
                 if src_grid.is_reserved_point(exit_edge, src_pt.index):
                     continue
                 if (src_name, exit_edge, src_pt.index) in used_points:
                     continue
-                
+
                 for tgt_pt in tgt_points:
                     if tgt_grid.is_corner_point(entry_edge, tgt_pt.index):
                         continue
                     if (tgt_name, entry_edge, tgt_pt.index) in used_points:
                         continue
-                    
+
                     # Measure Y alignment
                     dy = abs(tgt_pt.y - src_pt.y)
                     if dy < best_dy:
                         best_dy = dy
                         best_src = src_pt
                         best_tgt = tgt_pt
-            
+
             # Return only if significantly aligned (dy < 1 pixel)
             if best_dy < 1:
                 return (best_src, best_tgt)
-        
+
         return (None, None)
 
     def _is_hierarchy_connector(self, connector: ConnectorPath) -> bool:
@@ -620,7 +620,7 @@ class ConnectorPlanner:
             forced_edges = FORCED_EDGE_OVERRIDES.get((connector.source_name, connector.target_name))
             if forced_edges is not None:
                 exit_edge, entry_edge = forced_edges
-            
+
             # For orthogonal routing: try to find aligned connection points first
             # Hierarchy connectors intentionally skip this shortcut so left-to-right
             # bottom-edge assignment remains deterministic.
@@ -641,6 +641,7 @@ class ConnectorPlanner:
                     connector.target_y = tgt_pt.y
                     used_points[(connector.target_name, entry_edge, tgt_pt.index)] = 'incoming'
                     
+                    
                     # Route and, if needed, try an alternate target point to avoid
                     # overlaps or obstacle underpasses even in the aligned-point path.
                     self._route_connector(connector)
@@ -660,6 +661,7 @@ class ConnectorPlanner:
                             connector.target_x = best_alt_tgt.x
                             connector.target_y = best_alt_tgt.y
                             used_points[(connector.target_name, entry_edge, best_alt_tgt.index)] = 'incoming'
+                            
                             self._route_connector(connector)
 
                     # Final pass: for multi-segment connectors, allow source+target
@@ -747,10 +749,13 @@ class ConnectorPlanner:
                 connector.target_x = tgt_pt.x
                 connector.target_y = tgt_pt.y
                 used_points[(connector.target_name, entry_edge, tgt_pt.index)] = 'incoming'
+
             else:
                 # Fallback: take first non-corner point on entry edge.
                 for pt in tgt_grid.get_points(entry_edge):
                     if tgt_grid.is_corner_point(entry_edge, pt.index):
+                        continue
+                    if (connector.target_name, entry_edge, pt.index) in used_points:
                         continue
                     tgt_pt = pt
                     connector.target_edge = entry_edge
@@ -758,8 +763,9 @@ class ConnectorPlanner:
                     connector.target_x = pt.x
                     connector.target_y = pt.y
                     used_points[(connector.target_name, entry_edge, pt.index)] = 'incoming'
+
                     break
-            
+
             # Determine if we need multi-segment routing
             # Use multi-segment when source and target are not aligned on primary axis
             self._route_connector(connector)
