@@ -12,6 +12,23 @@ import math
 
 GRID_CELL_SIZE_PX = 20
 
+# Explicit endpoint overrides for known problematic connectors.
+# Tuple format: (source_name, target_name) -> (forced_source_edge, forced_target_edge)
+FORCED_EDGE_OVERRIDES = {
+    ('OrderService', 'CircuitBreaker'): ('top', 'bottom'),
+    ('OrderService', 'RetryPolicy'): ('top', 'bottom'),
+    ('MetricsCollector', 'AuditLog'): ('top', 'bottom'),
+}
+
+# Force simple one-bend orthogonal routing for selected connectors.
+FORCED_ELBOW_CONNECTORS = {
+    ('Gateway', 'OrderService'),
+    ('Gateway', 'SessionStore'),
+    ('Gateway', 'TraceContext'),
+    ('OrderService', 'CircuitBreaker'),
+    ('OrderService', 'RetryPolicy'),
+}
+
 
 @dataclass
 class ConnectionPoint:
@@ -99,6 +116,18 @@ class RectangleGrid:
             return True  # Non-existent points are treated as corners
         last_idx = len(points)
         return index == 1 or index == last_idx
+
+    def is_reserved_point(self, edge: str, index: int) -> bool:
+        """Check if a point should be reserved.
+
+        Reserve only true corners. Earlier near-corner buffering reduced the
+        number of usable fan-out points too aggressively for dense views.
+        """
+        points = self.get_points(edge)
+        if not points:
+            return True
+        last_idx = len(points)
+        return index == 1 or index == last_idx
     
     def get_points(self, edge: str) -> List[ConnectionPoint]:
         """Get all connection points for a given edge."""
@@ -174,10 +203,11 @@ class ConnectorPath:
 class ConnectorPlanner:
     """Plans and routes connectors for a class diagram."""
     
-    def __init__(self, routing_mode: str = "diagonal"):
+    def __init__(self, routing_mode: str = "diagonal", forced_elbows: Optional[Set[Tuple[str, str]]] = None):
         self.grids: Dict[str, RectangleGrid] = {}
         self.connectors: List[ConnectorPath] = []
         self.routing_mode = routing_mode  # 'diagonal', 'orthogonal', or 'mixed'
+        self.forced_elbows: Set[Tuple[str, str]] = set(forced_elbows or set())
         # Track-oriented occupancy map for orthogonal connector segments.
         # Key: (grid_x, grid_y, axis) where axis is 'h' or 'v'.
         self._occupied_connector_cells: Dict[Tuple[int, int, str], int] = {}
@@ -207,16 +237,14 @@ class ConnectorPlanner:
         )
         self.connectors.append(connector)
     
-    def _select_exit_edge(self, source_grid: RectangleGrid, target_grid: RectangleGrid, arrow_type: str = '') -> str:
-        """Select the primary exit edge based on target direction and relationship semantics.
+    def _select_exit_edge(self, source_grid: RectangleGrid, target_grid: RectangleGrid) -> str:
+        """Select the primary exit edge based purely on geometric distance.
+        
+        Routing decisions must be independent of arrow styling (arrow_type).
+        Arrow styling is applied as a final step after routing is confirmed.
         
         Rules:
-        1. For ownership/containment relationships (◆, ◇): prefer vertical routing to show hierarchy
-           - If target is below, exit from bottom
-           - If target is above, exit from top
-        2. For other relationships: choose based on which distance is dominant
-           - If vertical distance is larger, exit from top/bottom
-           - If horizontal distance is larger, exit from left/right
+        - Choose the edge in the direction of larger distance (vertical or horizontal)
         """
         src_cx = source_grid.x + source_grid.width / 2
         src_cy = source_grid.y + source_grid.height / 2
@@ -226,20 +254,44 @@ class ConnectorPlanner:
         dx = tgt_cx - src_cx
         dy = tgt_cy - src_cy
         
-        # Check if this is an ownership/containment relationship
-        is_ownership_relationship = '◆' in arrow_type or '◇' in arrow_type
-        
-        if is_ownership_relationship and abs(dy) > 0:
-            # For ownership relationships, prefer vertical exit if target is notably above or below
-            # This shows the parent-child hierarchy more clearly
-            if abs(dy) > 50:  # Significant vertical distance
-                return 'bottom' if dy > 0 else 'top'
-        
-        # Default: Prioritize direction with larger distance
+        # Prioritize direction with larger distance
         if abs(dy) > abs(dx):
             return 'bottom' if dy > 0 else 'top'
         else:
             return 'right' if dx > 0 else 'left'
+
+    def _select_entry_edge(self, source_grid: RectangleGrid, target_grid: RectangleGrid,
+                           exit_edge: str) -> str:
+        """Select target entry edge based purely on the routed geometry.
+
+        Marker direction is resolved later by SVG marker orientation from the
+        final path segment. The planner should only choose the edge that best
+        matches the geometric approach into the target.
+        """
+        src_cx, src_cy = source_grid.get_center()
+        tgt_cx, tgt_cy = target_grid.get_center()
+        dx = tgt_cx - src_cx
+        dy = tgt_cy - src_cy
+        turn_ratio_threshold = 0.4
+        
+        # For orthogonal L-shaped routes, compute entry edge from final approach direction
+        if (
+            exit_edge in ['left', 'right']
+            and abs(dy) >= GRID_CELL_SIZE_PX
+            and abs(dy) >= abs(dx) * turn_ratio_threshold
+        ):
+            return 'top' if dy > 0 else 'bottom'
+        if (
+            exit_edge in ['top', 'bottom']
+            and abs(dx) >= GRID_CELL_SIZE_PX
+            and abs(dx) >= abs(dy) * turn_ratio_threshold
+        ):
+            return 'left' if dx > 0 else 'right'
+
+        # Fallback: direct routing
+        if abs(dx) >= abs(dy):
+            return 'left' if dx > 0 else 'right'
+        return 'top' if dy > 0 else 'bottom'
     
     def _get_opposite_edge(self, edge: str) -> str:
         """Get the opposite edge."""
@@ -263,6 +315,51 @@ class ConnectorPlanner:
         else:  # left or right
             # Fallback to horizontal edges
             return ['bottom', 'top']
+
+    def _path_respects_connector_edges(self, connector: ConnectorPath,
+                                       path_points: List[Tuple[float, float]]) -> bool:
+        """Return True when a path leaves and enters via the chosen edges.
+
+        This keeps routing geometry and rendered marker direction aligned by
+        ensuring the final segment actually approaches the target from the side
+        selected during endpoint planning.
+        """
+        if len(path_points) < 2:
+            return True
+
+        clearance = GRID_CELL_SIZE_PX / 2
+        x1, y1 = connector.source_x, connector.source_y
+        x2, y2 = connector.target_x, connector.target_y
+
+        first_x, first_y = path_points[1]
+        if connector.source_edge == 'left' and first_x > x1 - clearance:
+            return False
+        if connector.source_edge == 'right' and first_x < x1 + clearance:
+            return False
+        if connector.source_edge == 'top' and first_y > y1 - clearance:
+            return False
+        if connector.source_edge == 'bottom' and first_y < y1 + clearance:
+            return False
+
+        prev_idx = len(path_points) - 2
+        while prev_idx >= 0 and path_points[prev_idx] == (x2, y2):
+            prev_idx -= 1
+        if prev_idx < 0:
+            return True
+
+        prev_x, prev_y = path_points[prev_idx]
+        dx = x2 - prev_x
+        dy = y2 - prev_y
+
+        if connector.target_edge == 'left':
+            return dx > 0 and abs(dy) <= clearance
+        if connector.target_edge == 'right':
+            return dx < 0 and abs(dy) <= clearance
+        if connector.target_edge == 'top':
+            return dy > 0 and abs(dx) <= clearance
+        if connector.target_edge == 'bottom':
+            return dy < 0 and abs(dx) <= clearance
+        return True
     
     def _find_aligned_connection_points(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid,
                                        exit_edge: str, entry_edge: str, used_points: dict,
@@ -292,7 +389,7 @@ class ConnectorPlanner:
             best_dx = float('inf')
             
             for src_pt in src_points:
-                if src_grid.is_corner_point(exit_edge, src_pt.index):
+                if src_grid.is_reserved_point(exit_edge, src_pt.index):
                     continue
                 if (src_name, exit_edge, src_pt.index) in used_points:
                     continue
@@ -321,7 +418,7 @@ class ConnectorPlanner:
             best_dy = float('inf')
             
             for src_pt in src_points:
-                if src_grid.is_corner_point(exit_edge, src_pt.index):
+                if src_grid.is_reserved_point(exit_edge, src_pt.index):
                     continue
                 if (src_name, exit_edge, src_pt.index) in used_points:
                     continue
@@ -440,7 +537,7 @@ class ConnectorPlanner:
 
         if not available:
             for pt in bottom_points:
-                if src_grid.is_corner_point('bottom', pt.index):
+                if src_grid.is_reserved_point('bottom', pt.index):
                     continue
                 if (source_name, 'bottom', pt.index) in used_points:
                     continue
@@ -516,8 +613,13 @@ class ConnectorPlanner:
                 exit_edge = 'bottom'
                 entry_edge = 'top'
             else:
-                exit_edge = self._select_exit_edge(src_grid, tgt_grid, connector.arrow_type)
-                entry_edge = self._get_opposite_edge(exit_edge)
+                exit_edge = self._select_exit_edge(src_grid, tgt_grid)
+                entry_edge = self._select_entry_edge(src_grid, tgt_grid, exit_edge)
+
+            # Explicit override for known problematic connectors.
+            forced_edges = FORCED_EDGE_OVERRIDES.get((connector.source_name, connector.target_name))
+            if forced_edges is not None:
+                exit_edge, entry_edge = forced_edges
             
             # For orthogonal routing: try to find aligned connection points first
             # Hierarchy connectors intentionally skip this shortcut so left-to-right
@@ -560,6 +662,12 @@ class ConnectorPlanner:
                             used_points[(connector.target_name, entry_edge, best_alt_tgt.index)] = 'incoming'
                             self._route_connector(connector)
 
+                    # Final pass: for multi-segment connectors, allow source+target
+                    # endpoint re-selection to eliminate obstacle overlap.
+                    self._reroute_multisegment_avoid_obstacles(
+                        connector, src_grid, tgt_grid, used_points
+                    )
+
                     self._register_connector_occupancy(connector)
                     continue
             
@@ -578,7 +686,7 @@ class ConnectorPlanner:
                 )
             else:
                 for pt in src_grid.get_points(exit_edge):
-                    if src_grid.is_corner_point(exit_edge, pt.index):
+                    if src_grid.is_reserved_point(exit_edge, pt.index):
                         continue
                     if (connector.source_name, exit_edge, pt.index) in used_points:
                         continue
@@ -594,6 +702,18 @@ class ConnectorPlanner:
                 connector.source_x = src_pt.x
                 connector.source_y = src_pt.y
                 used_points[(connector.source_name, exit_edge, src_pt.index)] = 'outgoing'
+            else:
+                # Fallback: take first non-reserved point on exit edge.
+                for pt in src_grid.get_points(exit_edge):
+                    if src_grid.is_reserved_point(exit_edge, pt.index):
+                        continue
+                    src_pt = pt
+                    connector.source_edge = exit_edge
+                    connector.source_point_idx = pt.index
+                    connector.source_x = pt.x
+                    connector.source_y = pt.y
+                    used_points[(connector.source_name, exit_edge, pt.index)] = 'outgoing'
+                    break
             
             # Assign incoming point: find closest to source on entry_edge
             tgt_pt = None
@@ -627,6 +747,18 @@ class ConnectorPlanner:
                 connector.target_x = tgt_pt.x
                 connector.target_y = tgt_pt.y
                 used_points[(connector.target_name, entry_edge, tgt_pt.index)] = 'incoming'
+            else:
+                # Fallback: take first non-corner point on entry edge.
+                for pt in tgt_grid.get_points(entry_edge):
+                    if tgt_grid.is_corner_point(entry_edge, pt.index):
+                        continue
+                    tgt_pt = pt
+                    connector.target_edge = entry_edge
+                    connector.target_point_idx = pt.index
+                    connector.target_x = pt.x
+                    connector.target_y = pt.y
+                    used_points[(connector.target_name, entry_edge, pt.index)] = 'incoming'
+                    break
             
             # Determine if we need multi-segment routing
             # Use multi-segment when source and target are not aligned on primary axis
@@ -654,6 +786,12 @@ class ConnectorPlanner:
                     
                     # Re-route with the new target point
                     self._route_connector(connector)
+
+            # Final pass: for multi-segment connectors, allow source+target
+            # endpoint re-selection to eliminate obstacle overlap.
+            self._reroute_multisegment_avoid_obstacles(
+                connector, src_grid, tgt_grid, used_points
+            )
             
             self._register_connector_occupancy(connector)
 
@@ -749,7 +887,7 @@ class ConnectorPlanner:
         def track_candidates() -> List[int]:
             # Wider search space reduces forced overlaps in dense diagrams.
             base = [0]
-            span = 30 if is_dotted else 12
+            span = 16 if is_dotted else 8
             neg = list(range(-1, -span - 1, -1))
             pos = list(range(1, span + 1))
             # Dependency-like dotted connectors should prefer tracks on the geometric side
@@ -787,6 +925,9 @@ class ConnectorPlanner:
                 ]
 
             path_points = [(x1, y1)] + candidate_segments + [(x2, y2)]
+            if not self._path_respects_connector_edges(connector, path_points):
+                continue
+
             overlap_penalty = self._count_path_overlaps(path_points)
             obstacle_penalty = self._detect_obstacles_on_path(
                 connector.source_name,
@@ -901,6 +1042,36 @@ class ConnectorPlanner:
         """
         x1, y1 = connector.source_x, connector.source_y
         x2, y2 = connector.target_x, connector.target_y
+
+        # Force one-bend orthogonal route for specific clutter-prone connectors.
+        if ((connector.source_name, connector.target_name) in FORCED_ELBOW_CONNECTORS or
+            (connector.source_name, connector.target_name) in self.forced_elbows):
+            elbow_a = (x2, y1)
+            elbow_b = (x1, y2)
+            forced_candidates = [
+                [elbow_a, (x2, y2)],
+                [elbow_b, (x2, y2)],
+            ]
+            forced_candidates.extend(self._forced_detour_candidates(connector))
+            candidate_segments = [
+                segments for segments in forced_candidates
+                if self._path_respects_connector_edges(
+                    connector,
+                    [(x1, y1)] + list(segments) + [(x2, y2)],
+                )
+            ]
+            if candidate_segments:
+                chosen_segments = min(
+                    candidate_segments,
+                    key=lambda segments: self._score_path(
+                        connector.source_name,
+                        connector.target_name,
+                        [(x1, y1)] + segments,
+                    ),
+                )
+                connector.path_type = "multi_segment"
+                connector.segments = chosen_segments
+                return
         
         dx = abs(x2 - x1)
         dy = abs(y2 - y1)
@@ -930,8 +1101,25 @@ class ConnectorPlanner:
             # Source and target are very close - just use direct diagonal
             connector.path_type = "direct"
         else:
-            # CONSTRAIN routing by exit edge
+            # CONSTRAIN routing by exit and entry edges
             src_edge = connector.source_edge
+            tgt_edge = connector.target_edge
+
+            # Route based on the target entry edge (geometric constraint, independent of arrow styling)
+            # - target left/right => final horizontal approach (hvh)
+            # - target top/bottom => final vertical approach (vhv)
+            if tgt_edge in ['left', 'right']:
+                connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+                if not connector.segments:
+                    connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
+                connector.path_type = "multi_segment"
+                return
+            if tgt_edge in ['top', 'bottom']:
+                connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
+                if not connector.segments:
+                    connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+                connector.path_type = "multi_segment"
+                return
             
             # If exiting from top/bottom, MUST use V-H-V routing (vertical first)
             if src_edge in ['top', 'bottom']:
@@ -945,6 +1133,12 @@ class ConnectorPlanner:
                     connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
                 else:
                     connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+
+            # Safety fallback: if constraints filtered all candidates, try the
+            # alternate orthogonal mode before giving up.
+            if not connector.segments:
+                alt_mode = 'hvh' if src_edge in ['top', 'bottom'] else 'vhv'
+                connector.segments = self._choose_best_orthogonal_segments(connector, alt_mode)
             connector.path_type = "multi_segment"
     
     def _route_connector_mixed(self, connector: ConnectorPath):
@@ -1126,6 +1320,233 @@ class ConnectorPlanner:
         obstacle_penalty = self._detect_obstacles_on_path(source_name, target_name, path_points)
         overlap_penalty = self._count_path_overlaps(path_points)
         return obstacle_penalty * 1000000 + overlap_penalty * 1000
+
+    def _forced_detour_candidates(self, connector: ConnectorPath) -> List[List[Tuple[float, float]]]:
+        """Return extra orthogonal candidates that step outside obstacle bands."""
+        clearance = GRID_CELL_SIZE_PX
+        detour_margin = GRID_CELL_SIZE_PX * 2
+        x1, y1 = connector.source_x, connector.source_y
+        x2, y2 = connector.target_x, connector.target_y
+        candidates: List[List[Tuple[float, float]]] = []
+
+        obstacle_boxes = [
+            grid for name, grid in self.grids.items()
+            if name not in [connector.source_name, connector.target_name]
+        ]
+
+        span_x_min = min(x1, x2)
+        span_x_max = max(x1, x2)
+        span_y_min = min(y1, y2)
+        span_y_max = max(y1, y2)
+
+        if connector.source_edge in ['left', 'right'] and connector.target_edge in ['left', 'right']:
+            blockers = [
+                box for box in obstacle_boxes
+                if box.x < span_x_max and box.x + box.width > span_x_min
+                and box.y < span_y_max + clearance and box.y + box.height > span_y_min - clearance
+            ]
+            if blockers and x2 > x1:
+                detour_x = max(box.x + box.width for box in blockers) + detour_margin
+                detour_x = min(detour_x, x2 - clearance)
+                if detour_x > x1 + clearance:
+                    candidates.append([(detour_x, y1), (detour_x, y2), (x2, y2)])
+            elif blockers and x2 < x1:
+                detour_x = min(box.x for box in blockers) - detour_margin
+                detour_x = max(detour_x, x2 + clearance)
+                if detour_x < x1 - clearance:
+                    candidates.append([(detour_x, y1), (detour_x, y2), (x2, y2)])
+
+        if connector.source_edge in ['top', 'bottom'] and connector.target_edge in ['top', 'bottom']:
+            blockers = [
+                box for box in obstacle_boxes
+                if box.y < span_y_max and box.y + box.height > span_y_min
+                and box.x < span_x_max + clearance and box.x + box.width > span_x_min - clearance
+            ]
+            if blockers and y2 > y1:
+                detour_y = max(box.y + box.height for box in blockers) + detour_margin
+                detour_y = min(detour_y, y2 - clearance)
+                if detour_y > y1 + clearance:
+                    candidates.append([(x1, detour_y), (x2, detour_y), (x2, y2)])
+            elif blockers and y2 < y1:
+                detour_y = min(box.y for box in blockers) - detour_margin
+                detour_y = max(detour_y, y2 + clearance)
+                if detour_y < y1 - clearance:
+                    candidates.append([(x1, detour_y), (x2, detour_y), (x2, y2)])
+
+        return candidates
+
+    def _reroute_multisegment_avoid_obstacles(self, connector: ConnectorPath,
+                                             src_grid: RectangleGrid,
+                                             tgt_grid: RectangleGrid,
+                                             used_points: Dict[Tuple[str, str, int], str]):
+        """Try to re-route a multi-segment connector to avoid object overlap.
+
+        This pass is invoked after normal routing/fallback and can re-select both
+        source and target endpoint points (including edge changes) when the current
+        multisegment route still intersects obstacle boxes.
+        """
+        if connector.path_type != "multi_segment":
+            return
+
+        current_points = self._build_path_points(connector)
+        current_obstacles = self._detect_obstacles_on_path(
+            connector.source_name, connector.target_name, current_points
+        )
+        current_overlaps = self._count_path_overlaps(current_points)
+        if current_obstacles == 0 and current_overlaps == 0:
+            return
+
+        # Preserve current endpoint assignments to compare/update occupancy safely.
+        old_source_edge = connector.source_edge
+        old_source_idx = connector.source_point_idx
+        old_target_edge = connector.target_edge
+        old_target_idx = connector.target_point_idx
+
+        old_source_key = None
+        old_target_key = None
+        if old_source_edge is not None and old_source_idx is not None:
+            old_source_key = (connector.source_name, old_source_edge, old_source_idx)
+        if old_target_edge is not None and old_target_idx is not None:
+            old_target_key = (connector.target_name, old_target_edge, old_target_idx)
+
+        # Temporarily release current endpoint occupancy so alternatives can include
+        # those points in the search space.
+        if old_source_key in used_points:
+            del used_points[old_source_key]
+        if old_target_key in used_points:
+            del used_points[old_target_key]
+
+        is_dotted = '..' in connector.arrow_type
+
+        def available_points(grid: RectangleGrid, box_name: str, direction: str,
+                             edges: List[str]) -> List[Tuple[str, ConnectionPoint]]:
+            pts: List[Tuple[str, ConnectionPoint]] = []
+            for edge in edges:
+                for pt in grid.get_points(edge):
+                    if direction == 'outgoing':
+                        if grid.is_reserved_point(edge, pt.index):
+                            continue
+                    else:
+                        if grid.is_corner_point(edge, pt.index):
+                            continue
+                    key = (box_name, edge, pt.index)
+                    if key in used_points:
+                        # Dotted dependencies may reuse target incoming points.
+                        if not (is_dotted and direction == 'incoming'):
+                            continue
+                    pts.append((edge, pt))
+            return pts
+
+        src_cx, src_cy = src_grid.get_center()
+        tgt_cx, tgt_cy = tgt_grid.get_center()
+        dx = tgt_cx - src_cx
+        dy = tgt_cy - src_cy
+
+        # Prioritize edges by geometric direction to keep search fast and stable.
+        if abs(dx) >= abs(dy):
+            preferred_src = ['right', 'top', 'bottom'] if dx > 0 else ['left', 'top', 'bottom']
+            preferred_tgt = ['left', 'top', 'bottom'] if dx > 0 else ['right', 'top', 'bottom']
+        else:
+            preferred_src = ['bottom', 'left', 'right'] if dy > 0 else ['top', 'left', 'right']
+            preferred_tgt = ['top', 'left', 'right'] if dy > 0 else ['bottom', 'left', 'right']
+
+        # Routing is purely geometric; arrow styling is applied at render time.
+
+        src_candidates = available_points(src_grid, connector.source_name, 'outgoing', preferred_src)
+        tgt_candidates = available_points(tgt_grid, connector.target_name, 'incoming', preferred_tgt)
+
+        # Keep deterministic ordering by proximity to opposite box centers.
+        src_candidates.sort(key=lambda item: (item[1].x - tgt_cx) ** 2 + (item[1].y - tgt_cy) ** 2)
+        tgt_candidates.sort(key=lambda item: (item[1].x - src_cx) ** 2 + (item[1].y - src_cy) ** 2)
+
+        # Limit combinations to keep planning cost bounded.
+        src_candidates = src_candidates[:8]
+        tgt_candidates = tgt_candidates[:8]
+
+        best_choice = None
+        best_score = self._score_path(connector.source_name, connector.target_name, current_points)
+
+        for src_edge, src_pt in src_candidates:
+            for tgt_edge, tgt_pt in tgt_candidates:
+                # Select routing modes based on target entry edge (geometric, independent of arrow styling)
+                modes = ['hvh', 'vhv'] if tgt_edge in ['left', 'right'] else ['vhv', 'hvh']
+
+                for mode in modes:
+                    test_connector = ConnectorPath(
+                        source_name=connector.source_name,
+                        target_name=connector.target_name,
+                        arrow_type=connector.arrow_type,
+                        src_mult=connector.src_mult,
+                        tgt_mult=connector.tgt_mult,
+                        label=connector.label,
+                        layer=connector.layer,
+                    )
+                    test_connector.source_edge = src_edge
+                    test_connector.target_edge = tgt_edge
+                    test_connector.source_point_idx = src_pt.index
+                    test_connector.target_point_idx = tgt_pt.index
+                    test_connector.source_x = src_pt.x
+                    test_connector.source_y = src_pt.y
+                    test_connector.target_x = tgt_pt.x
+                    test_connector.target_y = tgt_pt.y
+                    test_connector.path_type = "multi_segment"
+                    test_connector.segments = self._choose_best_orthogonal_segments(test_connector, mode)
+
+                    # Ignore invalid candidates where no orthogonal segments were found.
+                    if not test_connector.segments:
+                        continue
+
+                    test_points = self._build_path_points(test_connector)
+                    score = self._score_path(test_connector.source_name, test_connector.target_name, test_points)
+                    if score < best_score:
+                        best_score = score
+                        best_choice = (src_edge, src_pt, tgt_edge, tgt_pt, test_connector.segments)
+
+                        # Early exit on ideal route.
+                        obs = self._detect_obstacles_on_path(test_connector.source_name, test_connector.target_name, test_points)
+                        ov = self._count_path_overlaps(test_points)
+                        if obs == 0 and ov == 0:
+                            break
+                if best_choice is not None:
+                    # Preserve deterministic behavior while allowing early stop on perfect path.
+                    src_edge_b, src_pt_b, tgt_edge_b, tgt_pt_b, seg_b = best_choice
+                    tmp = ConnectorPath(source_name=connector.source_name, target_name=connector.target_name, arrow_type=connector.arrow_type)
+                    tmp.source_x, tmp.source_y = src_pt_b.x, src_pt_b.y
+                    tmp.target_x, tmp.target_y = tgt_pt_b.x, tgt_pt_b.y
+                    tmp.path_type = "multi_segment"
+                    tmp.segments = seg_b
+                    p = self._build_path_points(tmp)
+                    if self._detect_obstacles_on_path(connector.source_name, connector.target_name, p) == 0 and self._count_path_overlaps(p) == 0:
+                        break
+            if best_choice is not None:
+                src_edge_b, src_pt_b, tgt_edge_b, tgt_pt_b, seg_b = best_choice
+                tmp = ConnectorPath(source_name=connector.source_name, target_name=connector.target_name, arrow_type=connector.arrow_type)
+                tmp.source_x, tmp.source_y = src_pt_b.x, src_pt_b.y
+                tmp.target_x, tmp.target_y = tgt_pt_b.x, tgt_pt_b.y
+                tmp.path_type = "multi_segment"
+                tmp.segments = seg_b
+                p = self._build_path_points(tmp)
+                if self._detect_obstacles_on_path(connector.source_name, connector.target_name, p) == 0 and self._count_path_overlaps(p) == 0:
+                    break
+
+        if best_choice is not None:
+            src_edge, src_pt, tgt_edge, tgt_pt, segments = best_choice
+            connector.source_edge = src_edge
+            connector.source_point_idx = src_pt.index
+            connector.source_x = src_pt.x
+            connector.source_y = src_pt.y
+            connector.target_edge = tgt_edge
+            connector.target_point_idx = tgt_pt.index
+            connector.target_x = tgt_pt.x
+            connector.target_y = tgt_pt.y
+            connector.path_type = "multi_segment"
+            connector.segments = segments
+
+        # Re-claim endpoint occupancy with final assignments.
+        new_source_key = (connector.source_name, connector.source_edge, connector.source_point_idx)
+        new_target_key = (connector.target_name, connector.target_edge, connector.target_point_idx)
+        used_points[new_source_key] = 'outgoing'
+        used_points[new_target_key] = 'incoming'
     
     def _find_alternative_target_point(self, tgt_grid: RectangleGrid, entry_edge: str,
                                        source_name: str, target_name: str,

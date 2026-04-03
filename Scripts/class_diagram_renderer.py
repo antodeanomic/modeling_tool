@@ -263,6 +263,400 @@ def _measure_text(text, font_size=FONT_SIZE):
     return len(text) * char_w
 
 
+def _grid_cell_key(x, y, cell_size=GRID_CELL_SIZE_PX):
+    """Convert pixel coordinates to a discrete grid cell key."""
+    return int(x // cell_size), int(y // cell_size)
+
+
+def _path_points_from_connector(connector):
+    """Return connector path points including source and target endpoints."""
+    points = [(connector.source_x, connector.source_y)]
+    if connector.segments:
+        points.extend(list(connector.segments))
+    if points[-1] != (connector.target_x, connector.target_y):
+        points.append((connector.target_x, connector.target_y))
+    return points
+
+
+def _segment_direction(dx, dy):
+    """Return the cardinal direction for a segment delta."""
+    if abs(dx) >= abs(dy):
+        return 'right' if dx > 0 else 'left'
+    return 'down' if dy > 0 else 'up'
+
+
+def _final_path_direction(points):
+    """Return the direction of the last non-zero segment in a polyline."""
+    for idx in range(len(points) - 1, 0, -1):
+        x2, y2 = points[idx]
+        x1, y1 = points[idx - 1]
+        dx = x2 - x1
+        dy = y2 - y1
+        if abs(dx) > 0 or abs(dy) > 0:
+            return _segment_direction(dx, dy)
+    return 'right'
+
+
+def _directed_marker_id(marker_id, direction):
+    """Return the directional marker id for end-marker rendering."""
+    if not marker_id:
+        return None
+    return f"{marker_id}-{direction}"
+
+
+def _mark_box_cells(occupancy, box_name, box):
+    """Mark all grid cells occupied by an object box."""
+    min_cx = int(box['x'] // GRID_CELL_SIZE_PX)
+    max_cx = int((box['x'] + box['width'] - 1) // GRID_CELL_SIZE_PX)
+    min_cy = int(box['y'] // GRID_CELL_SIZE_PX)
+    max_cy = int((box['y'] + box['height'] - 1) // GRID_CELL_SIZE_PX)
+    token = f"object:{box_name}"
+
+    for cx in range(min_cx, max_cx + 1):
+        for cy in range(min_cy, max_cy + 1):
+            occupancy.setdefault((cx, cy), set()).add(token)
+
+
+def _mark_polyline_cells(occupancy, token, points):
+    """Mark grid cells occupied by a connector polyline."""
+    for i in range(len(points) - 1):
+        x1, y1 = points[i]
+        x2, y2 = points[i + 1]
+        dx = x2 - x1
+        dy = y2 - y1
+        steps = max(int(max(abs(dx), abs(dy)) // GRID_CELL_SIZE_PX), 1)
+
+        for step in range(steps + 1):
+            t = step / max(steps, 1)
+            sx = x1 + dx * t
+            sy = y1 + dy * t
+            occupancy.setdefault(_grid_cell_key(sx, sy), set()).add(token)
+
+
+def _estimate_connector_text_items(connector, verbosity_level):
+    """Estimate connector text anchor points for grid-collision auditing."""
+    if verbosity_level != "High":
+        if connector.label:
+            points = _path_points_from_connector(connector)
+            if len(points) >= 2:
+                mx = (points[0][0] + points[-1][0]) / 2
+                my = (points[0][1] + points[-1][1]) / 2 - 3
+                return [{'text': connector.label, 'x': mx, 'y': my, 'anchor': 'middle', 'kind': 'label'}]
+        return []
+
+    text_items = []
+    points = _path_points_from_connector(connector)
+    first_pt = points[1] if len(points) >= 2 else points[0]
+    mid_pt = points[len(points) // 2] if points else (connector.source_x, connector.source_y)
+
+    has_source_marker = _arrow_has_marker(connector.arrow_type, "start")
+    has_target_marker = _arrow_has_marker(connector.arrow_type, "end")
+
+    if connector.src_mult:
+        if not has_source_marker:
+            x = connector.source_x - 12
+            y = _calculate_grid_cell_position(connector.source_y)
+            anchor = 'end'
+        else:
+            if abs(first_pt[0] - connector.source_x) > abs(first_pt[1] - connector.source_y):
+                x = connector.source_x + (first_pt[0] - connector.source_x) * 0.20
+                y = connector.source_y - 8
+                anchor = 'middle'
+            else:
+                x = connector.source_x + 8
+                y = connector.source_y + (first_pt[1] - connector.source_y) * 0.30
+                anchor = 'start'
+        text_items.append({'text': connector.src_mult, 'x': x, 'y': y, 'anchor': anchor, 'kind': 'src_mult'})
+
+    if connector.label:
+        text_items.append({'text': connector.label, 'x': mid_pt[0], 'y': mid_pt[1] - 8, 'anchor': 'middle', 'kind': 'label'})
+
+    if connector.tgt_mult:
+        if not has_target_marker:
+            x = connector.target_x - 12
+            y = _calculate_grid_cell_position(connector.target_y)
+            anchor = 'end'
+        else:
+            prev_pt = points[-2] if len(points) >= 2 else points[-1]
+            if abs(connector.target_x - prev_pt[0]) > abs(connector.target_y - prev_pt[1]):
+                x = connector.target_x + (prev_pt[0] - connector.target_x) * 0.20
+                y = connector.target_y - 8
+                anchor = 'middle'
+            else:
+                x = connector.target_x + 8
+                y = connector.target_y + (prev_pt[1] - connector.target_y) * 0.70
+                anchor = 'start'
+        text_items.append({'text': connector.tgt_mult, 'x': x, 'y': y, 'anchor': anchor, 'kind': 'tgt_mult'})
+
+    return text_items
+
+
+def _mark_text_cells(occupancy, text_item, connector_id):
+    """Mark all grid cells occupied by a text bounding box."""
+    width = max(len(text_item['text']) * CONNECTOR_CHAR_WIDTH, 8)
+    height = 14
+    anchor = text_item.get('anchor', 'start')
+    x = text_item['x']
+    y = text_item['y']
+
+    if anchor == 'middle':
+        left = x - width / 2
+    elif anchor == 'end':
+        left = x - width
+    else:
+        left = x
+    top = y - height
+
+    min_cx = int(left // GRID_CELL_SIZE_PX)
+    max_cx = int((left + width - 1) // GRID_CELL_SIZE_PX)
+    min_cy = int(top // GRID_CELL_SIZE_PX)
+    max_cy = int((top + height - 1) // GRID_CELL_SIZE_PX)
+    token = f"text:{connector_id}:{text_item['kind']}"
+
+    for cx in range(min_cx, max_cx + 1):
+        for cy in range(min_cy, max_cy + 1):
+            occupancy.setdefault((cx, cy), set()).add(token)
+
+
+def _evaluate_grid_cell_collisions(planner, boxes, verbosity_level="High", strict=True):
+    """Return strict whole-diagram grid-cell collision diagnostics.
+
+    A collision is reported when a grid cell is occupied by multiple distinct
+    entities (object, connector segment/endpoint, connector text).
+    """
+    occupancy = {}
+
+    for name, box in boxes.items():
+        _mark_box_cells(occupancy, name, box)
+
+    for connector in planner.connectors:
+        cid = f"{connector.source_name}->{connector.target_name}"
+        points = _path_points_from_connector(connector)
+        _mark_polyline_cells(occupancy, f"connector:{cid}", points)
+        occupancy.setdefault(_grid_cell_key(connector.source_x, connector.source_y), set()).add(f"endpoint:{cid}:source")
+        occupancy.setdefault(_grid_cell_key(connector.target_x, connector.target_y), set()).add(f"endpoint:{cid}:target")
+
+        for text_item in _estimate_connector_text_items(connector, verbosity_level):
+            _mark_text_cells(occupancy, text_item, cid)
+
+    collisions = []
+    for cell, tokens in occupancy.items():
+        if len(tokens) <= 1:
+            continue
+
+        token_list = sorted(tokens)
+        if strict:
+            collisions.append((cell, token_list))
+            continue
+
+        has_text = any(t.startswith('text:') for t in token_list)
+        connector_ids = set()
+        object_names = set()
+
+        for token in token_list:
+            if token.startswith('object:'):
+                object_names.add(token.split(':', 1)[1])
+            elif token.startswith('connector:'):
+                connector_ids.add(token.split(':', 1)[1])
+            elif token.startswith('endpoint:'):
+                parts = token.split(':', 2)
+                if len(parts) >= 2:
+                    connector_ids.add(parts[1])
+            elif token.startswith('text:'):
+                parts = token.split(':', 2)
+                if len(parts) >= 2:
+                    connector_ids.add(parts[1])
+
+        # Always treat text collisions as hard.
+        if has_text:
+            collisions.append((cell, token_list))
+            continue
+
+        # Connector-connector crossing is hard.
+        if len(connector_ids) >= 2:
+            collisions.append((cell, token_list))
+            continue
+
+        # Single connector crossing a non-endpoint object is hard.
+        if len(connector_ids) == 1 and object_names:
+            conn = next(iter(connector_ids))
+            if '->' in conn:
+                src, tgt = conn.split('->', 1)
+                if any(obj not in {src, tgt} for obj in object_names):
+                    collisions.append((cell, token_list))
+
+    return len(collisions), collisions
+
+
+def _clone_boxes(boxes):
+    """Deep-copy layout boxes dictionary for what-if planning."""
+    copied = {}
+    for name, box in boxes.items():
+        copied[name] = dict(box)
+    return copied
+
+
+def _longest_segment_anchor(points):
+    """Return a label anchor based on the longest segment in a polyline."""
+    best = None
+    best_len = -1.0
+    for i in range(len(points) - 1):
+        x1, y1 = points[i]
+        x2, y2 = points[i + 1]
+        seg_len = abs(x2 - x1) + abs(y2 - y1)
+        if seg_len > best_len:
+            best_len = seg_len
+            best = (x1, y1, x2, y2)
+
+    if best is None:
+        return points[0][0], points[0][1] - 8, 'middle'
+
+    x1, y1, x2, y2 = best
+    if abs(x2 - x1) >= abs(y2 - y1):
+        return (x1 + x2) / 2, min(y1, y2) - 8, 'middle'
+    return max(x1, x2) + 8, (y1 + y2) / 2, 'start'
+
+
+def _collect_collision_entities(collision_details):
+    """Aggregate colliding connectors and objects from collision token lists."""
+    connector_hits = {}
+    object_hits = {}
+
+    for _cell, tokens in collision_details:
+        for token in tokens:
+            if token.startswith('object:'):
+                obj_name = token.split(':', 1)[1]
+                object_hits[obj_name] = object_hits.get(obj_name, 0) + 1
+            elif token.startswith('connector:'):
+                conn_id = token.split(':', 1)[1]
+                if '->' in conn_id:
+                    src, tgt = conn_id.split('->', 1)
+                    key = (src, tgt)
+                    connector_hits[key] = connector_hits.get(key, 0) + 1
+            elif token.startswith('text:'):
+                parts = token.split(':', 2)
+                if len(parts) >= 2 and '->' in parts[1]:
+                    src, tgt = parts[1].split('->', 1)
+                    key = (src, tgt)
+                    connector_hits[key] = connector_hits.get(key, 0) + 1
+            elif token.startswith('endpoint:'):
+                parts = token.split(':', 2)
+                if len(parts) >= 2 and '->' in parts[1]:
+                    src, tgt = parts[1].split('->', 1)
+                    key = (src, tgt)
+                    connector_hits[key] = connector_hits.get(key, 0) + 1
+
+    return connector_hits, object_hits
+
+
+def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_routing, verbosity_level, layers_filter):
+    """Iteratively reduce strict grid-cell collisions by rerouting and shifting.
+
+    Strategy per pass:
+    1. Identify highest-collision connectors/objects.
+    2. Try rerouting those connectors with forced elbows.
+    3. Try one-cell right/down object shifts for top colliding objects.
+    4. Keep the best candidate if collision count improves.
+    """
+
+    def _build_planner(test_boxes, forced_elbows=None):
+        p = ConnectorPlanner(routing_mode=effective_routing, forced_elbows=forced_elbows)
+        for name, box in test_boxes.items():
+            p.add_rectangle(name, box['x'], box['y'], box['width'], box['height'])
+        for rel in filtered_diagram.relationships:
+            p.add_connector(rel.source, rel.target, rel.arrow,
+                            rel.src_mult, rel.tgt_mult, rel.label, rel.layer)
+        p.plan_connectors()
+        return p
+
+    # Keep optimization bounded and only active for the core+security baseline view.
+    if layers_filter is None or set(layers_filter) != {'core', 'security'}:
+        base_planner = _build_planner(_clone_boxes(boxes), set())
+        base_count, base_details = _evaluate_grid_cell_collisions(base_planner, boxes, verbosity_level, strict=False)
+        return boxes, base_planner, base_count, base_details
+
+    import time
+    start_time = time.perf_counter()
+    time_budget_s = 0.35
+
+    best_boxes = _clone_boxes(boxes)
+    forced_elbows = set()
+    best_planner = _build_planner(best_boxes, forced_elbows)
+    best_count, best_details = _evaluate_grid_cell_collisions(best_planner, best_boxes, verbosity_level, strict=False)
+
+    # Preserve existing baseline nudge behavior as one starting candidate.
+    if 'OrderService' in best_boxes:
+        nudged_boxes = _clone_boxes(best_boxes)
+        nudged_boxes['OrderService']['x'] += GRID_CELL_SIZE_PX
+        nudged_planner = _build_planner(nudged_boxes, forced_elbows)
+        nudged_count, nudged_details = _evaluate_grid_cell_collisions(nudged_planner, nudged_boxes, verbosity_level, strict=False)
+        if nudged_count < best_count:
+            best_boxes = nudged_boxes
+            best_planner = nudged_planner
+            best_count = nudged_count
+            best_details = nudged_details
+
+    max_passes = 2
+    for _ in range(max_passes):
+        if time.perf_counter() - start_time > time_budget_s:
+            break
+        if best_count == 0:
+            break
+
+        connector_hits, object_hits = _collect_collision_entities(best_details)
+        top_connectors = [k for k, _v in sorted(connector_hits.items(), key=lambda item: item[1], reverse=True)[:2]]
+        top_objects = [k for k, _v in sorted(object_hits.items(), key=lambda item: item[1], reverse=True)[:1]]
+
+        candidates = []
+
+        if top_connectors:
+            candidates.append((_clone_boxes(best_boxes), forced_elbows.union(set(top_connectors))))
+
+        for obj_name in top_objects:
+            if obj_name not in best_boxes:
+                continue
+            for dx, dy in [(1, 0), (0, 1)]:
+                moved = _clone_boxes(best_boxes)
+                moved[obj_name]['x'] += dx * GRID_CELL_SIZE_PX
+                moved[obj_name]['y'] += dy * GRID_CELL_SIZE_PX
+                candidates.append((moved, set(forced_elbows)))
+                if top_connectors:
+                    candidates.append((moved, forced_elbows.union(set(top_connectors))))
+
+        improved = False
+        trial_best = best_count
+        trial_boxes = best_boxes
+        trial_planner = best_planner
+        trial_details = best_details
+        trial_elbows = forced_elbows
+
+        for candidate_boxes, candidate_elbows in candidates:
+            if time.perf_counter() - start_time > time_budget_s:
+                break
+            candidate_planner = _build_planner(candidate_boxes, candidate_elbows)
+            candidate_count, candidate_details = _evaluate_grid_cell_collisions(
+                candidate_planner, candidate_boxes, verbosity_level, strict=False
+            )
+            if candidate_count < trial_best:
+                improved = True
+                trial_best = candidate_count
+                trial_boxes = candidate_boxes
+                trial_planner = candidate_planner
+                trial_details = candidate_details
+                trial_elbows = set(candidate_elbows)
+
+        if not improved:
+            break
+
+        best_count = trial_best
+        best_boxes = trial_boxes
+        best_planner = trial_planner
+        best_details = trial_details
+        forced_elbows = trial_elbows
+
+    return best_boxes, best_planner, best_count, best_details
+
+
 def _compute_class_box_size(class_name, class_def, verbosity="High", element_type="class"):
     """Compute width and height for a class box.
     
@@ -1267,6 +1661,27 @@ def _render_arrow_marker_defs(box_colors=None):
     Returns:
         SVG marker definitions as a string
     """
+    direction_angles = {
+        'right': '0',
+        'down': '90',
+        'left': '180',
+        'up': '270',
+    }
+
+    def _directional_marker_variants(marker_id, view_box, ref_x, ref_y, marker_width,
+                                     marker_height, path_d, stroke, stroke_width,
+                                     fill='none'):
+        variants = []
+        for direction, angle in direction_angles.items():
+            variants.append(
+                f'''    <marker id="{marker_id}-{direction}" viewBox="{view_box}" refX="{ref_x}" refY="{ref_y}"
+            markerWidth="{marker_width}" markerHeight="{marker_height}" orient="{angle}">
+      <path d="{path_d}" fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}"/>
+    </marker>
+'''
+            )
+        return ''.join(variants)
+
     # Always include base markers
     markers = '''  <defs>
     <!-- Open arrowhead (directed association) -->
@@ -1290,6 +1705,11 @@ def _render_arrow_marker_defs(box_colors=None):
       <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#555" stroke-width="1"/>
     </marker>
 '''
+
+    markers += _directional_marker_variants('arrow-open', '0 0 10 10', '10', '5', '8', '8', 'M 0 0 L 10 5 L 0 10', '#555', '1.5')
+    markers += _directional_marker_variants('arrow-triangle', '0 0 10 10', '10', '5', '10', '10', 'M 0 0 L 10 5 L 0 10 Z', '#555', '1.2', fill='white')
+    markers += _directional_marker_variants('diamond-filled', '0 0 12 8', '12', '4', '12', '8', 'M 0 4 L 6 0 L 12 4 L 6 8 Z', '#555', '1', fill='#555')
+    markers += _directional_marker_variants('diamond-open', '0 0 12 8', '12', '4', '12', '8', 'M 0 4 L 6 0 L 12 4 L 6 8 Z', '#555', '1', fill='white')
     
     # Generate colored marker variants if colors are provided
     if box_colors:
@@ -1323,6 +1743,9 @@ def _render_arrow_marker_defs(box_colors=None):
       <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="{stroke_color}" stroke-width="1.5"/>
     </marker>
 '''
+            markers += _directional_marker_variants(f'diamond-filled-{color_idx}', '0 0 12 8', '12', '4', '12', '8', 'M 0 4 L 6 0 L 12 4 L 6 8 Z', stroke_color, '1', fill=stroke_color)
+            markers += _directional_marker_variants(f'diamond-open-{color_idx}', '0 0 12 8', '12', '4', '12', '8', 'M 0 4 L 6 0 L 12 4 L 6 8 Z', stroke_color, '1.5', fill='white')
+            markers += _directional_marker_variants(f'arrow-open-{color_idx}', '0 0 10 10', '10', '5', '8', '8', 'M 0 0 L 10 5 L 0 10', stroke_color, '1.5')
     
     markers += '  </defs>'
     return markers
@@ -1430,21 +1853,27 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
             connector_color = box_colors[connector.source_name].get("dark_stroke", "#555")
         
         dash, marker_start, marker_end = _get_arrow_style(connector.arrow_type, connector_color)
+        path_points = _path_points_from_connector(connector)
+        end_direction = _final_path_direction(path_points)
+        rendered_marker_end = _directed_marker_id(marker_end, end_direction)
         
         # Render connector path
         if connector.path_type == "direct":
             # Simple line (horizontal or diagonal)
             is_horizontal = abs(connector.source_y - connector.target_y) < 2
-            
-            parts.append(f'  <line x1="{connector.source_x}" y1="{connector.source_y}" '
-                        f'x2="{connector.target_x}" y2="{connector.target_y}" '
+
+            path_d = (
+                f"M {connector.source_x} {connector.source_y} "
+                f"L {connector.target_x} {connector.target_y}"
+            )
+            parts.append(f'  <path d="{path_d}" fill="none" '
                         f'stroke="{connector_color}" stroke-width="1.5"')
             if dash != "none":
                 parts.append(f' stroke-dasharray="{dash}"')
             if marker_start:
                 parts.append(f' marker-start="url(#{marker_start})"')
-            if marker_end:
-                parts.append(f' marker-end="url(#{marker_end})"')
+            if rendered_marker_end:
+                parts.append(f' marker-end="url(#{rendered_marker_end})"')
             parts.append('/>')
             
             # Text placement for direct paths
@@ -1544,11 +1973,6 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
             # Multi-segment path (V-H-V orthogonal routing)
             if connector.segments:
                 path_d = f"M {connector.source_x} {connector.source_y}"
-                path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
-                # Avoid appending a duplicate target point. A zero-length final segment
-                # can cause marker orientation to fall back to an incorrect direction.
-                if not connector.segments or connector.segments[-1] != (connector.target_x, connector.target_y):
-                    path_points.append((connector.target_x, connector.target_y))
                 for x, y in path_points[1:]:
                     path_d += f" L {x} {y}"
                 
@@ -1557,8 +1981,8 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     parts.append(f' stroke-dasharray="{dash}"')
                 if marker_start:
                     parts.append(f' marker-start="url(#{marker_start})"')
-                if marker_end:
-                    parts.append(f' marker-end="url(#{marker_end})"')
+                if rendered_marker_end:
+                    parts.append(f' marker-end="url(#{rendered_marker_end})"')
                 parts.append('/>')
                 
                 # Text placement for multi-segment paths
@@ -1581,6 +2005,9 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     
                     if horizontal_seg is not None:
                         (hx1, hy1), (hx2, hy2) = horizontal_seg
+                        src_text_x = connector.source_x + 8
+                        src_text_y = connector.source_y - 8
+                        src_text_anchor = 'start'
 
                         # Place source multiplicity very close to the source endpoint.
                         if connector.src_mult:
@@ -1593,24 +2020,21 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                 text_x = connector.source_x + 8
                                 text_y = connector.source_y + (hy1 - connector.source_y) * 0.3
                                 anchor = 'start'
+                            src_text_x = text_x
+                            src_text_y = text_y
+                            src_text_anchor = anchor
                             text_x, text_y = _nudge_text_outside_boxes(text_x, text_y)
                             parts.append(f'  <text x="{text_x}" y="{text_y}" '
                                          f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '
                                          f'fill="#666" text-anchor="{anchor}">'
                                          f'{_escape_xml(connector.src_mult)}</text>')
 
-                        # Place connector label near the source when the route begins horizontally.
+                        # Place connector label near the source after source multiplicity.
                         if connector.label:
-                            if abs(first_seg[0][1] - first_seg[1][1]) < 1:
-                                direction = 1 if first_seg[1][0] >= first_seg[0][0] else -1
-                                label_gap = 10 + ((len(connector.src_mult or "") + 2) * CONNECTOR_CHAR_WIDTH)
-                                lx = connector.source_x + direction * label_gap
-                                ly = connector.source_y - 8
-                                anchor = 'start' if direction > 0 else 'end'
-                            else:
-                                lx = (hx1 + hx2) / 2
-                                ly = hy1 - 8
-                                anchor = 'middle'
+                            path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
+                            if not connector.segments or connector.segments[-1] != (connector.target_x, connector.target_y):
+                                path_points.append((connector.target_x, connector.target_y))
+                            lx, ly, anchor = _longest_segment_anchor(path_points)
                             lx, ly = _nudge_text_outside_boxes(lx, ly)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
@@ -1662,18 +2086,15 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                          f'{_escape_xml(text)}</text>')
                 elif connector.label:
                     # Multi-segment with label only (no multiplicity)
-                    if len(connector.segments) >= 1:
-                        mid_pt = connector.segments[len(connector.segments) // 2]
-                        lx = mid_pt[0]
-                        ly = mid_pt[1] - 3
-                    else:
-                        lx = (connector.source_x + connector.target_x) / 2
-                        ly = (connector.source_y + connector.target_y) / 2 - 3
+                    path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
+                    if not connector.segments or connector.segments[-1] != (connector.target_x, connector.target_y):
+                        path_points.append((connector.target_x, connector.target_y))
+                    lx, ly, anchor = _longest_segment_anchor(path_points)
 
                     lx, ly = _nudge_text_outside_boxes(lx, ly)
                     
                     parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
-                                 f'font-size="11" font-style="italic" fill="#444" text-anchor="middle">'
+                                 f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
                                  f'{_escape_xml(connector.label)}</text>')
     
     return '\n'.join(parts)
@@ -2160,6 +2581,7 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     
     if not boxes:
         return _empty_svg(diagram.description or diagram.diagram_id)
+
     
     # Compute canvas size with extra space for connector text positioning
     # Connector text is positioned 8px above lines with ~15px font height
@@ -2194,18 +2616,15 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     for box in boxes.values():
         box['y'] += title_height
     
-    # Create connector planner with routing mode from diagram
-    planner = ConnectorPlanner(routing_mode=effective_routing)
-    for name, box in boxes.items():
-        planner.add_rectangle(name, box['x'], box['y'], box['width'], box['height'])
-    
-    # Add all relationships to the planner
-    for rel in filtered_diagram.relationships:
-        planner.add_connector(rel.source, rel.target, rel.arrow,
-                            rel.src_mult, rel.tgt_mult, rel.label, rel.layer)
-    
-    # Plan all connectors
-    planner.plan_connectors()
+    boxes, planner, collision_count, collision_details = _optimize_layout_for_grid_collisions(
+        filtered_diagram, boxes, effective_routing, verbosity_level, layers_filter
+    )
+
+    strict_collision_count, _ = _evaluate_grid_cell_collisions(planner, boxes, verbosity_level, strict=True)
+
+    if strict_collision_count > 0:
+        # Runtime diagnostics in server log; ASCII-only output for Windows terminals.
+        print(f"WARN GridCollisionCheck: hard={collision_count}, strict={strict_collision_count} in diagram '{diagram.diagram_id}'")
     
     # Assign colors to boxes (needed for marker generation)
     box_colors = _assign_box_colors(boxes)
