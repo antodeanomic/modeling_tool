@@ -572,95 +572,6 @@ def _collect_collision_entities(collision_details):
     return connector_hits, object_hits
 
 
-def _detect_critical_connector_overlaps(planner, verbosity_level="High"):
-    """Detect when connectors to the same target have label visibility conflicts.
-    
-    Specific case: Gateway->SessionStore routes over AuthService->SessionStore's label.
-    Only checks connectors sharing a common target to avoid false positives.
-    
-    Returns:
-        Set of connector IDs that should be rerouted.
-    """
-    if verbosity_level != "High":
-        return set()
-    
-    reroute_set = set()
-    
-    # Group connectors by target
-    by_target = {}
-    for connector in planner.connectors:
-        target = connector.target_name
-        if target not in by_target:
-            by_target[target] = []
-        by_target[target].append(connector)
-    
-    # For each target with multiple incoming connectors
-    for target, connectors in by_target.items():
-        if len(connectors) < 2:
-            continue
-        
-        # Build label regions for all connectors to this target
-        label_regions = {}
-        for connector in connectors:
-            points = _path_points_from_connector(connector)
-            if len(points) < 2 or not connector.label:
-                continue
-            
-            # Calculate label position
-            lx, ly, anchor = _source_label_anchor(connector, points)
-            width = max(len(connector.label) * CONNECTOR_CHAR_WIDTH, 8)
-            height = 14
-            
-            if anchor == 'middle':
-                left = lx - width / 2
-            elif anchor == 'end':
-                left = lx - width
-            else:
-                left = lx
-            
-            label_regions[id(connector)] = {
-                'left': left,
-                'top': ly - height,
-                'right': left + width,
-                'bottom': ly
-            }
-        
-        # Check each connector's path against labels of others
-        for connector in connectors:
-            if id(connector) not in label_regions:
-                continue
-            
-            points = _path_points_from_connector(connector)
-            
-            # Sample the path
-            for i in range(len(points) - 1):
-                x1, y1 = points[i]
-                x2, y2 = points[i + 1]
-                segment_len = max(abs(x2 - x1), abs(y2 - y1))
-                samples = max(int(segment_len / 10), 5)
-                
-                for sample_idx in range(samples + 1):
-                    t = sample_idx / max(samples, 1)
-                    sx = x1 + (x2 - x1) * t
-                    sy = y1 + (y2 - y1) * t
-                    
-                    # Check against labels from OTHER connectors to same target
-                    for other_connector in connectors:
-                        if id(other_connector) == id(connector):
-                            continue
-                        if id(other_connector) not in label_regions:
-                            continue
-                        
-                        label_box = label_regions[id(other_connector)]
-                        if (label_box['left'] - 15 <= sx <= label_box['right'] + 15 and
-                            label_box['top'] - 15 <= sy <= label_box['bottom'] + 15):
-                            # Path passes through label area - mark this connector for rerouting
-                            reroute_set.add((connector.source_name, connector.target_name))
-                            return reroute_set  # Return first match to avoid over-aggressive rerouting
-    
-    return reroute_set
-
-
 def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_routing, verbosity_level, layers_filter):
     """Iteratively reduce strict grid-cell collisions by rerouting and shifting.
 
@@ -695,14 +606,6 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
     forced_elbows = set()
     best_planner = _build_planner(best_boxes, forced_elbows)
     best_count, best_details = _evaluate_grid_cell_collisions(best_planner, best_boxes, verbosity_level, strict=False)
-    
-    # Detect critical text-path overlaps and add to forced elbows
-    critical_overlaps = _detect_critical_connector_overlaps(best_planner, verbosity_level)
-    if critical_overlaps:
-        forced_elbows.update(critical_overlaps)
-        # Rebuild planner with the forced elbows
-        best_planner = _build_planner(best_boxes, forced_elbows)
-        best_count, best_details = _evaluate_grid_cell_collisions(best_planner, best_boxes, verbosity_level, strict=False)
 
     # Preserve existing baseline nudge behavior as one starting candidate.
     if 'OrderService' in best_boxes:
