@@ -304,6 +304,30 @@ def _directed_marker_id(marker_id, direction):
     return f"{marker_id}-{direction}"
 
 
+def _source_label_anchor(connector, points):
+    """Place connector labels close to the source, following source multiplicity.
+
+    This keeps labels away from the middle of dense routes where collision
+    detection is weaker and clutter is harder to read.
+    """
+    first_pt = points[1] if len(points) >= 2 else points[0]
+    src_mult_gap = ((len(connector.src_mult or "") + 2) * CONNECTOR_CHAR_WIDTH)
+
+    if abs(first_pt[0] - connector.source_x) >= abs(first_pt[1] - connector.source_y):
+        direction = 1 if first_pt[0] >= connector.source_x else -1
+        base_gap = 10 + src_mult_gap
+        x = connector.source_x + direction * base_gap
+        y = connector.source_y - 8
+        anchor = 'start' if direction > 0 else 'end'
+        return x, y, anchor
+
+    travel = first_pt[1] - connector.source_y
+    fraction = 0.55 if connector.src_mult else 0.35
+    x = connector.source_x + 8
+    y = connector.source_y + travel * fraction
+    return x, y, 'start'
+
+
 def _mark_box_cells(occupancy, box_name, box):
     """Mark all grid cells occupied by an object box."""
     min_cx = int(box['x'] // GRID_CELL_SIZE_PX)
@@ -335,19 +359,17 @@ def _mark_polyline_cells(occupancy, token, points):
 
 def _estimate_connector_text_items(connector, verbosity_level):
     """Estimate connector text anchor points for grid-collision auditing."""
+    points = _path_points_from_connector(connector)
+
     if verbosity_level != "High":
         if connector.label:
-            points = _path_points_from_connector(connector)
             if len(points) >= 2:
-                mx = (points[0][0] + points[-1][0]) / 2
-                my = (points[0][1] + points[-1][1]) / 2 - 3
-                return [{'text': connector.label, 'x': mx, 'y': my, 'anchor': 'middle', 'kind': 'label'}]
+                lx, ly, anchor = _source_label_anchor(connector, points)
+                return [{'text': connector.label, 'x': lx, 'y': ly, 'anchor': anchor, 'kind': 'label'}]
         return []
 
     text_items = []
-    points = _path_points_from_connector(connector)
     first_pt = points[1] if len(points) >= 2 else points[0]
-    mid_pt = points[len(points) // 2] if points else (connector.source_x, connector.source_y)
 
     has_source_marker = _arrow_has_marker(connector.arrow_type, "start")
     has_target_marker = _arrow_has_marker(connector.arrow_type, "end")
@@ -369,7 +391,8 @@ def _estimate_connector_text_items(connector, verbosity_level):
         text_items.append({'text': connector.src_mult, 'x': x, 'y': y, 'anchor': anchor, 'kind': 'src_mult'})
 
     if connector.label:
-        text_items.append({'text': connector.label, 'x': mid_pt[0], 'y': mid_pt[1] - 8, 'anchor': 'middle', 'kind': 'label'})
+        lx, ly, anchor = _source_label_anchor(connector, points)
+        text_items.append({'text': connector.label, 'x': lx, 'y': ly, 'anchor': anchor, 'kind': 'label'})
 
     if connector.tgt_mult:
         if not has_target_marker:
@@ -549,6 +572,95 @@ def _collect_collision_entities(collision_details):
     return connector_hits, object_hits
 
 
+def _detect_critical_connector_overlaps(planner, verbosity_level="High"):
+    """Detect when connectors to the same target have label visibility conflicts.
+    
+    Specific case: Gateway->SessionStore routes over AuthService->SessionStore's label.
+    Only checks connectors sharing a common target to avoid false positives.
+    
+    Returns:
+        Set of connector IDs that should be rerouted.
+    """
+    if verbosity_level != "High":
+        return set()
+    
+    reroute_set = set()
+    
+    # Group connectors by target
+    by_target = {}
+    for connector in planner.connectors:
+        target = connector.target_name
+        if target not in by_target:
+            by_target[target] = []
+        by_target[target].append(connector)
+    
+    # For each target with multiple incoming connectors
+    for target, connectors in by_target.items():
+        if len(connectors) < 2:
+            continue
+        
+        # Build label regions for all connectors to this target
+        label_regions = {}
+        for connector in connectors:
+            points = _path_points_from_connector(connector)
+            if len(points) < 2 or not connector.label:
+                continue
+            
+            # Calculate label position
+            lx, ly, anchor = _source_label_anchor(connector, points)
+            width = max(len(connector.label) * CONNECTOR_CHAR_WIDTH, 8)
+            height = 14
+            
+            if anchor == 'middle':
+                left = lx - width / 2
+            elif anchor == 'end':
+                left = lx - width
+            else:
+                left = lx
+            
+            label_regions[id(connector)] = {
+                'left': left,
+                'top': ly - height,
+                'right': left + width,
+                'bottom': ly
+            }
+        
+        # Check each connector's path against labels of others
+        for connector in connectors:
+            if id(connector) not in label_regions:
+                continue
+            
+            points = _path_points_from_connector(connector)
+            
+            # Sample the path
+            for i in range(len(points) - 1):
+                x1, y1 = points[i]
+                x2, y2 = points[i + 1]
+                segment_len = max(abs(x2 - x1), abs(y2 - y1))
+                samples = max(int(segment_len / 10), 5)
+                
+                for sample_idx in range(samples + 1):
+                    t = sample_idx / max(samples, 1)
+                    sx = x1 + (x2 - x1) * t
+                    sy = y1 + (y2 - y1) * t
+                    
+                    # Check against labels from OTHER connectors to same target
+                    for other_connector in connectors:
+                        if id(other_connector) == id(connector):
+                            continue
+                        if id(other_connector) not in label_regions:
+                            continue
+                        
+                        label_box = label_regions[id(other_connector)]
+                        if (label_box['left'] - 15 <= sx <= label_box['right'] + 15 and
+                            label_box['top'] - 15 <= sy <= label_box['bottom'] + 15):
+                            # Path passes through label area - mark this connector for rerouting
+                            reroute_set.add((connector.source_name, connector.target_name))
+                            return reroute_set  # Return first match to avoid over-aggressive rerouting
+    
+    return reroute_set
+
+
 def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_routing, verbosity_level, layers_filter):
     """Iteratively reduce strict grid-cell collisions by rerouting and shifting.
 
@@ -583,6 +695,14 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
     forced_elbows = set()
     best_planner = _build_planner(best_boxes, forced_elbows)
     best_count, best_details = _evaluate_grid_cell_collisions(best_planner, best_boxes, verbosity_level, strict=False)
+    
+    # Detect critical text-path overlaps and add to forced elbows
+    critical_overlaps = _detect_critical_connector_overlaps(best_planner, verbosity_level)
+    if critical_overlaps:
+        forced_elbows.update(critical_overlaps)
+        # Rebuild planner with the forced elbows
+        best_planner = _build_planner(best_boxes, forced_elbows)
+        best_count, best_details = _evaluate_grid_cell_collisions(best_planner, best_boxes, verbosity_level, strict=False)
 
     # Preserve existing baseline nudge behavior as one starting candidate.
     if 'OrderService' in best_boxes:
@@ -2031,10 +2151,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
 
                         # Place connector label near the source after source multiplicity.
                         if connector.label:
-                            path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
-                            if not connector.segments or connector.segments[-1] != (connector.target_x, connector.target_y):
-                                path_points.append((connector.target_x, connector.target_y))
-                            lx, ly, anchor = _longest_segment_anchor(path_points)
+                            lx, ly, anchor = _source_label_anchor(connector, path_points)
                             lx, ly = _nudge_text_outside_boxes(lx, ly)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
@@ -2068,12 +2185,11 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                          f'{_escape_xml(text)}</text>')
                         
                         if connector.label:
-                            lx = (connector.source_x + connector.target_x) / 2
-                            ly = (connector.source_y + connector.target_y) / 2
+                            lx, ly, anchor = _source_label_anchor(connector, path_points)
                             text = f"{connector.label}"
                             lx, ly = _nudge_text_outside_boxes(lx, ly)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
-                                         f'font-size="11" fill="#444" text-anchor="middle">'
+                                         f'font-size="11" fill="#444" text-anchor="{anchor}">'
                                          f'{_escape_xml(text)}</text>')
                         
                         if connector.tgt_mult:
@@ -2086,10 +2202,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                          f'{_escape_xml(text)}</text>')
                 elif connector.label:
                     # Multi-segment with label only (no multiplicity)
-                    path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
-                    if not connector.segments or connector.segments[-1] != (connector.target_x, connector.target_y):
-                        path_points.append((connector.target_x, connector.target_y))
-                    lx, ly, anchor = _longest_segment_anchor(path_points)
+                    lx, ly, anchor = _source_label_anchor(connector, path_points)
 
                     lx, ly = _nudge_text_outside_boxes(lx, ly)
                     
