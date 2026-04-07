@@ -64,3 +64,21 @@ Requirements are organized by type and linked to related artifacts.
 |   Architecture_0006 | Server uses port 8000 by default | - | Infrastructure_0001 | Implemented |
 |   Parser_0009 | CSV file at sample_model.csv in work directory | - | Architecture_0001 | Implemented |
 |   Parser_0010 | Sequence ID defaults to SoftReq0001 | UserStory_0001 | Architecture_0001 | Implemented |
+
+## Class Diagram Requirements (2026-04 Update)
+
+| ID | Description | Linked From | Linked To | Status |
+|:---|:---|:---|:---|:---|
+| ClassRouting_0001 | Class diagrams are rendered with orthogonal routing only | UserStory_0004 | Rendering_0020 | Implemented |
+| ClassRouting_0002 | Orthogonal routing prioritizes simple elbows and avoids diagonal fallbacks | ClassRouting_0001 | Rendering_0020 | Implemented |
+| ClassRouting_0003 | Domain-layer dense fan-out uses increased vertical spacing during layout to reduce overlap pressure | ClassRouting_0002 | Rendering_0020 | Implemented |
+| ClassRouting_0004 | Domain-layer connector text placement uses occupancy-aware lane nudging to reduce stacked text overlap | ClassRouting_0003 | Rendering_0021 | Implemented |
+| ClassUI_0001 | Hovering a class object highlights directly connected connectors and connector text while fading unrelated links | UserInterface_0001 | UserInterface_0007 | Implemented |
+
+## Class Diagram Constraints (2026-04 Update)
+
+| ID | Description | Linked From | Linked To | Status |
+|:---|:---|:---|:---|:---|
+| Rendering_0020 | Orthogonal connector segments are axis-aligned (horizontal/vertical only) in class diagrams | ClassRouting_0001 | ClassRouting_0002 | Implemented |
+| Rendering_0021 | Connector text readability is prioritized via collision-aware placement over exact geometric centering | ClassRouting_0004 | ClassUI_0001 | Implemented |
+| UserInterface_0007 | Hover highlighting is non-destructive: no click/persist state required in hover-only mode | ClassUI_0001 | UserInterface_0001 | Implemented |

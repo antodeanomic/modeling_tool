@@ -30,6 +30,8 @@ Thumbs.db
 # Temporary files
 temp.csv
 *.tmp
+prove_*.py
+proof_*.py
 
 # Log files
 *.log

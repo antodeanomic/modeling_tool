@@ -2,6 +2,17 @@
 
 **Document Status**: Foundational constraints discovered during implementation (Session: Grid Cell Alignment)
 
+## 0. Current Policy Addendum (2026-04)
+
+The current implementation applies the following additional policy constraints:
+
+1. Class-diagram routing is orthogonal-only in production behavior.
+2. Domain-layer heavy diagrams may use larger initial vertical spacing to reduce connector overlap pressure.
+3. Connector text placement may trade perfect geometric centering for readability via occupancy-aware nudging.
+4. Viewer hover interaction highlights related connectors/text using SVG metadata on objects/connectors.
+
+This addendum supersedes older assumptions that diagonal and orthogonal modes are equally active for class-diagram readability tuning.
+
 ---
 
 ## 1. Fixed 20px × 20px Grid Cell Rule

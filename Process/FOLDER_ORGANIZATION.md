@@ -136,3 +136,11 @@ The diagram viewer automatically:
 - Displays diagrams with proper breadcrumb trails
 
 No configuration files or registration needed - the file system structure automatically determines the menu organization.
+
+## Workspace Hygiene
+
+To keep the repository root focused on durable artifacts:
+
+- Put one-off diagnostic scripts under `Tools/` (or remove them after use).
+- Avoid leaving temporary `prove_*.py` scripts in the root directory.
+- Keep Process/ and Scripts/ as the primary long-lived documentation/code locations.

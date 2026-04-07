@@ -2,7 +2,45 @@
 
 ## Overview
 
-A grid-based connector system for class diagrams that ensures clean, collision-free relationships between elements. The system works in phases:
+A grid-based connector system for class diagrams that ensures clean, collision-aware relationships between elements.
+
+Current production behavior focuses on readable orthogonal routing with interaction support in the viewer.
+
+## Current Architecture (2026-04)
+
+1. Route class-diagram connectors using orthogonal geometry only.
+2. Plan connectors in deterministic order with domain-layer prioritization.
+3. Avoid obstacle overlap first, then reduce connector-track overlap.
+4. Apply domain-focused vertical spacing to unlock additional orthogonal tracks.
+5. Expose connector/object metadata in SVG for interactive highlighting.
+
+### Routing Policy
+
+- Class-diagram routing mode is normalized to orthogonal in planner/server flow.
+- Diagonal fallback is not used for class-diagram connector paths.
+- Preferred path order for orthogonal routing:
+  - direct horizontal/vertical when aligned
+  - simple elbow when valid
+  - constrained multi-segment search as fallback
+
+### Domain Layer Readability Strategy
+
+- Dense domain fan-out introduces higher overlap pressure than other layers.
+- Layout uses a larger initial vertical row gap when domain relationships are present.
+- Connector text placement uses occupancy-aware row nudging for domain labels.
+- The combination reduces severe connector and text stacking while preserving deterministic output.
+
+### SVG Metadata for Interaction
+
+- Each class object renders as an SVG group:
+  - `g.cls-object[data-class-name="..."]`
+- Each connector renders as an SVG group:
+  - `g.cls-connector[data-connector-id="..."][data-source="..."][data-target="..."]`
+- Viewer hover logic uses these attributes to highlight related connectors/text and fade unrelated links.
+
+## Legacy Notes
+
+The original phase-based description below remains as historical context:
 
 1. **Phase 1**: Grid-based connection points + distance calculation
 2. **Phase 2**: Multi-segment routing (DOWN → RIGHT → UP → RIGHT)

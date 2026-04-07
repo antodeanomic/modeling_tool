@@ -4,7 +4,7 @@ This directory contains process documentation, requirements, and design diagrams
 
 ## Directory Structure
 
-### `/System`
+### `/01_System`
 **High-level system diagrams from the user's perspective**
 
 Contains diagrams showing how users interact with the system and how the system integrates with external components.
@@ -17,7 +17,7 @@ Use these diagrams to understand:
 - How the system responds
 - External system integration points
 
-### `/Architecture`
+### `/02_Architecture`
 **Technical architecture and component design**
 
 Contains diagrams showing internal component interactions, dependencies, and design structure.
@@ -52,6 +52,13 @@ Use the "Display Layers" menu in the diagram viewer to:
 1. Show only specific layers
 2. Hide implementation details
 3. Focus on specific architectural concerns
+
+## Class Diagram Interaction and Routing Notes
+
+- Class diagrams use orthogonal connector routing in production behavior.
+- Dense domain-layer diagrams use larger vertical spacing to reduce connector overlap pressure.
+- Hovering a class object in the viewer highlights related connectors and connector text.
+- Hover mode is intentionally transient (no click-to-pin state in the current implementation).
 
 ## Metadata Headers
 
