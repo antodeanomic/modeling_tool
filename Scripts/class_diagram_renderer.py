@@ -1558,6 +1558,9 @@ def _render_class_box(box_info, class_name, box_color=None):
         stroke = box_color.get("dark_stroke", stroke)
     
     parts = []
+    parts.append(
+        f'  <g class="cls-object" data-class-name="{_escape_xml(class_name)}">'
+    )
     
     if element_type == "package":
         # Package: tabbed folder shape
@@ -1644,6 +1647,7 @@ def _render_class_box(box_info, class_name, box_color=None):
                              f'fill="#555">{_escape_xml(vis + " " + f.name)}</text>')
             section_y += CLASS_BOX_PADDING_Y
     
+    parts.append('  </g>')
     return '\n'.join(parts)
 
 
@@ -1917,9 +1921,17 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
             )
         return ftx, fty
     
-    for connector in connectors:
+    for connector_idx, connector in enumerate(connectors):
         if connector.source_name not in boxes or connector.target_name not in boxes:
             continue
+
+        connector_id = f"{connector.source_name}->{connector.target_name}:{connector_idx}"
+        parts.append(
+            f'  <g class="cls-connector" '
+            f'data-connector-id="{_escape_xml(connector_id)}" '
+            f'data-source="{_escape_xml(connector.source_name)}" '
+            f'data-target="{_escape_xml(connector.target_name)}">'
+        )
         
         # Get connector color from source box (use source object's dark color)
         connector_color = "#555"  # Default fallback
@@ -2166,6 +2178,8 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                  f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
                                  f'{_escape_xml(connector.label)}</text>')
+
+        parts.append('  </g>')
     
     if text_debug_enabled and text_debug_rows:
         print(f"TEXTDBG summary rows={len(text_debug_rows)}")

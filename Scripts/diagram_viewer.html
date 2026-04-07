@@ -381,6 +381,36 @@
         .diagram-area svg g.note-box-group:hover {
             opacity: 0.85;
         }
+
+        /* Class diagram hover highlighting */
+        .diagram-area svg g.cls-object {
+            cursor: pointer;
+        }
+
+        .diagram-area svg g.cls-object.is-hover-target rect {
+            stroke-width: 2.5;
+        }
+
+        .diagram-area svg g.cls-connector path,
+        .diagram-area svg g.cls-connector text {
+            transition: opacity 0.12s ease, stroke-width 0.12s ease, fill 0.12s ease;
+        }
+
+        .diagram-area svg g.cls-connector.is-faded path,
+        .diagram-area svg g.cls-connector.is-faded text {
+            opacity: 0.18;
+        }
+
+        .diagram-area svg g.cls-connector.is-active path {
+            opacity: 1;
+            stroke-width: 3;
+        }
+
+        .diagram-area svg g.cls-connector.is-active text {
+            opacity: 1;
+            fill: #111;
+            font-weight: bold;
+        }
         
         /* Toast notification */
         .toast {
@@ -1176,6 +1206,60 @@
             }
             await loadDiagram();
         }
+
+        function setupClassDiagramHoverHighlight() {
+            if (state.diagramType !== 'class_diagram') {
+                return;
+            }
+
+            const svg = diagramContainer.querySelector('svg');
+            if (!svg) {
+                return;
+            }
+
+            const objectGroups = Array.from(svg.querySelectorAll('g.cls-object[data-class-name]'));
+            const connectorGroups = Array.from(svg.querySelectorAll('g.cls-connector[data-source][data-target]'));
+
+            if (!objectGroups.length || !connectorGroups.length) {
+                return;
+            }
+
+            const clearHighlight = () => {
+                connectorGroups.forEach(conn => {
+                    conn.classList.remove('is-active', 'is-faded');
+                });
+                objectGroups.forEach(obj => {
+                    obj.classList.remove('is-hover-target');
+                });
+            };
+
+            const applyHighlight = (className) => {
+                connectorGroups.forEach(conn => {
+                    const source = conn.getAttribute('data-source');
+                    const target = conn.getAttribute('data-target');
+                    const isMatch = source === className || target === className;
+                    conn.classList.toggle('is-active', isMatch);
+                    conn.classList.toggle('is-faded', !isMatch);
+                });
+
+                objectGroups.forEach(obj => {
+                    const isTarget = obj.getAttribute('data-class-name') === className;
+                    obj.classList.toggle('is-hover-target', isTarget);
+                });
+            };
+
+            objectGroups.forEach(obj => {
+                obj.addEventListener('mouseenter', () => {
+                    const className = obj.getAttribute('data-class-name');
+                    if (className) {
+                        applyHighlight(className);
+                    }
+                });
+                obj.addEventListener('mouseleave', () => {
+                    clearHighlight();
+                });
+            });
+        }
         
         async function loadDiagram() {
             if (state.isLoading) return;
@@ -1225,6 +1309,9 @@
                 
                 // Apply zoom to the newly loaded SVG
                 updateZoom();
+
+                // Wire class-diagram object hover highlighting for connectors/text.
+                setupClassDiagramHoverHighlight();
             } catch (error) {
                 diagramContainer.innerHTML = `<div class="error">Error loading diagram: ${error.message}</div>`;
             } finally {
