@@ -10,7 +10,8 @@ Supports layer filtering to show subsets of relationships.
 from model import Model, ClassDiagramDef, ClassRelationship, ClassDef, ELEMENT_TYPES
 from class_diagram_connectors import ConnectorPlanner
 from datetime import datetime
-from typing import Tuple
+import os
+from typing import Dict, Set, Tuple
 
 # Layout constants
 FONT_SIZE = 13
@@ -1394,7 +1395,11 @@ def _layout_classes_orthogonal(diagram, model, verbosity="High"):
     required_spacing = _calculate_required_spacing(diagram, verbosity)
     # Extra spacing compared to diagonal mode to accommodate routing tracks
     spacing_x = max(required_spacing, CLASS_SPACING_X + 40)
-    spacing_y = CLASS_SPACING_Y + 30
+
+    # Domain-focused views tend to have dense fan-out and dotted dependencies;
+    # use a larger starting vertical gap to unlock multiple orthogonal tracks.
+    has_domain_layer = any(rel.layer == 'domain' for rel in diagram.relationships)
+    spacing_y = CLASS_SPACING_Y + (80 if has_domain_layer else 30)
 
     return _aligned_tree_layout(
         class_names, boxes, levels, parent_children, claimed_children,
@@ -1865,6 +1870,52 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
     
     if layers_filter is not None:
         connectors = [c for c in connectors if not c.layer or c.layer in layers_filter]
+
+    # Deterministic label lanes per source reduce stacked text overlaps when a
+    # single service fans out to many targets.
+    source_label_lane: Dict[str, int] = {}
+    occupied_text_cells: Set[Tuple[int, int]] = set()
+    text_debug_enabled = os.environ.get("CLASS_DIAGRAM_TEXT_DEBUG", "").lower() in ("1", "true", "yes", "on")
+    text_debug_rows = []
+
+    def _place_connector_text(connector, x: float, y: float) -> Tuple[float, float]:
+        """Place connector text while avoiding dense domain-layer label stacking."""
+        tx, ty = _nudge_text_outside_boxes(x, y)
+
+        # Keep existing behavior for non-domain relationships.
+        if connector.layer != 'domain':
+            return tx, ty
+
+        cell_w = 90
+        cell_h = 14
+        col = int(round(tx / cell_w))
+        base_row = int(round(ty / cell_h))
+
+        for row_offset in (0, -1, 1, -2, 2, -3, 3):
+            candidate_row = base_row + row_offset
+            candidate_y = candidate_row * cell_h
+            ntx, nty = _nudge_text_outside_boxes(tx, candidate_y)
+            final_row = int(round(nty / cell_h))
+            key = (col, final_row)
+            if key in occupied_text_cells:
+                continue
+            occupied_text_cells.add(key)
+            if text_debug_enabled:
+                text_debug_rows.append(
+                    f"TEXTDBG {connector.source_name}->{connector.target_name} layer={connector.layer or '-'} "
+                    f"in=({x:.1f},{y:.1f}) out=({ntx:.1f},{nty:.1f}) cell=({col},{final_row})"
+                )
+            return ntx, nty
+
+        fallback_key = (col, base_row + 4)
+        occupied_text_cells.add(fallback_key)
+        ftx, fty = _nudge_text_outside_boxes(tx, (base_row + 4) * cell_h)
+        if text_debug_enabled:
+            text_debug_rows.append(
+                f"TEXTDBG {connector.source_name}->{connector.target_name} layer={connector.layer or '-'} "
+                f"in=({x:.1f},{y:.1f}) out=({ftx:.1f},{fty:.1f}) cell=({col},{base_row + 4}) fallback=1"
+            )
+        return ftx, fty
     
     for connector in connectors:
         if connector.source_name not in boxes or connector.target_name not in boxes:
@@ -1879,6 +1930,9 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
         path_points = _path_points_from_connector(connector)
         end_direction = _final_path_direction(path_points)
         rendered_marker_end = _directed_marker_id(marker_end, end_direction)
+        lane_idx = source_label_lane.get(connector.source_name, 0)
+        source_label_lane[connector.source_name] = lane_idx + 1
+        lane_dy = (lane_idx % 3) * 11
         
         # Render connector path
         if connector.path_type == "direct":
@@ -1910,7 +1964,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     if connector.src_mult:
                         src_x = connector.source_x + direction * 10
                         src_anchor = 'start' if direction > 0 else 'end'
-                        src_x, src_y = _nudge_text_outside_boxes(src_x, base_y)
+                        src_x, src_y = _place_connector_text(connector, src_x, base_y - lane_dy)
                         parts.append(f'  <text x="{src_x}" y="{src_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                      f'font-size="11" fill="#666" text-anchor="{src_anchor}">'
                                      f'{_escape_xml(connector.src_mult)}</text>')
@@ -1919,7 +1973,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         label_gap = 10 + ((len(connector.src_mult or "") + 2) * CONNECTOR_CHAR_WIDTH)
                         label_x = connector.source_x + direction * label_gap
                         label_anchor = 'start' if direction > 0 else 'end'
-                        label_x, label_y = _nudge_text_outside_boxes(label_x, base_y)
+                        label_x, label_y = _place_connector_text(connector, label_x, base_y - lane_dy)
                         parts.append(f'  <text x="{label_x}" y="{label_y}" font-family="{FONT_FAMILY}" '
                                      f'font-size="11" font-style="italic" fill="#444" text-anchor="{label_anchor}">'
                                      f'{_escape_xml(connector.label)}</text>')
@@ -1927,7 +1981,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     if connector.tgt_mult:
                         tgt_x = connector.target_x - direction * 10
                         tgt_anchor = 'end' if direction > 0 else 'start'
-                        tgt_x, tgt_y = _nudge_text_outside_boxes(tgt_x, base_y)
+                        tgt_x, tgt_y = _place_connector_text(connector, tgt_x, base_y)
                         parts.append(f'  <text x="{tgt_x}" y="{tgt_y}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                      f'font-size="11" fill="#666" text-anchor="{tgt_anchor}">'
                                      f'{_escape_xml(connector.tgt_mult)}</text>')
@@ -2046,7 +2100,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                             src_text_x = text_x
                             src_text_y = text_y
                             src_text_anchor = anchor
-                            text_x, text_y = _nudge_text_outside_boxes(text_x, text_y)
+                            text_x, text_y = _place_connector_text(connector, text_x, text_y)
                             parts.append(f'  <text x="{text_x}" y="{text_y}" '
                                          f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '
                                          f'fill="#666" text-anchor="{anchor}">'
@@ -2055,7 +2109,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         # Place connector label near the source after source multiplicity.
                         if connector.label:
                             lx, ly, anchor = _source_label_anchor(connector, path_points)
-                            lx, ly = _nudge_text_outside_boxes(lx, ly)
+                            lx, ly = _place_connector_text(connector, lx, ly - lane_dy)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
                                          f'{_escape_xml(connector.label)}</text>')
@@ -2065,13 +2119,13 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                             if abs(last_seg[0][1] - last_seg[1][1]) < 1:
                                 direction = 1 if last_seg[1][0] >= last_seg[0][0] else -1
                                 text_x = connector.target_x - direction * 10
-                                text_y = connector.target_y - 8
+                                text_y = connector.target_y - 8 - lane_dy
                                 anchor = 'end' if direction > 0 else 'start'
                             else:
                                 text_x = connector.target_x + 8
-                                text_y = hy1 + (connector.target_y - hy1) * 0.7
+                                text_y = hy1 + (connector.target_y - hy1) * 0.7 - lane_dy
                                 anchor = 'start'
-                            text_x, text_y = _nudge_text_outside_boxes(text_x, text_y)
+                            text_x, text_y = _place_connector_text(connector, text_x, text_y)
                             parts.append(f'  <text x="{text_x}" y="{text_y}" '
                                          f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '
                                          f'fill="#666" text-anchor="{anchor}">'
@@ -2082,7 +2136,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                             mx = connector.source_x + (connector.target_x - connector.source_x) * 0.12
                             my = connector.source_y + (connector.target_y - connector.source_y) * 0.12 + 12
                             text = f"{connector.src_mult}"
-                            mx, my = _nudge_text_outside_boxes(mx, my)
+                            mx, my = _place_connector_text(connector, mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="middle">'
                                          f'{_escape_xml(text)}</text>')
@@ -2090,7 +2144,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         if connector.label:
                             lx, ly, anchor = _source_label_anchor(connector, path_points)
                             text = f"{connector.label}"
-                            lx, ly = _nudge_text_outside_boxes(lx, ly)
+                            lx, ly = _place_connector_text(connector, lx, ly)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" fill="#444" text-anchor="{anchor}">'
                                          f'{_escape_xml(text)}</text>')
@@ -2099,7 +2153,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                             mx = connector.target_x + (connector.source_x - connector.target_x) * 0.20
                             my = connector.target_y + (connector.source_y - connector.target_y) * 0.20 + 12
                             text = f"{connector.tgt_mult}"
-                            mx, my = _nudge_text_outside_boxes(mx, my)
+                            mx, my = _place_connector_text(connector, mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="middle">'
                                          f'{_escape_xml(text)}</text>')
@@ -2107,12 +2161,16 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     # Multi-segment with label only (no multiplicity)
                     lx, ly, anchor = _source_label_anchor(connector, path_points)
 
-                    lx, ly = _nudge_text_outside_boxes(lx, ly)
+                    lx, ly = _place_connector_text(connector, lx, ly)
                     
                     parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                  f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
                                  f'{_escape_xml(connector.label)}</text>')
     
+    if text_debug_enabled and text_debug_rows:
+        print(f"TEXTDBG summary rows={len(text_debug_rows)}")
+        for row in text_debug_rows[:80]:
+            print(row)
     return '\n'.join(parts)
 
 

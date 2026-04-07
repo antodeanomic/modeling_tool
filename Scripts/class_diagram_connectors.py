@@ -203,10 +203,13 @@ class ConnectorPath:
 class ConnectorPlanner:
     """Plans and routes connectors for a class diagram."""
     
-    def __init__(self, routing_mode: str = "diagonal", forced_elbows: Optional[Set[Tuple[str, str]]] = None):
+    def __init__(self, routing_mode: str = "orthogonal", forced_elbows: Optional[Set[Tuple[str, str]]] = None):
         self.grids: Dict[str, RectangleGrid] = {}
         self.connectors: List[ConnectorPath] = []
-        self.routing_mode = routing_mode  # 'diagonal', 'orthogonal', or 'mixed'
+        # Class diagram routing policy is orthogonal-only.
+        # Keep this normalization local so caller defaults cannot re-enable
+        # diagonal or mixed paths accidentally.
+        self.routing_mode = "orthogonal"
         self.forced_elbows: Set[Tuple[str, str]] = set(forced_elbows or set())
         # Track-oriented occupancy map for orthogonal connector segments.
         # Key: (grid_x, grid_y, axis) where axis is 'h' or 'v'.
@@ -582,10 +585,26 @@ class ConnectorPlanner:
             connector.target_y = tgt_cy
         
         # Step 2 & 3: Sort and assign points
+        # Prioritize solid/direct relationships first so core structural routes
+        # reserve cleaner tracks before dependency-style dotted links.
+        def _relationship_priority(connector: ConnectorPath) -> int:
+            arrow_type = connector.arrow_type
+            # Domain-only boost: keep solid domain links ahead of compositions
+            # and dotted dependencies without perturbing core/security ordering.
+            if connector.layer == 'domain':
+                if '..' in arrow_type:
+                    return 2
+                if '◆' in arrow_type or '◇' in arrow_type:
+                    return 1
+                return 0
+            if '..' in arrow_type:
+                return 1
+            return 0
+
         hierarchy_order = self._ordered_hierarchy_connectors()
         self.connectors.sort(
             key=lambda c: (
-                1 if '..' in c.arrow_type else 0,
+                _relationship_priority(c),
                 c.source_name,
                 hierarchy_order.get(id(c), (999, 0))[0],
                 c.calculate_distance()
@@ -977,6 +996,56 @@ class ConnectorPlanner:
             self._route_connector_orthogonal(connector)
         else:  # "mixed"
             self._route_connector_mixed(connector)
+
+    def _build_edge_compliant_fallback_segments(self, connector: ConnectorPath) -> List[Tuple[float, float]]:
+        """Build a simple orthogonal fallback that honors source/target edges.
+
+        This prevents empty multi-segment routes when strict edge constraints
+        reject all V-H-V/H-V-H candidates for dense or asymmetric layouts.
+        """
+        x1, y1 = connector.source_x, connector.source_y
+        x2, y2 = connector.target_x, connector.target_y
+
+        source_jog = GRID_CELL_SIZE_PX
+        target_jog = GRID_CELL_SIZE_PX
+
+        if connector.source_edge == 'right':
+            sx, sy = x1 + source_jog, y1
+        elif connector.source_edge == 'left':
+            sx, sy = x1 - source_jog, y1
+        elif connector.source_edge == 'bottom':
+            sx, sy = x1, y1 + source_jog
+        elif connector.source_edge == 'top':
+            sx, sy = x1, y1 - source_jog
+        else:
+            sx, sy = x1, y1
+
+        if connector.target_edge == 'left':
+            tx, ty = x2 - target_jog, y2
+        elif connector.target_edge == 'right':
+            tx, ty = x2 + target_jog, y2
+        elif connector.target_edge == 'top':
+            tx, ty = x2, y2 - target_jog
+        elif connector.target_edge == 'bottom':
+            tx, ty = x2, y2 + target_jog
+        else:
+            tx, ty = x2, y2
+
+        segments: List[Tuple[float, float]] = []
+
+        if (sx, sy) != (x1, y1):
+            segments.append((sx, sy))
+
+        if sx != tx and sy != ty:
+            segments.append((sx, ty))
+
+        if (tx, ty) != (sx, sy):
+            segments.append((tx, ty))
+
+        if not segments or segments[-1] != (x2, y2):
+            segments.append((x2, y2))
+
+        return segments
     
     def _route_connector_diagonal(self, connector: ConnectorPath):
         """Route diagonal connectors: Direct -> 2-Segment -> 3-Segment -> N-Segment.
@@ -1090,62 +1159,84 @@ class ConnectorPlanner:
             connector.path_type = "direct"
             return
         
-        # For vertical alignment: allow offset up to ~5px when dy is large (>50px)
-        # This accounts for connection points not being at exact same x within the box center
-        if dx < 5 and dy > 50:
-            # X coordinates are effectively aligned → use direct VERTICAL line
-            connector.path_type = "direct"
-            return
-            
         if dx < 1:
             # X coordinates are precisely aligned → use direct VERTICAL line
             connector.path_type = "direct"
             return
         
         # STEP 2: Connection points NOT aligned - create multi-segment routing
-        if dx < 10 and dy < 10:
-            # Source and target are very close - just use direct diagonal
-            connector.path_type = "direct"
-        else:
-            # CONSTRAIN routing by exit and entry edges
-            src_edge = connector.source_edge
-            tgt_edge = connector.target_edge
+        # STEP 2: Connection points NOT aligned - create multi-segment routing
+        # Prefer simple two-segment elbows over longer 3+ segment paths.
+        src_edge = connector.source_edge
+        tgt_edge = connector.target_edge
 
-            # Route based on the target entry edge (geometric constraint, independent of arrow styling)
-            # - target left/right => final horizontal approach (hvh)
-            # - target top/bottom => final vertical approach (vhv)
-            if tgt_edge in ['left', 'right']:
-                connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
-                if not connector.segments:
-                    connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
-                connector.path_type = "multi_segment"
-                return
-            if tgt_edge in ['top', 'bottom']:
-                connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
-                if not connector.segments:
-                    connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
-                connector.path_type = "multi_segment"
-                return
-            
-            # If exiting from top/bottom, MUST use V-H-V routing (vertical first)
-            if src_edge in ['top', 'bottom']:
-                connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
-            # If exiting from left/right, MUST use H-V-H routing (horizontal first)
-            elif src_edge in ['left', 'right']:
-                connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
-            else:
-                # Fallback: use coordinate-based routing
-                if dx < dy:
-                    connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
-                else:
-                    connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+        elbow_a = (x2, y1)
+        elbow_b = (x1, y2)
+        elbow_candidates = [
+            [elbow_a, (x2, y2)],
+            [elbow_b, (x2, y2)],
+        ]
 
-            # Safety fallback: if constraints filtered all candidates, try the
-            # alternate orthogonal mode before giving up.
-            if not connector.segments:
-                alt_mode = 'hvh' if src_edge in ['top', 'bottom'] else 'vhv'
-                connector.segments = self._choose_best_orthogonal_segments(connector, alt_mode)
+        valid_elbows = []
+        for segs in elbow_candidates:
+            pts = [(x1, y1)] + segs + [(x2, y2)]
+            if self._path_respects_connector_edges(connector, pts):
+                valid_elbows.append(segs)
+
+        if valid_elbows:
+            connector.segments = min(
+                valid_elbows,
+                key=lambda segs: self._score_path(
+                    connector.source_name,
+                    connector.target_name,
+                    [(x1, y1)] + segs,
+                ),
+            )
             connector.path_type = "multi_segment"
+            return
+
+        # If edge constraints reject elbow paths, use constrained 3+ segment search.
+        # Route based on target entry edge:
+        # - target left/right => final horizontal approach (hvh)
+        # - target top/bottom => final vertical approach (vhv)
+        if tgt_edge in ['left', 'right']:
+            connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+            if not connector.segments:
+                connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
+            if not connector.segments:
+                connector.segments = self._build_edge_compliant_fallback_segments(connector)
+            connector.path_type = "multi_segment"
+            return
+        if tgt_edge in ['top', 'bottom']:
+            connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
+            if not connector.segments:
+                connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+            if not connector.segments:
+                connector.segments = self._build_edge_compliant_fallback_segments(connector)
+            connector.path_type = "multi_segment"
+            return
+
+        # If exiting from top/bottom, MUST use V-H-V routing (vertical first)
+        if src_edge in ['top', 'bottom']:
+            connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
+        # If exiting from left/right, MUST use H-V-H routing (horizontal first)
+        elif src_edge in ['left', 'right']:
+            connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+        else:
+            # Fallback: use coordinate-based routing
+            if dx < dy:
+                connector.segments = self._choose_best_orthogonal_segments(connector, 'vhv')
+            else:
+                connector.segments = self._choose_best_orthogonal_segments(connector, 'hvh')
+
+        # Safety fallback: if constraints filtered all candidates, try the
+        # alternate orthogonal mode before giving up.
+        if not connector.segments:
+            alt_mode = 'hvh' if src_edge in ['top', 'bottom'] else 'vhv'
+            connector.segments = self._choose_best_orthogonal_segments(connector, alt_mode)
+        if not connector.segments:
+            connector.segments = self._build_edge_compliant_fallback_segments(connector)
+        connector.path_type = "multi_segment"
     
     def _route_connector_mixed(self, connector: ConnectorPath):
         """Route mixed connectors: Diagonal when aligned, orthogonal otherwise."""
@@ -1437,8 +1528,12 @@ class ConnectorPlanner:
                             continue
                     key = (box_name, edge, pt.index)
                     if key in used_points:
-                        # Dotted dependencies may reuse target incoming points.
-                        if not (is_dotted and direction == 'incoming'):
+                        # Dotted dependencies can reuse incoming target points
+                        # by default; domain reroute mode may also reuse
+                        # outgoing points to escape dense fan-out collisions.
+                        if not is_dotted:
+                            continue
+                        if connector.layer != 'domain' and direction != 'incoming':
                             continue
                     pts.append((edge, pt))
             return pts
