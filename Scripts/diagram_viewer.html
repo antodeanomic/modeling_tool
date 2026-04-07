@@ -521,6 +521,91 @@
             panStartY: 0,
             isLoading: false
         };
+
+        const VIEWER_STATE_KEY = 'diagram_viewer_state_v1';
+
+        function loadPersistedViewerState() {
+            try {
+                const raw = localStorage.getItem(VIEWER_STATE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object') return null;
+                return parsed;
+            } catch (_err) {
+                return null;
+            }
+        }
+
+        function savePersistedViewerState() {
+            try {
+                const payload = {
+                    csv: state.csv,
+                    diagramType: state.diagramType,
+                    sequence: state.sequence,
+                    classDiagramId: state.classDiagramId,
+                    verbosity: state.verbosity,
+                    routing: state.routing,
+                    selectedLanes: Array.isArray(state.selectedLanes) ? [...state.selectedLanes] : []
+                };
+                localStorage.setItem(VIEWER_STATE_KEY, JSON.stringify(payload));
+            } catch (_err) {
+                // Ignore storage failures (private mode/quota/security restrictions).
+            }
+        }
+
+        function applyDiagramSelection(diagram, preferredSelectedLanes = null) {
+            state.csv = diagram.csv;
+
+            if (diagram.type === 'sequence') {
+                state.diagramType = 'sequence';
+                state.sequence = diagram.id;
+                state.classDiagramId = '';
+                state.allLanes = diagram.lanes || [];
+            } else {
+                state.diagramType = 'class_diagram';
+                state.classDiagramId = diagram.id;
+                state.sequence = '';
+                state.allLanes = (diagram.layers && diagram.layers.length > 0) ? diagram.layers : [];
+            }
+
+            if (Array.isArray(preferredSelectedLanes)) {
+                state.selectedLanes = state.allLanes.filter(lane => preferredSelectedLanes.includes(lane));
+            } else {
+                state.selectedLanes = [...state.allLanes];
+            }
+
+            paletteInput.value = diagram.name || '';
+        }
+
+        function restorePersistedSelection() {
+            const persisted = loadPersistedViewerState();
+            if (!persisted) return false;
+
+            if (persisted.verbosity && ['Low', 'Normal', 'High'].includes(persisted.verbosity)) {
+                state.verbosity = persisted.verbosity;
+            }
+            if (persisted.routing === 'orthogonal') {
+                state.routing = persisted.routing;
+            }
+
+            const targetId = persisted.diagramType === 'class_diagram'
+                ? persisted.classDiagramId
+                : persisted.sequence;
+            if (!persisted.csv || !persisted.diagramType || !targetId) {
+                return false;
+            }
+
+            const matched = state.allDiagrams.find(d =>
+                d.csv === persisted.csv &&
+                d.type === persisted.diagramType &&
+                d.id === targetId
+            );
+            if (!matched) return false;
+
+            const preferred = Array.isArray(persisted.selectedLanes) ? persisted.selectedLanes : null;
+            applyDiagramSelection(matched, preferred);
+            return true;
+        }
         
         // DOM elements
         const paletteInput = document.getElementById('paletteInput');
@@ -616,12 +701,22 @@
                 // Check URL parameters for diagram override
                 const urlParams = new URLSearchParams(window.location.search);
                 const diagramParam = urlParams.get('diagram');
+                // Treat only explicit URL query parameters as external overrides.
+                // Server-injected initialParams always contain defaults, which
+                // should not block persisted state restore.
+                const hasExternalSelectionOverride =
+                    urlParams.has('diagram') || urlParams.has('csv') || urlParams.has('sequence');
                 
                 // Check if initial parameters were provided via window.initialParams
                 if (window.initialParams) {
-                    state.csv = window.initialParams.csv || state.csv;
-                    state.sequence = window.initialParams.sequence || state.sequence;
+                    // Always allow externally provided verbosity.
                     state.verbosity = window.initialParams.verbosity || state.verbosity;
+                    // Only treat csv/sequence as startup selection when URL
+                    // explicitly requested a specific diagram.
+                    if (hasExternalSelectionOverride) {
+                        state.csv = window.initialParams.csv || state.csv;
+                        state.sequence = window.initialParams.sequence || state.sequence;
+                    }
                 } else if (diagramParam) {
                     let csvPath = diagramParam;
                     if (csvPath.includes('/')) {
@@ -678,6 +773,16 @@
                     div.querySelector('input').addEventListener('change', onRoutingChange);
                     routingOptions.appendChild(div);
                 });
+
+                // Restore prior session only when no explicit external diagram
+                // override was provided.
+                if (!hasExternalSelectionOverride && restorePersistedSelection()) {
+                    updateMenuVisibility();
+                    syncMenuControlsFromState();
+                    updateLaneCheckboxes();
+                    await loadDiagram();
+                    return;
+                }
                 
                 // Show prompt to select a diagram
                 diagramContainer.innerHTML = '<div style="color: #999; font-size: 16px;">Select a diagram from the palette above</div>';
@@ -692,7 +797,10 @@
             state.paletteActiveIndex = -1;
             
             paletteInput.addEventListener('focus', () => {
-                populatePalette();
+                state.paletteActiveIndex = -1;
+                // Show the full catalog on focus even when the input currently
+                // displays the selected diagram label.
+                populatePalette('');
                 paletteDropdown.classList.add('open');
                 paletteInput.select();
             });
@@ -744,8 +852,10 @@
             }
         }
         
-        function populatePalette() {
-            const textFilter = paletteInput.value.toLowerCase().trim();
+        function populatePalette(filterOverride = null) {
+            const textFilter = (filterOverride !== null)
+                ? String(filterOverride).toLowerCase().trim()
+                : paletteInput.value.toLowerCase().trim();
             paletteDropdown.innerHTML = '';
             
             // Filter all diagrams by text
@@ -832,7 +942,12 @@
                         
                         const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
                         item.innerHTML = `<span class="item-type">${typeLabel}</span> ${escapeHtml(d.name)}`;
-                        item.addEventListener('mousedown', (e) => { e.preventDefault(); selectPaletteItem(d); });
+                        const onSelect = (e) => {
+                            e.preventDefault();
+                            selectPaletteItem(d);
+                        };
+                        item.addEventListener('mousedown', onSelect);
+                        item.addEventListener('click', onSelect);
                         paletteDropdown.appendChild(item);
                     });
                 }
@@ -874,7 +989,12 @@
                             
                             const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
                             item.innerHTML = `<span class="item-type">${typeLabel}</span> ${escapeHtml(d.name)}`;
-                            item.addEventListener('mousedown', (e) => { e.preventDefault(); selectPaletteItem(d); });
+                            const onSelect = (e) => {
+                                e.preventDefault();
+                                selectPaletteItem(d);
+                            };
+                            item.addEventListener('mousedown', onSelect);
+                            item.addEventListener('click', onSelect);
                             paletteDropdown.appendChild(item);
                         });
                     }
@@ -896,30 +1016,11 @@
         function selectPaletteItem(diagram) {
             paletteDropdown.classList.remove('open');
             paletteInput.blur();
-            
-            // Set source CSV (hidden from user)
-            state.csv = diagram.csv;
-            
-            if (diagram.type === 'sequence') {
-                state.diagramType = 'sequence';
-                state.sequence = diagram.id;
-                // Use lanes from the diagram data
-                state.allLanes = diagram.lanes || [];
-                state.selectedLanes = [...state.allLanes];
-            } else if (diagram.type === 'class_diagram') {
-                state.diagramType = 'class_diagram';
-                state.classDiagramId = diagram.id;
-                // Use layers from the diagram data
-                if (diagram.layers && diagram.layers.length > 0) {
-                    state.allLanes = diagram.layers;
-                    state.selectedLanes = [...diagram.layers];
-                } else {
-                    state.allLanes = [];
-                    state.selectedLanes = [];
-                }
-            }
+
+            applyDiagramSelection(diagram);
             updateMenuVisibility();
             updateLaneCheckboxes();
+            savePersistedViewerState();
             loadDiagram();
         }
         
@@ -931,6 +1032,18 @@
             menuSections.forEach(section => {
                 section.style.display = 'block';
             });
+        }
+
+        function syncMenuControlsFromState() {
+            const selectedVerbosity = menu.querySelector(`input[name="verbosity"][value="${state.verbosity}"]`);
+            if (selectedVerbosity) {
+                selectedVerbosity.checked = true;
+            }
+
+            const selectedRouting = menu.querySelector(`input[name="routing"][value="${state.routing}"]`);
+            if (selectedRouting) {
+                selectedRouting.checked = true;
+            }
         }
         
         function updateLaneCheckboxes() {
@@ -956,6 +1069,7 @@
                 selectAllBtn.addEventListener('click', () => {
                     state.selectedLanes = [...state.allLanes];
                     document.querySelectorAll('#layersList input[type="checkbox"]').forEach(cb => cb.checked = true);
+                    savePersistedViewerState();
                     loadDiagram();
                 });
                 
@@ -971,6 +1085,7 @@
                 clearAllBtn.addEventListener('click', () => {
                     state.selectedLanes = [];
                     document.querySelectorAll('#layersList input[type="checkbox"]').forEach(cb => cb.checked = false);
+                    savePersistedViewerState();
                     loadDiagram();
                 });
                 
@@ -983,8 +1098,9 @@
             state.allLanes.forEach(lane => {
                 const div = document.createElement('div');
                 div.className = 'checkbox-option';
+                const isChecked = state.selectedLanes.includes(lane);
                 div.innerHTML = `
-                    <input type="checkbox" id="lane_${lane}" value="${lane}" checked>
+                    <input type="checkbox" id="lane_${lane}" value="${lane}" ${isChecked ? 'checked' : ''}>
                     <label for="lane_${lane}">${lane}</label>
                 `;
                 div.querySelector('input').addEventListener('change', onLayerChange);
@@ -1177,6 +1293,9 @@
             state.sequence = '';
             state.classDiagramId = '';
             state.csv = '';
+            state.allLanes = [];
+            state.selectedLanes = [];
+            savePersistedViewerState();
             diagramContainer.innerHTML = '<div style="color: #999; font-size: 16px;">Select a diagram from the palette above</div>';
             populatePalette();
             paletteDropdown.classList.add('open');
@@ -1187,11 +1306,13 @@
         
         async function onVerbosityChange(e) {
             state.verbosity = e.target.value;
+            savePersistedViewerState();
             await loadDiagram();
         }
         
         async function onRoutingChange(e) {
             state.routing = e.target.value;
+            savePersistedViewerState();
             await loadDiagram();
         }
         
@@ -1204,6 +1325,7 @@
             } else {
                 state.selectedLanes = state.selectedLanes.filter(l => l !== lane);
             }
+            savePersistedViewerState();
             await loadDiagram();
         }
 
@@ -1312,6 +1434,9 @@
 
                 // Wire class-diagram object hover highlighting for connectors/text.
                 setupClassDiagramHoverHighlight();
+
+                // Persist successfully loaded state snapshot.
+                savePersistedViewerState();
             } catch (error) {
                 diagramContainer.innerHTML = `<div class="error">Error loading diagram: ${error.message}</div>`;
             } finally {
