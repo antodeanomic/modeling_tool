@@ -157,7 +157,7 @@
             color: #666;
             flex-shrink: 0;
         }
-        
+
         .palette-item:hover .item-type, .palette-item.active .item-type {
             background: rgba(255,255,255,0.25);
             color: #fff;
@@ -239,8 +239,10 @@
             border-radius: 4px;
             padding: 8px;
             display: flex;
+            flex-wrap: wrap;
             gap: 6px;
             z-index: 100;
+            max-width: calc(100% - 20px);
         }
         
         .nav-button {
@@ -564,6 +566,147 @@
                 opacity: 0;
             }
         }
+
+        /* Details pane for class metadata */
+        .details-pane {
+            position: fixed;
+            right: 0;
+            top: 50px;
+            width: 20%;
+            height: calc(100vh - 50px);
+            background: #f8f9fa;
+            border-left: 1px solid #ddd;
+            Z-index: 500;
+            overflow-y: auto;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .details-pane.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .details-pane-header {
+            padding: 16px;
+            border-bottom: 2px solid #007acc;
+            background: #036;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .details-pane-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .details-pane-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .details-pane-content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .details-section {
+            margin-bottom: 20px;
+        }
+
+        .details-section-title {
+            font-weight: bold;
+            color: #036;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 4px;
+        }
+
+        .details-section-content {
+            font-size: 13px;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .details-subsection-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.35px;
+            color: #666;
+            margin: 8px 0 4px;
+            font-weight: bold;
+        }
+
+        .details-section ul {
+            margin: 0;
+            padding-left: 16px;
+        }
+
+        .details-section li {
+            margin-bottom: 6px;
+        }
+
+        .details-empty {
+            color: #999;
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        .details-link {
+            color: #1e6ba8;
+            text-decoration: underline;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .details-link:hover {
+            opacity: 0.8;
+        }
+
+        .details-hover-text {
+            cursor: default;
+            text-decoration-line: underline;
+            text-decoration-style: dotted;
+            text-decoration-thickness: 1px;
+            text-underline-offset: 2px;
+            text-decoration-color: #8a8a8a;
+        }
+
+        .details-hover-text:hover {
+            text-decoration-color: #4f4f4f;
+        }
+
+        /* Adjust diagram area when pane is open */
+        .container.details-open .diagram-area {
+            width: 80%;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 50px);
+        }
+
+        .diagram-area {
+            flex: 1;
+            transition: flex 0.3s ease;
+        }
     </style>
 </head>
 <body>
@@ -581,7 +724,7 @@
         <button class="menu-button" id="menuButton">&#x22EF;</button>
     </div>
     
-    <div class="container">
+    <div class="container" id="container">
         <div class="diagram-area" id="diagramArea">
             <div class="diagram-container" id="diagramContainer"></div>
             <div class="zoom-indicator" id="zoomIndicator" style="display:none;">100%</div>
@@ -595,6 +738,15 @@
             </div>
         </div>
     </div>
+
+    <div class="details-pane" id="detailsPane">
+        <div class="details-pane-header">
+            <span id="detailsTitle">Class Details</span>
+            <button class="details-pane-close" id="detailsPaneClose">&times;</button>
+        </div>
+        <div class="details-pane-content" id="detailsPaneContent"></div>
+    </div>
+    
     
     <div class="menu" id="menu">
         <div class="menu-section">
@@ -632,6 +784,7 @@
             selectedLanes: [],
             allLanes: [],
             allDiagrams: [],       // aggregated from all CSVs
+            classMetadata: {},     // class metadata for details pane
             zoomLevel: 1.0,
             panX: 0,
             panY: 0,
@@ -678,6 +831,13 @@
             return String(value || '').trim().toLowerCase();
         }
 
+        function getDiagramKeyFor(diagram) {
+            if (!diagram || !diagram.csv || !diagram.type || !diagram.id) {
+                return '';
+            }
+            return [diagram.csv, diagram.type, diagram.id].join('::');
+        }
+
         function getCurrentDiagramKey() {
             if (!state.csv || !state.diagramType) {
                 return '';
@@ -689,6 +849,198 @@
             return [state.csv, state.diagramType, diagramId].join('::');
         }
 
+        function getCurrentDiagram() {
+            const currentDiagramKey = getCurrentDiagramKey();
+            if (!currentDiagramKey) {
+                return null;
+            }
+            return state.allDiagrams.find(diagram => getDiagramKeyFor(diagram) === currentDiagramKey) || null;
+        }
+
+        function getDiagramSymbols(diagram) {
+            return Array.isArray(diagram?.symbols)
+                ? diagram.symbols.map(normalizeDiagramSymbol).filter(Boolean)
+                : [];
+        }
+
+        function containsAllSymbols(containerDiagram, candidateSymbols) {
+            const containerSymbols = new Set(getDiagramSymbols(containerDiagram));
+            if (!candidateSymbols.length || !containerSymbols.size) {
+                return false;
+            }
+            return candidateSymbols.every(symbol => containerSymbols.has(symbol));
+        }
+
+        function sortRelatedDiagrams(diagrams) {
+            return [...diagrams].sort((left, right) => {
+                if (left.type !== right.type) {
+                    return left.type === 'class_diagram' ? -1 : 1;
+                }
+                const leftName = String(left.name || left.id || '');
+                const rightName = String(right.name || right.id || '');
+                if (leftName !== rightName) {
+                    return leftName.localeCompare(rightName);
+                }
+                return String(left.csv || '').localeCompare(String(right.csv || ''));
+            });
+        }
+
+        function resolveDiagramReference(reference, fallbackCsv) {
+            const rawReference = String(reference || '').trim();
+            if (!rawReference) {
+                return null;
+            }
+
+            let refCsv = fallbackCsv || '';
+            let refId = rawReference;
+
+            if (rawReference.includes('::')) {
+                const parts = rawReference.split('::');
+                refCsv = String(parts[0] || '').trim();
+                refId = String(parts[1] || '').trim();
+            } else if (rawReference.includes('/')) {
+                const splitIndex = rawReference.indexOf('/');
+                refCsv = rawReference.slice(0, splitIndex).trim();
+                refId = rawReference.slice(splitIndex + 1).trim();
+            }
+
+            if (refCsv) {
+                return state.allDiagrams.find(diagram => diagram.csv === refCsv && diagram.id === refId) || null;
+            }
+
+            const sameCsvMatches = state.allDiagrams.filter(diagram => diagram.csv === fallbackCsv && diagram.id === refId);
+            if (sameCsvMatches.length === 1) {
+                return sameCsvMatches[0];
+            }
+
+            const globalMatches = state.allDiagrams.filter(diagram => diagram.id === refId);
+            return globalMatches.length >= 1 ? globalMatches[0] : null;
+        }
+
+        function getExplicitDiagramRelationships(diagram) {
+            const parents = [];
+            const children = [];
+            const explicitKeys = new Set();
+            const currentKey = getDiagramKeyFor(diagram);
+
+            const addRelationship = (collection, target) => {
+                if (!target) {
+                    return;
+                }
+                const targetKey = getDiagramKeyFor(target);
+                if (!targetKey || targetKey === currentKey || explicitKeys.has(`${collection === parents ? 'p' : 'c'}:${targetKey}`)) {
+                    return;
+                }
+                explicitKeys.add(`${collection === parents ? 'p' : 'c'}:${targetKey}`);
+                collection.push(target);
+            };
+
+            if (diagram.parent_diagram) {
+                addRelationship(parents, resolveDiagramReference(diagram.parent_diagram, diagram.csv));
+            }
+
+            if (Array.isArray(diagram.child_diagrams)) {
+                diagram.child_diagrams.forEach(childRef => {
+                    addRelationship(children, resolveDiagramReference(childRef, diagram.csv));
+                });
+            }
+
+            state.allDiagrams.forEach(candidate => {
+                const candidateKey = getDiagramKeyFor(candidate);
+                if (!candidateKey || candidateKey === currentKey) {
+                    return;
+                }
+
+                if (candidate.parent_diagram) {
+                    const resolvedParent = resolveDiagramReference(candidate.parent_diagram, candidate.csv);
+                    if (resolvedParent && getDiagramKeyFor(resolvedParent) === currentKey) {
+                        addRelationship(children, candidate);
+                    }
+                }
+
+                if (Array.isArray(candidate.child_diagrams)) {
+                    candidate.child_diagrams.forEach(childRef => {
+                        const resolvedChild = resolveDiagramReference(childRef, candidate.csv);
+                        if (resolvedChild && getDiagramKeyFor(resolvedChild) === currentKey) {
+                            addRelationship(parents, candidate);
+                        }
+                    });
+                }
+            });
+
+            return {
+                hasExplicit: parents.length > 0 || children.length > 0 || !!diagram.parent_diagram || (Array.isArray(diagram.child_diagrams) && diagram.child_diagrams.length > 0),
+                parents: sortRelatedDiagrams(parents),
+                children: sortRelatedDiagrams(children)
+            };
+        }
+
+        function getInferredDiagramRelationships(diagram) {
+            if (!diagram) {
+                return { parents: [], children: [] };
+            }
+
+            const currentKey = getDiagramKeyFor(diagram);
+            const currentSymbols = getDiagramSymbols(diagram);
+            if (!currentSymbols.length) {
+                return { parents: [], children: [] };
+            }
+
+            const parents = [];
+            const children = [];
+
+            state.allDiagrams.forEach(candidate => {
+                const candidateKey = getDiagramKeyFor(candidate);
+                if (!candidateKey || candidateKey === currentKey) {
+                    return;
+                }
+
+                const candidateSymbols = getDiagramSymbols(candidate);
+                if (!candidateSymbols.length) {
+                    return;
+                }
+
+                const candidateContainsCurrent = containsAllSymbols(candidate, currentSymbols);
+                const currentContainsCandidate = containsAllSymbols(diagram, candidateSymbols);
+                const candidateIsStrictParent = candidateContainsCurrent && candidateSymbols.length > currentSymbols.length;
+                const candidateIsStrictChild = currentContainsCandidate && currentSymbols.length > candidateSymbols.length;
+
+                if (diagram.type === 'sequence') {
+                    if (candidate.type === 'class_diagram' && candidateContainsCurrent) {
+                        parents.push(candidate);
+                    }
+                    return;
+                }
+
+                if (diagram.type === 'class_diagram') {
+                    if (candidate.type === 'class_diagram' && candidateIsStrictParent) {
+                        parents.push(candidate);
+                    } else if (candidate.type === 'class_diagram' && candidateIsStrictChild) {
+                        children.push(candidate);
+                    } else if (candidate.type === 'sequence' && currentContainsCandidate) {
+                        children.push(candidate);
+                    }
+                }
+            });
+
+            return {
+                parents: sortRelatedDiagrams(parents),
+                children: sortRelatedDiagrams(children)
+            };
+        }
+
+        function getDiagramRelationships(diagram) {
+            const explicitRelationships = getExplicitDiagramRelationships(diagram);
+            if (explicitRelationships.hasExplicit) {
+                return {
+                    parents: explicitRelationships.parents,
+                    children: explicitRelationships.children
+                };
+            }
+
+            return getInferredDiagramRelationships(diagram);
+        }
+
         function getLinkedDiagramsForClass(className) {
             const normalizedClassName = normalizeDiagramSymbol(className);
             if (!normalizedClassName) {
@@ -696,7 +1048,7 @@
             }
 
             const currentDiagramKey = getCurrentDiagramKey();
-            return state.allDiagrams
+            return sortRelatedDiagrams(state.allDiagrams
                 .filter(diagram => {
                     const diagramKey = [diagram.csv, diagram.type, diagram.id].join('::');
                     if (diagramKey === currentDiagramKey) {
@@ -705,18 +1057,7 @@
 
                     const symbols = Array.isArray(diagram.symbols) ? diagram.symbols : [];
                     return symbols.some(symbol => normalizeDiagramSymbol(symbol) === normalizedClassName);
-                })
-                .sort((left, right) => {
-                    if (left.type !== right.type) {
-                        return left.type === 'class_diagram' ? -1 : 1;
-                    }
-                    const leftName = String(left.name || left.id || '');
-                    const rightName = String(right.name || right.id || '');
-                    if (leftName !== rightName) {
-                        return leftName.localeCompare(rightName);
-                    }
-                    return String(left.csv || '').localeCompare(String(right.csv || ''));
-                });
+                }));
         }
 
         function closeClassLinkMenu() {
@@ -979,6 +1320,8 @@
         const verbosityOptions = document.getElementById('verbosityOptions');
         const routingOptions = document.getElementById('routingOptions');
         const layersList = document.getElementById('layersList');
+        const detailsPane = document.getElementById('detailsPane');
+        const detailsPaneClose = document.getElementById('detailsPaneClose');
         
         // Copy to clipboard functionality
         function showToast(message, duration = 2000) {
@@ -1369,6 +1712,15 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        function escapeHtmlAttribute(text) {
+            return String(text ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
         
         function selectPaletteItem(diagram) {
             paletteDropdown.classList.remove('open');
@@ -1625,15 +1977,21 @@
             const svgHeight = svg.getAttribute('height');
             
             if (!svgWidth || !svgHeight) return;
-            
-            const areaWidth = diagramArea.clientWidth - 40;
+
+            const paneIsOpen =
+                container.classList.contains('details-open') &&
+                detailsPane.style.display !== 'none';
+            const paneWidth = paneIsOpen ? detailsPane.getBoundingClientRect().width : 0;
+            const visibleViewportWidth = window.innerWidth - paneWidth;
+            const usableWidth = Math.min(diagramArea.clientWidth, visibleViewportWidth);
+            const areaWidth = usableWidth - 40;
             const areaHeight = diagramArea.clientHeight - 40;
             
             const zoomX = areaWidth / parseFloat(svgWidth);
             const zoomY = areaHeight / parseFloat(svgHeight);
             
             state.zoomLevel = Math.min(zoomX, zoomY, 3.0);
-            state.panX = 0;
+            state.panX = paneIsOpen ? -(paneWidth / 2) : 0;
             state.panY = 0;
             
             updateZoom();
@@ -1661,6 +2019,7 @@
         forwardButton.addEventListener('click', navigateForward);
         fitButton.addEventListener('click', fitToView);
         resetButton.addEventListener('click', resetPanAndZoom);
+        detailsPaneClose.addEventListener('click', closeDetailsPane);
         
         function resetDiagram() {
             closeClassLinkMenu();
@@ -1705,6 +2064,292 @@
             }
             savePersistedViewerState();
             await loadDiagram();
+        }
+
+        async function loadClassMetadata() {
+            if (state.diagramType !== 'class_diagram' || !state.csv) {
+                state.classMetadata = {};
+                return;
+            }
+
+            try {
+                const url = `/api/class_metadata?csv=${encodeURIComponent(state.csv)}&diagram_id=${encodeURIComponent(state.classDiagramId)}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    console.warn('Failed to load class metadata');
+                    state.classMetadata = {};
+                    return;
+                }
+                
+                const data = await response.json();
+                state.classMetadata = data.metadata || {};
+            } catch (error) {
+                console.warn('Error loading class metadata:', error);
+                state.classMetadata = {};
+            }
+        }
+
+        function closeDetailsPane() {
+            const container = document.getElementById('container');
+            const pane = document.getElementById('detailsPane');
+            container.classList.remove('details-open');
+            pane.style.display = 'none';
+            // Re-fit diagram to fill full screen as pane transitions out (300ms)
+            setTimeout(() => {
+                fitToView();
+            }, 350);
+        }
+
+        function showClassDetails(className) {
+            const metadata = state.classMetadata[className] || {};
+            const pane = document.getElementById('detailsPane');
+            const content = document.getElementById('detailsPaneContent');
+            const title = document.getElementById('detailsTitle');
+            
+            // Get linked diagrams for this class
+            const linkedDiagrams = getLinkedDiagramsForClass(className);
+            const currentDiagram = getCurrentDiagram();
+            const relationships = getDiagramRelationships(currentDiagram);
+            const parentKeys = new Set((relationships.parents || []).map(getDiagramKeyFor));
+            const childKeys = new Set((relationships.children || []).map(getDiagramKeyFor));
+            const parentLinkedDiagrams = [];
+            const childLinkedDiagrams = [];
+            const uncategorizedLinkedDiagrams = [];
+            const traceability = metadata.traceability || {};
+            const traceLinkTargets = [];
+
+            const resolveTraceabilityTarget = (item) => {
+                const itemId = String(item?.id || '').trim().toLowerCase();
+                if (!itemId) {
+                    return null;
+                }
+
+                // Prefer strict ID match; fallback to name match when IDs differ from UI labels.
+                const exactMatch = state.allDiagrams.find(diagram =>
+                    String(diagram.id || '').trim().toLowerCase() === itemId
+                );
+                if (exactMatch) {
+                    return exactMatch;
+                }
+
+                return state.allDiagrams.find(diagram =>
+                    String(diagram.name || '').trim().toLowerCase() === itemId
+                ) || null;
+            };
+
+            const getTraceabilityTooltip = (item) => {
+                const parts = [];
+                const titleText = String(item?.title || '').trim();
+                const sourceText = String(item?.source || '').trim();
+
+                if (titleText) {
+                    parts.push(titleText);
+                }
+                if (sourceText && sourceText !== 'explicit') {
+                    parts.push(`Source: ${sourceText}`);
+                }
+
+                return parts.join('\n');
+            };
+
+            linkedDiagrams.forEach(diagram => {
+                const diagramKey = getDiagramKeyFor(diagram);
+                if (parentKeys.has(diagramKey)) {
+                    parentLinkedDiagrams.push(diagram);
+                } else if (childKeys.has(diagramKey)) {
+                    childLinkedDiagrams.push(diagram);
+                } else {
+                    uncategorizedLinkedDiagrams.push(diagram);
+                }
+            });
+
+            title.textContent = className;
+
+            let html = '';
+            
+            // Section: Description
+            if (metadata.description) {
+                html += `<div class="details-section">
+                    <div class="details-section-title">Description</div>
+                    <div class="details-section-content">${escapeHtml(metadata.description)}</div>
+                </div>`;
+            }
+            
+            // Section: Responsibilities
+            if (metadata.responsibilities && Array.isArray(metadata.responsibilities) && metadata.responsibilities.length > 0) {
+                html += `<div class="details-section">
+                    <div class="details-section-title">Responsibilities</div>
+                    <div class="details-section-content">
+                        <ul>${metadata.responsibilities.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>
+                    </div>
+                </div>`;
+            }
+            
+            // Section: Notes
+            if (metadata.notes && Array.isArray(metadata.notes) && metadata.notes.length > 0) {
+                html += `<div class="details-section">
+                    <div class="details-section-title">Notes</div>
+                    <div class="details-section-content">
+                        <ul>${metadata.notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>
+                    </div>
+                </div>`;
+            }
+
+            // Section: Linked Diagrams
+            if (linkedDiagrams && linkedDiagrams.length > 0) {
+                html += `<div class="details-section">
+                    <div class="details-section-title">Diagrams</div>
+                    <div class="details-section-content">
+                        <div class="details-subsection-title">Parent</div>
+                        ${parentLinkedDiagrams.length > 0
+                            ? `<ul>${parentLinkedDiagrams.map((d, idx) => {
+                                const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
+                                const itemId = `linked-diagram-parent-${idx}`;
+                                return `<li><span id="${itemId}" class="details-link">${typeLabel}: ${escapeHtml(d.name)}</span></li>`;
+                            }).join('')}</ul>`
+                            : '<div class="details-empty">none</div>'}
+
+                        <div class="details-subsection-title">Child</div>
+                        ${childLinkedDiagrams.length > 0
+                            ? `<ul>${childLinkedDiagrams.map((d, idx) => {
+                                const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
+                                const itemId = `linked-diagram-child-${idx}`;
+                                return `<li><span id="${itemId}" class="details-link">${typeLabel}: ${escapeHtml(d.name)}</span></li>`;
+                            }).join('')}</ul>`
+                            : '<div class="details-empty">none</div>'}
+
+                        ${uncategorizedLinkedDiagrams.length > 0
+                            ? `<div class="details-subsection-title">Related</div><ul>${uncategorizedLinkedDiagrams.map((d, idx) => {
+                                const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
+                                const itemId = `linked-diagram-related-${idx}`;
+                                return `<li><span id="${itemId}" class="details-link">${typeLabel}: ${escapeHtml(d.name)}</span></li>`;
+                            }).join('')}</ul>`
+                            : ''}
+                    </div>
+                </div>`;
+            }
+
+            // Section: Traceability (shown directly after Diagrams)
+            const traceReqs = Array.isArray(traceability.requirements) ? traceability.requirements : [];
+            const traceStories = Array.isArray(traceability.user_stories) ? traceability.user_stories : [];
+            const traceTests = Array.isArray(traceability.test_cases) ? traceability.test_cases : [];
+            const traceFeatures = Array.isArray(traceability.features) ? traceability.features : [];
+            const hasTraceability = traceReqs.length || traceStories.length || traceTests.length || traceFeatures.length;
+            if (hasTraceability) {
+                const renderTraceList = (titleText, items, keyPrefix) => {
+                    if (!items.length) {
+                        return '';
+                    }
+                    return `
+                        <div class="details-subsection-title">${escapeHtml(titleText)}</div>
+                        <ul>
+                            ${items.map((item, idx) => {
+                                const idText = escapeHtml(item.id || '');
+                                const targetDiagram = resolveTraceabilityTarget(item);
+                                const tooltipText = getTraceabilityTooltip(item);
+                                const tooltipAttr = tooltipText
+                                    ? ` title="${escapeHtmlAttribute(tooltipText)}"`
+                                    : '';
+
+                                if (targetDiagram) {
+                                    const linkId = `trace-link-${keyPrefix}-${idx}`;
+                                    traceLinkTargets.push({ id: linkId, diagram: targetDiagram });
+                                    return `<li><span id="${linkId}" class="details-link"${tooltipAttr}>${idText}</span></li>`;
+                                }
+
+                                return `<li><span class="details-hover-text"${tooltipAttr}>${idText}</span></li>`;
+                            }).join('')}
+                        </ul>
+                    `;
+                };
+
+                html += `<div class="details-section">
+                    <div class="details-section-title">Traceability</div>
+                    <div class="details-section-content">
+                        ${renderTraceList('Requirements', traceReqs, 'req')}
+                        ${renderTraceList('User Stories', traceStories, 'story')}
+                        ${renderTraceList('Test Cases', traceTests, 'test')}
+                        ${renderTraceList('Features', traceFeatures, 'feature')}
+                    </div>
+                </div>`;
+            }
+
+            // Lower-priority implementation details (already visible in diagram at high verbosity)
+            if (metadata.attributes && Array.isArray(metadata.attributes) && metadata.attributes.length > 0) {
+                html += `<div class="details-section">
+                    <div class="details-section-title">Attributes</div>
+                    <div class="details-section-content">
+                        <ul>${metadata.attributes.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>
+                    </div>
+                </div>`;
+            }
+
+            if (metadata.methods && Array.isArray(metadata.methods) && metadata.methods.length > 0) {
+                html += `<div class="details-section">
+                    <div class="details-section-title">Methods</div>
+                    <div class="details-section-content">
+                        <ul>${metadata.methods.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>
+                    </div>
+                </div>`;
+            }
+            
+            if (!html) {
+                html = '<div class="details-empty">No additional details available</div>';
+            }
+            
+            content.innerHTML = html;
+            
+            // Wire up linked diagram clicks
+            parentLinkedDiagrams.forEach((diagram, idx) => {
+                const elem = document.getElementById(`linked-diagram-parent-${idx}`);
+                if (elem) {
+                    elem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        navigateToDiagram(diagram);
+                    });
+                }
+            });
+
+            childLinkedDiagrams.forEach((diagram, idx) => {
+                const elem = document.getElementById(`linked-diagram-child-${idx}`);
+                if (elem) {
+                    elem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        navigateToDiagram(diagram);
+                    });
+                }
+            });
+
+            uncategorizedLinkedDiagrams.forEach((diagram, idx) => {
+                const elem = document.getElementById(`linked-diagram-related-${idx}`);
+                if (elem) {
+                    elem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        navigateToDiagram(diagram);
+                    });
+                }
+            });
+
+            traceLinkTargets.forEach(link => {
+                const elem = document.getElementById(link.id);
+                if (elem) {
+                    elem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        navigateToDiagram(link.diagram);
+                    });
+                }
+            });
+
+            const container = document.getElementById('container');
+            container.classList.add('details-open');
+            pane.style.display = 'block';
+            
+            // Re-fit diagram to fill the remaining space (80% width)
+            // Wait for CSS transition to complete (300ms) before recalculating fit
+            setTimeout(() => {
+                fitToView();
+            }, 350);
         }
 
         function setupClassDiagramHoverHighlight() {
@@ -1762,8 +2407,6 @@
         }
 
         function setupClassDiagramLinks() {
-            closeClassLinkMenu();
-
             if (state.diagramType !== 'class_diagram') {
                 return;
             }
@@ -1780,11 +2423,11 @@
 
             objectGroups.forEach(obj => {
                 const className = obj.getAttribute('data-class-name');
-                const linkedDiagrams = getLinkedDiagramsForClass(className);
-                if (!className || !linkedDiagrams.length) {
+                if (!className) {
                     return;
                 }
 
+                // Find the title text (class name)
                 const titleText = Array.from(obj.querySelectorAll('text')).find(node =>
                     node.getAttribute('font-weight') === 'bold'
                 );
@@ -1792,21 +2435,23 @@
                     return;
                 }
 
-                // Style the class name as a hyperlink.
-                titleText.classList.add('cls-linked-name');
-                titleText.setAttribute('fill', '#1e40af');
+                // Make the title clickable for the details pane
+                titleText.style.cursor = 'pointer';
+                titleText.setAttribute('fill', '#1e6ba8');
+                titleText.setAttribute('text-decoration', 'underline');
 
                 titleText.addEventListener('mouseenter', () => {
-                    titleText.setAttribute('text-decoration', 'underline');
+                    titleText.style.opacity = '0.8';
                 });
                 titleText.addEventListener('mouseleave', () => {
-                    titleText.removeAttribute('text-decoration');
+                    titleText.style.opacity = '1';
                 });
 
+                // Click handler: show details pane
                 titleText.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    showClassLinkMenu(className, linkedDiagrams, titleText.getBoundingClientRect());
+                    showClassDetails(className);
                 });
             });
         }
@@ -1864,6 +2509,10 @@
                 // Wire class-diagram object hover highlighting for connectors/text.
                 setupClassDiagramHoverHighlight();
                 setupClassDiagramLinks();
+                
+                // Load class metadata for details pane
+                await loadClassMetadata();
+                
                 updateNavHistory();
 
                 // Persist successfully loaded state snapshot.

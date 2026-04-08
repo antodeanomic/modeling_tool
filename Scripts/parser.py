@@ -167,6 +167,85 @@ VALID_ARROWS = {
     '\u25c1..',   # Realization (right implements left)
 }
 
+def parse_diagram_relationship_params(row: list[str], start_idx: int) -> tuple[str, list[str]]:
+    """Parse optional diagram hierarchy parameters from CSV columns.
+
+    Supported forms:
+      - parent=DiagramId
+      - children=ChildA,ChildB
+      - child=ChildA,ChildB
+    """
+    parent_diagram = ""
+    child_diagrams = []
+
+    for col_idx in range(start_idx, len(row)):
+        param = clean(row[col_idx])
+        if not param:
+            continue
+
+        if param.startswith("parent="):
+            parent_diagram = param.split("=", 1)[1].strip()
+        elif param.startswith("children=") or param.startswith("child="):
+            raw_children = param.split("=", 1)[1].strip()
+            if raw_children:
+                child_diagrams.extend(
+                    child_name.strip()
+                    for child_name in raw_children.split(",")
+                    if child_name.strip()
+                )
+
+    # Preserve order while removing duplicates.
+    deduped_children = []
+    for child_name in child_diagrams:
+        if child_name not in deduped_children:
+            deduped_children.append(child_name)
+
+    return parent_diagram, deduped_children
+
+def parse_traceability_params(row: list[str], start_idx: int) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Parse explicit traceability IDs from optional CSV parameters.
+
+    Supported forms (comma-separated values):
+      - trace_req=...
+      - trace_story=...
+      - trace_test=...
+      - trace_feature=...
+    Aliases:
+      - req=..., story=..., test=..., feature=...
+    """
+    req_ids = []
+    story_ids = []
+    test_ids = []
+    feature_ids = []
+
+    def _add_ids(raw_value: str, bucket: list[str]):
+        for item in raw_value.split(','):
+            item = item.strip()
+            if item and item not in bucket:
+                bucket.append(item)
+
+    for col_idx in range(start_idx, len(row)):
+        param = clean(row[col_idx])
+        if not param or '=' not in param:
+            continue
+
+        key, value = param.split('=', 1)
+        key = key.strip().lower()
+        value = value.strip()
+        if not value:
+            continue
+
+        if key in ('trace_req', 'req'):
+            _add_ids(value, req_ids)
+        elif key in ('trace_story', 'story'):
+            _add_ids(value, story_ids)
+        elif key in ('trace_test', 'test'):
+            _add_ids(value, test_ids)
+        elif key in ('trace_feature', 'feature'):
+            _add_ids(value, feature_ids)
+
+    return req_ids, story_ids, test_ids, feature_ids
+
 def parse_csv(path: str, _included_paths: set = None) -> Model:
     model = Model()
     stack = []
@@ -214,15 +293,39 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                         model.class_diagrams.extend(included_model.class_diagrams)
 
                 elif type_name == "Class":
-                    c = ClassDef(name=name, description=desc, layer=layer)
+                    class_layer = ""
+                    for col_idx in range(3, len(row)):
+                        param = clean(row[col_idx])
+                        if not param:
+                            continue
+                        if param.startswith("layer="):
+                            class_layer = param.split("=", 1)[1].strip()
+                        elif '=' not in param and not class_layer:
+                            # Backward-compatible positional layer assignment.
+                            class_layer = param
+
+                    req_ids, story_ids, test_ids, feature_ids = parse_traceability_params(row, 3)
+                    c = ClassDef(
+                        name=name,
+                        description=desc,
+                        layer=class_layer,
+                        trace_requirement_ids=req_ids,
+                        trace_user_story_ids=story_ids,
+                        trace_test_case_ids=test_ids,
+                        trace_feature_ids=feature_ids
+                    )
                     model.classes.append(c)
                     stack.append(c)
 
                 elif type_name == "Sequence":
+                    sequence_description = clean(row[3]) if len(row) > 3 else desc
+                    parent_diagram, child_diagrams = parse_diagram_relationship_params(row, 4)
                     seq = SequenceDef(
                         seq_id=name,
                         headline=desc,
-                        description=desc
+                        description=sequence_description,
+                        parent_diagram=parent_diagram,
+                        child_diagrams=child_diagrams
                     )
                     model.sequences.append(seq)
                     current_sequence = seq
@@ -232,6 +335,7 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                     # Parse optional parameters from remaining columns
                     routing = "diagonal"
                     element_types = {}
+                    parent_diagram, child_diagrams = parse_diagram_relationship_params(row, 3)
                     for col_idx in range(3, len(row)):
                         param = clean(row[col_idx])
                         if param.startswith("routing="):
@@ -252,7 +356,14 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                                         element_types[ename] = etype
                                     else:
                                         model.warnings.append(f"Unknown element type '{etype}' for '{ename}'")
-                    cd = ClassDiagramDef(diagram_id=name, description=desc, routing=routing, element_types=element_types)
+                    cd = ClassDiagramDef(
+                        diagram_id=name,
+                        description=desc,
+                        routing=routing,
+                        element_types=element_types,
+                        parent_diagram=parent_diagram,
+                        child_diagrams=child_diagrams
+                    )
                     model.class_diagrams.append(cd)
                     stack.append(cd)
 

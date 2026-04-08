@@ -1,5 +1,5 @@
 Type;Name;Description
-Class;User;User interface
+Class;User;User interface;trace_req=Architecture_0001,UserInterface_0001;trace_story=UserStory_0001;trace_test=test_interactive_001
     Function;ReadKey;Reads a key
         ReturnVal;Key;Key read from hardware
 
@@ -22,7 +22,7 @@ Class;User;User interface
         State;OperationPending;Operator selected and waiting for next value
         State;Error;Invalid input or calculation error
 
-Class;Display;Shows current value and results
+Class;Display;Shows current value and results;trace_req=Rendering_0001,Rendering_0007;trace_test=test_render_001
     MemberVar;text;Current text displayed
     Function;Update;Updates the display with new text
     
@@ -31,7 +31,7 @@ Class;Display;Shows current value and results
         State;ShowingValue;Displaying numeric value
         State;ShowingResult;Displaying result
 
-Class;Keypad;Receives button presses
+Class;Keypad;Receives button presses;trace_req=Parser_0001;trace_feature=FEAT-001
     Function;ReadKey;Returns which key was pressed
 
 ClassDiagram;CalculatorDiagonalArchitecture;Calculator architecture with diagonal connectors;routing=diagonal
@@ -44,7 +44,7 @@ ClassDiagram;CalculatorOrthogonalArchitecture;Calculator architecture with ortho
     User;Keypad;-->;1;1;reads
     Keypad;Display;..>;;;notifies
 
-Sequence;SoftReq0001;Initialization;This sequence initializes the system
+Sequence;SoftReq0001;Initialization;This sequence initializes the system;parent=CalculatorDiagonalArchitecture
     User;Keypad;ReadKey;8;@Info;Valid key pressed
     Keypad;Display;Update;42;8
     User;@Warning;Button held too long

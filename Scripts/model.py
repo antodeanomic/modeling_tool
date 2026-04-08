@@ -40,6 +40,10 @@ class ClassDef:
     name: str
     description: str
     layer: str = ""  # Layer/group assignment (e.g., "UI", "Business Logic", "Data Access")
+    trace_requirement_ids: List[str] = field(default_factory=list)
+    trace_user_story_ids: List[str] = field(default_factory=list)
+    trace_test_case_ids: List[str] = field(default_factory=list)
+    trace_feature_ids: List[str] = field(default_factory=list)
     members: List[MemberVar] = field(default_factory=list)
     functions: List[FunctionDef] = field(default_factory=list)
     state_machines: List[StateMachineDef] = field(default_factory=list)
@@ -87,6 +91,8 @@ class ClassDiagramDef:
     relationships: List[ClassRelationship] = field(default_factory=list)
     routing: str = "diagonal"  # diagonal, orthogonal, or mixed
     element_types: dict = field(default_factory=dict)  # Maps element_name -> type (class/component/package/object)
+    parent_diagram: str = ""
+    child_diagrams: List[str] = field(default_factory=list)
 
     def get_layers(self) -> List[str]:
         """Get unique layer names from relationships, in order of appearance."""
@@ -155,6 +161,8 @@ class SequenceDef:
     headline: str
     description: str
     steps: List[SequenceStep] = field(default_factory=list)
+    parent_diagram: str = ""
+    child_diagrams: List[str] = field(default_factory=list)
     
     def get_lanes(self) -> List[str]:
         """Extract unique objects from steps in order of appearance."""
