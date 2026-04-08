@@ -46,6 +46,9 @@ def run_all_tests():
         'test_verbosity',
         'test_comprehensive_nesting'
     ]
+    python_regression_tests = [
+        'test_class_metadata_traceability.py',
+    ]
     
     print("=" * 70)
     print("Running all test cases...")
@@ -65,6 +68,23 @@ def run_all_tests():
             return False
         else:
             print(f"[OK] {test} passed")
+
+    for test_script in python_regression_tests:
+        print(f"\nRunning: {test_script}...")
+        result = subprocess.run(
+            [sys.executable, test_script],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0:
+            print(f"Error running {test_script}:")
+            print(result.stdout)
+            print(result.stderr)
+            return False
+        else:
+            output = result.stdout.strip()
+            print(output if output else f"[OK] {test_script} passed")
     
     print("\n" + "=" * 70)
     print("All tests completed successfully!")

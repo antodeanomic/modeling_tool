@@ -186,8 +186,6 @@ def find_html_file():
     raise FileNotFoundError("Could not find diagram_viewer.html in any standard location")
 
 HTML_PATH = find_html_file()
-REPO_ROOT = os.path.dirname(os.path.abspath(HTML_PATH))
-REPO_ROOT = os.path.dirname(REPO_ROOT)
 
 def load_model(csv_name=None):
     """Load model from CSV by name."""
@@ -215,41 +213,6 @@ def load_model_and_sequence(csv_name, sequence_id):
 
 class DiagramHandler(SimpleHTTPRequestHandler):
     """Handle requests for diagram generation and static files."""
-
-    def _serve_repo_file(self, relative_path: str):
-        """Serve a file from the repository root using a safe relative path."""
-        safe_relative = relative_path.replace('\\', '/').lstrip('/').strip()
-        if not safe_relative:
-            self.send_error(404, "File not found")
-            return
-
-        abs_path = os.path.abspath(os.path.join(REPO_ROOT, safe_relative))
-        if not abs_path.startswith(REPO_ROOT):
-            self.send_error(403, "Forbidden")
-            return
-        if not os.path.isfile(abs_path):
-            self.send_error(404, "File not found")
-            return
-
-        extension = os.path.splitext(abs_path)[1].lower()
-        content_type = 'text/plain; charset=utf-8'
-        if extension == '.md':
-            content_type = 'text/markdown; charset=utf-8'
-        elif extension == '.json':
-            content_type = 'application/json; charset=utf-8'
-        elif extension == '.csv':
-            content_type = 'text/csv; charset=utf-8'
-
-        with open(abs_path, 'rb') as file_handle:
-            data = file_handle.read()
-
-        self.send_response(200)
-        self.send_header('Content-Type', content_type)
-        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-        self.send_header('Pragma', 'no-cache')
-        self.send_header('Expires', '0')
-        self.end_headers()
-        self.wfile.write(data)
     
     def do_GET(self):
         """Handle GET requests."""
@@ -346,8 +309,6 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.handle_lanes_request()
         elif parsed_path.path == '/api/class_metadata':
             self.handle_class_metadata_request()
-        elif parsed_path.path.startswith('/docs/'):
-            self._serve_repo_file(parsed_path.path[len('/docs/'):])
         elif parsed_path.path in ['/Scripts/diagram_viewer.html', '/diagram_viewer.html']:
             # Serve diagram viewer with parameter support
             try:
@@ -645,12 +606,6 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             
             # Load the model for the specified CSV
             model = load_model(csv_name)
-
-            def _split_semicolon_list(raw_value):
-                value = str(raw_value or '').strip()
-                if not value:
-                    return []
-                return [item.strip() for item in value.split(';') if item.strip() and item.strip() != '-']
 
             # Build traceability indexes once per request.
             script_dir_local = os.path.dirname(os.path.abspath(__file__))
