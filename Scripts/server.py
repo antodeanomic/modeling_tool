@@ -468,6 +468,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                             'name': s.seq_id,
                             'csv': csv_name,
                             'lanes': s.get_lanes(),
+                            'symbols': s.get_lanes(),
                             'hierarchy': hierarchy
                         })
                     for d in model.class_diagrams:
@@ -477,6 +478,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                             'name': d.description or d.diagram_id,
                             'csv': csv_name,
                             'layers': d.get_layers(),
+                            'symbols': d.get_element_names(),
                             'routing': d.routing,
                             'hierarchy': hierarchy
                         })

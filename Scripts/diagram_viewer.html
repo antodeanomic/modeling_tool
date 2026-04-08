@@ -271,7 +271,72 @@
             border-radius: 3px;
             background-color: rgba(50, 50, 50, 0.8);
         }
-        
+
+        .nav-button.nav-back,
+        .nav-button.nav-forward {
+            background-color: rgba(219, 234, 254, 0.95);
+            border-color: #93c5fd;
+            color: #1e40af;
+        }
+
+        .nav-button.nav-back:hover,
+        .nav-button.nav-forward:hover {
+            background-color: rgba(191, 219, 254, 1);
+            border-color: #60a5fa;
+        }
+
+        .nav-breadcrumb {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 3px;
+            background-color: rgba(50, 50, 50, 0.8);
+            max-width: 480px;
+            white-space: nowrap;
+            cursor: default;
+            position: relative;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .nav-breadcrumb-tooltip {
+            display: none;
+            position: fixed;
+            background: #1e293b;
+            color: #f1f5f9;
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            white-space: nowrap;
+            z-index: 3000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            pointer-events: none;
+        }
+
+        .nav-breadcrumb:hover .nav-breadcrumb-tooltip {
+            display: block;
+        }
+
+        .nav-breadcrumb .crumb-item {
+            cursor: pointer;
+            opacity: 0.72;
+        }
+
+        .nav-breadcrumb .crumb-item:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        .nav-breadcrumb .crumb-sep {
+            opacity: 0.45;
+            margin: 0 3px;
+        }
+
+        .nav-breadcrumb .crumb-current {
+            opacity: 1;
+            font-weight: bold;
+        }
+
         .menu {
             display: none;
             position: fixed;
@@ -391,6 +456,10 @@
             stroke-width: 2.5;
         }
 
+        .diagram-area svg text.cls-linked-name {
+            cursor: pointer;
+        }
+
         .diagram-area svg g.cls-connector path,
         .diagram-area svg g.cls-connector text {
             transition: opacity 0.12s ease, stroke-width 0.12s ease, fill 0.12s ease;
@@ -425,6 +494,53 @@
             z-index: 2000;
             animation: slideIn 0.3s ease-out;
             pointer-events: none;
+        }
+
+        .class-link-menu {
+            position: fixed;
+            min-width: 260px;
+            max-width: 340px;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
+            z-index: 2100;
+            padding: 8px;
+        }
+
+        .class-link-menu-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #475569;
+            margin-bottom: 6px;
+            padding: 4px 6px;
+        }
+
+        .class-link-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            padding: 8px 10px;
+            cursor: pointer;
+        }
+
+        .class-link-item:hover {
+            background: #eff6ff;
+        }
+
+        .class-link-item-name {
+            font-size: 13px;
+            color: #0f172a;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .class-link-item-meta {
+            font-size: 11px;
+            color: #64748b;
         }
         
         @keyframes slideIn {
@@ -470,8 +586,11 @@
             <div class="diagram-container" id="diagramContainer"></div>
             <div class="zoom-indicator" id="zoomIndicator" style="display:none;">100%</div>
             <div class="nav-toolbar">
+                <button class="nav-button nav-back" id="backButton" style="display:none;" title="Go back (Alt+←)">Back <strong>(Alt+←)</strong></button>
+                <button class="nav-button nav-forward" id="forwardButton" style="display:none;" title="Go forward (Alt+→)"><strong>(Alt+→)</strong> Forward</button>
                 <button class="nav-button" id="fitButton" title="Fit diagram to view (Shift+F)">Fit (Shift+F)</button>
                 <button class="nav-button" id="resetButton" title="Reset pan and zoom (Shift+R)">Reset (Shift+R)</button>
+                <div class="nav-breadcrumb" id="breadcrumbInfo" style="display:none;"></div>
                 <div class="nav-info" id="panInfo" style="display:none;">Drag with Right Mouse or Middle Mouse</div>
             </div>
         </div>
@@ -519,7 +638,9 @@
             isPanning: false,
             panStartX: 0,
             panStartY: 0,
-            isLoading: false
+            isLoading: false,
+            navHistory: [],  // back-navigation history stack
+            navFuture: []    // forward-navigation history stack
         };
 
         const VIEWER_STATE_KEY = 'diagram_viewer_state_v1';
@@ -551,6 +672,239 @@
             } catch (_err) {
                 // Ignore storage failures (private mode/quota/security restrictions).
             }
+        }
+
+        function normalizeDiagramSymbol(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function getCurrentDiagramKey() {
+            if (!state.csv || !state.diagramType) {
+                return '';
+            }
+
+            const diagramId = state.diagramType === 'class_diagram'
+                ? state.classDiagramId
+                : state.sequence;
+            return [state.csv, state.diagramType, diagramId].join('::');
+        }
+
+        function getLinkedDiagramsForClass(className) {
+            const normalizedClassName = normalizeDiagramSymbol(className);
+            if (!normalizedClassName) {
+                return [];
+            }
+
+            const currentDiagramKey = getCurrentDiagramKey();
+            return state.allDiagrams
+                .filter(diagram => {
+                    const diagramKey = [diagram.csv, diagram.type, diagram.id].join('::');
+                    if (diagramKey === currentDiagramKey) {
+                        return false;
+                    }
+
+                    const symbols = Array.isArray(diagram.symbols) ? diagram.symbols : [];
+                    return symbols.some(symbol => normalizeDiagramSymbol(symbol) === normalizedClassName);
+                })
+                .sort((left, right) => {
+                    if (left.type !== right.type) {
+                        return left.type === 'class_diagram' ? -1 : 1;
+                    }
+                    const leftName = String(left.name || left.id || '');
+                    const rightName = String(right.name || right.id || '');
+                    if (leftName !== rightName) {
+                        return leftName.localeCompare(rightName);
+                    }
+                    return String(left.csv || '').localeCompare(String(right.csv || ''));
+                });
+        }
+
+        function closeClassLinkMenu() {
+            const existing = document.querySelector('.class-link-menu');
+            if (existing) {
+                existing.remove();
+            }
+        }
+
+        function _getCurrentEntry() {
+            const historyId = state.diagramType === 'class_diagram'
+                ? state.classDiagramId
+                : state.sequence;
+            const diagram = state.allDiagrams.find(d =>
+                d.csv === state.csv && d.type === state.diagramType && d.id === historyId
+            );
+            if (!diagram || !state.csv) return null;
+            return { diagram, selectedLanes: [...state.selectedLanes] };
+        }
+
+        function navigateToDiagram(diagram) {
+            closeClassLinkMenu();
+            const current = _getCurrentEntry();
+            if (current) state.navHistory.push(current);
+            state.navFuture = [];  // new navigation clears forward stack
+            applyDiagramSelection(diagram);
+            updateMenuVisibility();
+            updateLaneCheckboxes();
+            savePersistedViewerState();
+            loadDiagram();
+        }
+
+        function navigateBack() {
+            if (!state.navHistory.length) return;
+            const current = _getCurrentEntry();
+            if (current) state.navFuture.unshift(current);
+            const prev = state.navHistory.pop();
+            applyDiagramSelection(prev.diagram, prev.selectedLanes);
+            updateMenuVisibility();
+            updateLaneCheckboxes();
+            savePersistedViewerState();
+            loadDiagram();
+        }
+
+        function navigateForward() {
+            if (!state.navFuture.length) return;
+            const current = _getCurrentEntry();
+            if (current) state.navHistory.push(current);
+            const next = state.navFuture.shift();
+            applyDiagramSelection(next.diagram, next.selectedLanes);
+            updateMenuVisibility();
+            updateLaneCheckboxes();
+            savePersistedViewerState();
+            loadDiagram();
+        }
+
+        function navigateToHistoryIndex(index) {
+            if (index < 0 || index >= state.navHistory.length) return;
+            const current = _getCurrentEntry();
+            // Entries after the target become the beginning of the future stack.
+            const displaced = state.navHistory.slice(index + 1);
+            const newFuture = [
+                ...displaced,
+                ...(current ? [current] : []),
+                ...state.navFuture
+            ];
+            const entry = state.navHistory[index];
+            state.navHistory = state.navHistory.slice(0, index);
+            state.navFuture = newFuture;
+            applyDiagramSelection(entry.diagram, entry.selectedLanes);
+            updateMenuVisibility();
+            updateLaneCheckboxes();
+            savePersistedViewerState();
+            loadDiagram();
+        }
+
+        function updateNavHistory() {
+            const hasHistory = state.navHistory.length > 0;
+            const hasFuture = state.navFuture.length > 0;
+            backButton.style.display = hasHistory ? '' : 'none';
+            forwardButton.style.display = hasFuture ? '' : 'none';
+
+            if (!hasHistory && !hasFuture) {
+                breadcrumbInfo.style.display = 'none';
+                return;
+            }
+
+            const currentName = paletteInput.value || state.classDiagramId || state.sequence || '';
+
+            // Build full path for tooltip (back history + current + future).
+            const allNames = [
+                ...state.navHistory.map(e => e.diagram.name || e.diagram.id),
+                currentName,
+                ...state.navFuture.map(e => e.diagram.name || e.diagram.id)
+            ];
+            const tooltipText = allNames.map(escapeHtml).join(' › ');
+
+            // Visible breadcrumb: back items (clickable) + current.
+            const parts = state.navHistory.map((entry, index) => {
+                const label = escapeHtml(entry.diagram.name || entry.diagram.id);
+                return `<span class="crumb-item" data-history-index="${index}">${label}</span>`;
+            });
+            parts.push(`<span class="crumb-current">${escapeHtml(currentName)}</span>`);
+            if (hasFuture) {
+                const nextName = escapeHtml(state.navFuture[0].diagram.name || state.navFuture[0].diagram.id);
+                parts.push(`<span class="crumb-sep"> › </span><span style="opacity:0.45;">${nextName}…</span>`);
+            }
+
+            breadcrumbInfo.innerHTML =
+                parts.join('<span class="crumb-sep"> › </span>') +
+                `<span class="nav-breadcrumb-tooltip" style="display:none;">${tooltipText}</span>`;
+            breadcrumbInfo.style.display = '';
+
+            breadcrumbInfo.querySelectorAll('.crumb-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const idx = parseInt(el.getAttribute('data-history-index'), 10);
+                    navigateToHistoryIndex(idx);
+                });
+            });
+
+            // Set up breadcrumb tooltip using fixed positioning
+            const tooltip = breadcrumbInfo.querySelector('.nav-breadcrumb-tooltip');
+            if (tooltip) {
+                breadcrumbInfo.addEventListener('mouseenter', () => {
+                    const rect = breadcrumbInfo.getBoundingClientRect();
+                    tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
+                    tooltip.style.left = rect.left + 'px';
+                    tooltip.style.display = 'block';
+                });
+                breadcrumbInfo.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
+            }
+        }
+
+        function showClassLinkMenu(className, linkedDiagrams, anchorRect) {
+            closeClassLinkMenu();
+
+            if (!linkedDiagrams.length) {
+                return;
+            }
+
+            const menuEl = document.createElement('div');
+            menuEl.className = 'class-link-menu';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'class-link-menu-title';
+            titleEl.textContent = `References for ${className}`;
+            menuEl.appendChild(titleEl);
+
+            linkedDiagrams.forEach(diagram => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'class-link-item';
+
+                const nameEl = document.createElement('div');
+                nameEl.className = 'class-link-item-name';
+                nameEl.textContent = diagram.name || diagram.id;
+
+                const metaEl = document.createElement('div');
+                metaEl.className = 'class-link-item-meta';
+                const typeLabel = diagram.type === 'class_diagram' ? 'Class diagram' : 'Sequence';
+                metaEl.textContent = `${typeLabel} | ${diagram.csv}`;
+
+                button.appendChild(nameEl);
+                button.appendChild(metaEl);
+                button.addEventListener('click', () => navigateToDiagram(diagram));
+                menuEl.appendChild(button);
+            });
+
+            document.body.appendChild(menuEl);
+
+            const viewportPadding = 12;
+            const measuredWidth = menuEl.offsetWidth;
+            const measuredHeight = menuEl.offsetHeight;
+            const desiredLeft = anchorRect.left;
+            const desiredTop = anchorRect.bottom + 8;
+
+            const clampedLeft = Math.min(
+                desiredLeft,
+                window.innerWidth - measuredWidth - viewportPadding
+            );
+            const clampedTop = (desiredTop + measuredHeight > window.innerHeight - viewportPadding)
+                ? Math.max(viewportPadding, anchorRect.top - measuredHeight - 8)
+                : desiredTop;
+
+            menuEl.style.left = `${Math.max(viewportPadding, clampedLeft)}px`;
+            menuEl.style.top = `${Math.max(viewportPadding, clampedTop)}px`;
         }
 
         function applyDiagramSelection(diagram, preferredSelectedLanes = null) {
@@ -616,9 +970,12 @@
         const diagramArea = document.getElementById('diagramArea');
         const diagramContainer = document.getElementById('diagramContainer');
         const zoomIndicator = document.getElementById('zoomIndicator');
+        const backButton = document.getElementById('backButton');
+        const forwardButton = document.getElementById('forwardButton');
         const fitButton = document.getElementById('fitButton');
         const resetButton = document.getElementById('resetButton');
         const panInfo = document.getElementById('panInfo');
+        const breadcrumbInfo = document.getElementById('breadcrumbInfo');
         const verbosityOptions = document.getElementById('verbosityOptions');
         const routingOptions = document.getElementById('routingOptions');
         const layersList = document.getElementById('layersList');
@@ -1016,7 +1373,8 @@
         function selectPaletteItem(diagram) {
             paletteDropdown.classList.remove('open');
             paletteInput.blur();
-
+            state.navHistory = [];
+            state.navFuture = [];
             applyDiagramSelection(diagram);
             updateMenuVisibility();
             updateLaneCheckboxes();
@@ -1117,6 +1475,10 @@
             if (!e.target.closest('#menu') && !e.target.closest('#menuButton')) {
                 menu.classList.remove('active');
             }
+
+            if (!e.target.closest('.class-link-menu') && !e.target.classList.contains('cls-linked-name')) {
+                closeClassLinkMenu();
+            }
         });
         
         // Add mouse wheel zoom handler
@@ -1171,6 +1533,17 @@
             if ((e.shiftKey) && (e.key === 'R' || e.code === 'KeyR')) {
                 e.preventDefault();
                 resetPanAndZoom();
+            }
+            // Alt+Left / Alt+Right to navigate back/forward in diagram history
+            if (e.altKey && e.key === 'ArrowLeft') {
+                e.preventDefault();
+                navigateBack();
+                return;
+            }
+            if (e.altKey && e.key === 'ArrowRight') {
+                e.preventDefault();
+                navigateForward();
+                return;
             }
             // Arrow keys for panning
             const panStep = 20;
@@ -1284,10 +1657,15 @@
         }
         
         // Button click handlers
+        backButton.addEventListener('click', navigateBack);
+        forwardButton.addEventListener('click', navigateForward);
         fitButton.addEventListener('click', fitToView);
         resetButton.addEventListener('click', resetPanAndZoom);
         
         function resetDiagram() {
+            closeClassLinkMenu();
+            state.navHistory = [];
+            state.navFuture = [];
             paletteInput.value = '';
             state.diagramType = '';
             state.sequence = '';
@@ -1382,9 +1760,60 @@
                 });
             });
         }
+
+        function setupClassDiagramLinks() {
+            closeClassLinkMenu();
+
+            if (state.diagramType !== 'class_diagram') {
+                return;
+            }
+
+            const svg = diagramContainer.querySelector('svg');
+            if (!svg) {
+                return;
+            }
+
+            const objectGroups = Array.from(svg.querySelectorAll('g.cls-object[data-class-name]'));
+            if (!objectGroups.length) {
+                return;
+            }
+
+            objectGroups.forEach(obj => {
+                const className = obj.getAttribute('data-class-name');
+                const linkedDiagrams = getLinkedDiagramsForClass(className);
+                if (!className || !linkedDiagrams.length) {
+                    return;
+                }
+
+                const titleText = Array.from(obj.querySelectorAll('text')).find(node =>
+                    node.getAttribute('font-weight') === 'bold'
+                );
+                if (!titleText) {
+                    return;
+                }
+
+                // Style the class name as a hyperlink.
+                titleText.classList.add('cls-linked-name');
+                titleText.setAttribute('fill', '#1e40af');
+
+                titleText.addEventListener('mouseenter', () => {
+                    titleText.setAttribute('text-decoration', 'underline');
+                });
+                titleText.addEventListener('mouseleave', () => {
+                    titleText.removeAttribute('text-decoration');
+                });
+
+                titleText.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    showClassLinkMenu(className, linkedDiagrams, titleText.getBoundingClientRect());
+                });
+            });
+        }
         
         async function loadDiagram() {
             if (state.isLoading) return;
+            closeClassLinkMenu();
             if (!state.csv) {
                 diagramContainer.innerHTML = '<div style="color: #999;">Loading...</div>';
                 return;
@@ -1434,6 +1863,8 @@
 
                 // Wire class-diagram object hover highlighting for connectors/text.
                 setupClassDiagramHoverHighlight();
+                setupClassDiagramLinks();
+                updateNavHistory();
 
                 // Persist successfully loaded state snapshot.
                 savePersistedViewerState();
