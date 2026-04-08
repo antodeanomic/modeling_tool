@@ -1,0 +1,81 @@
+{
+  "User": {
+    "responsibilities": [
+      "Receive user input from keypad",
+      "Display results on screen",
+      "Manage calculation workflow"
+    ],
+    "notResponsibleFor": [
+      "Performing arithmetic (Compute class handles)",
+      "Rendering graphics (Display class handles)",
+      "Hardware interaction details"
+    ],
+    "constraints": [
+      "Must respond to keypad input within 100ms",
+      "Cannot store calculation history",
+      "Display updates limited to 10 per second"
+    ],
+    "assumptions": [
+      "Display is always available",
+      "Keypad hardware is reliable",
+      "User inputs are valid numeric or operator keys"
+    ],
+    "dependencies": [
+      "Display - for showing results",
+      "Keypad - for receiving input"
+    ]
+  },
+  "Display": {
+    "responsibilities": [
+      "Show current number being entered",
+      "Show results of calculations",
+      "Display error messages",
+      "Update display on value change"
+    ],
+    "notResponsibleFor": [
+      "Validating input (User class handles)",
+      "Performing calculations",
+      "Managing state transitions"
+    ],
+    "constraints": [
+      "Display limited to 8 digits max",
+      "Cannot show more than 1 calculation at a time",
+      "Refresh rate maximum 60Hz"
+    ],
+    "assumptions": [
+      "LCD/LED display is always functional",
+      "Font rendering is available",
+      "Power supply is stable"
+    ],
+    "dependencies": [
+      "User - sends values to display",
+      "Keypad - indirectly notified of changes"
+    ]
+  },
+  "Keypad": {
+    "responsibilities": [
+      "Detect button presses",
+      "Read physical button states",
+      "Debounce hardware signals",
+      "Report key presses to User"
+    ],
+    "notResponsibleFor": [
+      "Interpreting key meaning",
+      "Storing input history",
+      "Controlling display output"
+    ],
+    "constraints": [
+      "Max 100 keys supported",
+      "Debounce time: 20ms minimum",
+      "Cannot detect simultaneous presses"
+    ],
+    "assumptions": [
+      "Buttons are electrically stable",
+      "Ground connections are solid",
+      "No button stuck states"
+    ],
+    "dependencies": [
+      "User - receives input interpretation"
+    ]
+  }
+}
