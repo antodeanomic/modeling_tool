@@ -18,6 +18,23 @@ FORCED_EDGE_OVERRIDES = {
     ('OrderService', 'CircuitBreaker'): ('top', 'bottom'),
     ('OrderService', 'RetryPolicy'): ('top', 'bottom'),
     ('MetricsCollector', 'AuditLog'): ('top', 'bottom'),
+    # Deterministic endpoint stress case for top-entry probe.
+    ('Obj4', 'Obj1'): ('left', 'top'),
+    # Arrow-matrix route coverage (source_edge, target_edge).
+    ('AR_S01', 'AR_T01'): ('left', 'top'),
+    ('AR_S02', 'AR_T02'): ('left', 'bottom'),
+    ('AR_S03', 'AR_T03'): ('right', 'top'),
+    ('AR_S04', 'AR_T04'): ('right', 'bottom'),
+    ('AR_S05', 'AR_T05'): ('top', 'left'),
+    ('AR_S06', 'AR_T06'): ('top', 'right'),
+    ('AR_S07', 'AR_T07'): ('bottom', 'left'),
+    ('AR_S08', 'AR_T08'): ('bottom', 'right'),
+    ('AR_S09', 'AR_T09'): ('left', 'top'),
+    ('AR_S10', 'AR_T10'): ('top', 'right'),
+    ('AR_S11', 'AR_T11'): ('right', 'top'),
+    ('AR_S12', 'AR_T12'): ('right', 'bottom'),
+    ('AR_S13', 'AR_T13'): ('top', 'left'),
+    ('AR_S14', 'AR_T14'): ('top', 'right'),
 }
 
 # Force simple one-bend orthogonal routing for selected connectors.
@@ -127,6 +144,14 @@ class RectangleGrid:
         if not points:
             return True
         last_idx = len(points)
+
+        # Deterministic test harness ports:
+        # - all edges: single usable midpoint
+        # Applies to explicit probe/test objects so each side has one port.
+        if self.name.startswith('Obj') or self.name.startswith('AR_'):
+            mid_idx = (last_idx + 1) // 2
+            return index != mid_idx
+
         return index == 1 or index == last_idx
     
     def get_points(self, edge: str) -> List[ConnectionPoint]:
@@ -689,6 +714,10 @@ class ConnectorPlanner:
                         connector, src_grid, tgt_grid, used_points
                     )
 
+                    # Extend first and last segments outward to create label breathing room
+                    self._extend_first_segment_for_label_clearance(connector)
+                    self._extend_last_segment_for_label_clearance(connector)
+
                     self._register_connector_occupancy(connector)
                     continue
             
@@ -818,6 +847,10 @@ class ConnectorPlanner:
                 connector, src_grid, tgt_grid, used_points
             )
             
+            # Extend first and last segments outward to create label breathing room
+            self._extend_first_segment_for_label_clearance(connector)
+            self._extend_last_segment_for_label_clearance(connector)
+            
             self._register_connector_occupancy(connector)
 
     def _to_grid_cell(self, x: float, y: float) -> Tuple[int, int]:
@@ -885,6 +918,90 @@ class ConnectorPlanner:
 
         for cell_key in self._collect_path_cells(path_points):
             self._occupied_connector_cells[cell_key] = self._occupied_connector_cells.get(cell_key, 0) + 1
+
+    def _extend_first_segment_for_label_clearance(self, connector: ConnectorPath):
+        """Extend the first segment to create space for connector labels.
+        
+        Pushes the first segment point further from the source in the direction
+        of the source exit edge, then adjusts subsequent segments to maintain
+        orthogonal (90-degree) routing.
+        """
+        if not connector.segments or len(connector.segments) < 2 or not connector.source_edge:
+            return
+
+        LABEL_CLEARANCE = 10  # pixels for ~1 monospace character
+
+        x1, y1 = connector.source_x, connector.source_y
+        x_seg0, y_seg0 = connector.segments[0]
+        x_seg1, y_seg1 = connector.segments[1]
+
+        # Extend the first segment point outward based on source edge direction,
+        # then adjust the second segment to maintain orthogonal routing.
+        if connector.source_edge == 'top':
+            # First segment goes up, adjust y but keep x
+            connector.segments[0] = (x_seg0, y_seg0 - LABEL_CLEARANCE)
+            # Adjust second segment to maintain right angle: keep its x, align y with new seg0
+            connector.segments[1] = (x_seg1, y_seg0 - LABEL_CLEARANCE)
+        elif connector.source_edge == 'bottom':
+            # First segment goes down
+            connector.segments[0] = (x_seg0, y_seg0 + LABEL_CLEARANCE)
+            connector.segments[1] = (x_seg1, y_seg0 + LABEL_CLEARANCE)
+        elif connector.source_edge == 'left':
+            # First segment goes left
+            connector.segments[0] = (x_seg0 - LABEL_CLEARANCE, y_seg0)
+            # Adjust second segment to maintain right angle: align x with new seg0, keep y
+            connector.segments[1] = (x_seg0 - LABEL_CLEARANCE, y_seg1)
+        elif connector.source_edge == 'right':
+            # First segment goes right
+            connector.segments[0] = (x_seg0 + LABEL_CLEARANCE, y_seg0)
+            connector.segments[1] = (x_seg0 + LABEL_CLEARANCE, y_seg1)
+
+    def _extend_last_segment_for_label_clearance(self, connector: ConnectorPath):
+        """Extend the last segment to create space for target connector labels.
+        
+        Lengthens the final approach leg into the target by moving the
+        penultimate bend point outward and adjusting its predecessor to
+        preserve orthogonal (90-degree) routing.
+        """
+        if not connector.segments or len(connector.segments) < 2 or not connector.target_edge:
+            return
+
+        LABEL_CLEARANCE = 10  # pixels for ~1 monospace character
+
+        # Last point should be the target entry point; second-last is the bend
+        # where the final approach leg begins.
+        bend_x, bend_y = connector.segments[-2]
+
+        # Track previous point if present so we can preserve right angles.
+        has_prev = len(connector.segments) >= 3
+        if has_prev:
+            prev_x, prev_y = connector.segments[-3]
+
+        if connector.target_edge == 'left':
+            # Final leg is horizontal left->right into target.
+            new_bend_x = bend_x - LABEL_CLEARANCE
+            connector.segments[-2] = (new_bend_x, bend_y)
+            if has_prev and abs(prev_x - bend_x) < 0.01:
+                connector.segments[-3] = (new_bend_x, prev_y)
+        elif connector.target_edge == 'right':
+            # Final leg is horizontal right->left into target.
+            new_bend_x = bend_x + LABEL_CLEARANCE
+            connector.segments[-2] = (new_bend_x, bend_y)
+            if has_prev and abs(prev_x - bend_x) < 0.01:
+                connector.segments[-3] = (new_bend_x, prev_y)
+        elif connector.target_edge == 'top':
+            # Final leg is vertical top->down into target.
+            new_bend_y = bend_y - LABEL_CLEARANCE
+            connector.segments[-2] = (bend_x, new_bend_y)
+            if has_prev and abs(prev_y - bend_y) < 0.01:
+                connector.segments[-3] = (prev_x, new_bend_y)
+        elif connector.target_edge == 'bottom':
+            # Final leg is vertical bottom->up into target.
+            new_bend_y = bend_y + LABEL_CLEARANCE
+            connector.segments[-2] = (bend_x, new_bend_y)
+            if has_prev and abs(prev_y - bend_y) < 0.01:
+                connector.segments[-3] = (prev_x, new_bend_y)
+
 
     def _choose_best_orthogonal_segments(self, connector: ConnectorPath, mode: str) -> List[Tuple[float, float]]:
         """Pick orthogonal segments that minimize same-axis grid-cell overlap.
@@ -1118,6 +1235,57 @@ class ConnectorPlanner:
         x1, y1 = connector.source_x, connector.source_y
         x2, y2 = connector.target_x, connector.target_y
 
+        src_edge = connector.source_edge
+        tgt_edge = connector.target_edge
+        src_grid = self.grids.get(connector.source_name)
+        tgt_grid = self.grids.get(connector.target_name)
+
+        # Guarded detour for vertical-to-side routes: route above/below the target
+        # band first, then approach the side entry from outside the target body.
+        if src_grid is not None and tgt_grid is not None and src_edge in ['top', 'bottom'] and tgt_edge in ['left', 'right']:
+            jog = GRID_CELL_SIZE_PX
+            detour_x = tgt_grid.x - jog if tgt_edge == 'left' else tgt_grid.x + tgt_grid.width + jog
+
+            if src_edge == 'top':
+                # Move upward first, but choose the near side of the target band so
+                # the first vertical leg does not pass through the target body.
+                if y1 > tgt_grid.y + tgt_grid.height:
+                    detour_y = tgt_grid.y + tgt_grid.height + jog
+                else:
+                    detour_y = min(y1, tgt_grid.y) - jog
+                if detour_y < y1 - 1:
+                    guarded_segments = [
+                        (x1, detour_y),
+                        (detour_x, detour_y),
+                        (detour_x, y2),
+                        (x2, y2),
+                    ]
+                    guarded_points = [(x1, y1)] + guarded_segments + [(x2, y2)]
+                    if self._path_respects_connector_edges(connector, guarded_points):
+                        connector.path_type = "multi_segment"
+                        connector.segments = guarded_segments
+                        return
+
+            if src_edge == 'bottom':
+                # Move downward first, but choose the near side of the target band so
+                # the first vertical leg does not pass through the target body.
+                if y1 < tgt_grid.y:
+                    detour_y = tgt_grid.y - jog
+                else:
+                    detour_y = max(y1, tgt_grid.y + tgt_grid.height) + jog
+                if detour_y > y1 + 1:
+                    guarded_segments = [
+                        (x1, detour_y),
+                        (detour_x, detour_y),
+                        (detour_x, y2),
+                        (x2, y2),
+                    ]
+                    guarded_points = [(x1, y1)] + guarded_segments + [(x2, y2)]
+                    if self._path_respects_connector_edges(connector, guarded_points):
+                        connector.path_type = "multi_segment"
+                        connector.segments = guarded_segments
+                        return
+
         # Force one-bend orthogonal route for specific clutter-prone connectors.
         if ((connector.source_name, connector.target_name) in FORCED_ELBOW_CONNECTORS or
             (connector.source_name, connector.target_name) in self.forced_elbows):
@@ -1167,9 +1335,6 @@ class ConnectorPlanner:
         # STEP 2: Connection points NOT aligned - create multi-segment routing
         # STEP 2: Connection points NOT aligned - create multi-segment routing
         # Prefer simple two-segment elbows over longer 3+ segment paths.
-        src_edge = connector.source_edge
-        tgt_edge = connector.target_edge
-
         elbow_a = (x2, y1)
         elbow_b = (x1, y2)
         elbow_candidates = [
