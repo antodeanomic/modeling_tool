@@ -1973,8 +1973,8 @@
             const svg = diagramContainer.querySelector('svg');
             if (!svg) return;
             
-            const svgWidth = svg.getAttribute('width');
-            const svgHeight = svg.getAttribute('height');
+            const svgWidth = parseFloat(svg.getAttribute('width'));
+            const svgHeight = parseFloat(svg.getAttribute('height'));
             
             if (!svgWidth || !svgHeight) return;
 
@@ -1987,12 +1987,16 @@
             const areaWidth = usableWidth - 40;
             const areaHeight = diagramArea.clientHeight - 40;
             
-            const zoomX = areaWidth / parseFloat(svgWidth);
-            const zoomY = areaHeight / parseFloat(svgHeight);
+            const zoomX = areaWidth / svgWidth;
+            const zoomY = areaHeight / svgHeight;
             
             state.zoomLevel = Math.min(zoomX, zoomY, 3.0);
-            state.panX = paneIsOpen ? -(paneWidth / 2) : 0;
-            state.panY = 0;
+            
+            // Center the zoomed canvas in the available viewport
+            const scaledWidth = svgWidth * state.zoomLevel;
+            const scaledHeight = svgHeight * state.zoomLevel;
+            state.panX = Math.max(0, (areaWidth - scaledWidth) / 2);
+            state.panY = Math.max(0, (areaHeight - scaledHeight) / 2);
             
             updateZoom();
             updatePan();

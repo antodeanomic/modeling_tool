@@ -19,6 +19,9 @@ FONT_FAMILY = "Arial, Helvetica, sans-serif"
 CHAR_WIDTH = 7.8  # Approximate character width for Arial at 13px
 CONNECTOR_FONT_FAMILY = "monospace"  # Monospace for connector labels (multiplicity, labels)
 CONNECTOR_CHAR_WIDTH = 7.5  # Approximate character width for monospace at 11px
+# Connector labels are rendered with FONT_FAMILY (Arial stack), typically italic.
+# Keep a separate width estimate to avoid over-inflating canvas bounds.
+LABEL_CHAR_WIDTH = 6.1
 CLASS_BOX_PADDING_X = 14
 CLASS_BOX_PADDING_Y = 10
 CLASS_MIN_WIDTH = 120
@@ -403,9 +406,21 @@ def _estimate_connector_text_items(connector, verbosity_level):
         else:
             prev_pt = points[-2] if len(points) >= 2 else points[-1]
             if abs(connector.target_x - prev_pt[0]) > abs(connector.target_y - prev_pt[1]):
-                x = connector.target_x + (prev_pt[0] - connector.target_x) * 0.20
+                text_width = max(len(connector.tgt_mult or " ") * CONNECTOR_CHAR_WIDTH, CONNECTOR_CHAR_WIDTH)
+                endpoint_gap = 8
+                bend_gap = 8
+                direction = 1 if connector.target_x >= prev_pt[0] else -1
+                if direction > 0:
+                    desired_right = connector.target_x - endpoint_gap
+                    min_right = prev_pt[0] + bend_gap + text_width
+                    x = max(desired_right, min_right)
+                    anchor = 'end'
+                else:
+                    desired_left = connector.target_x + endpoint_gap
+                    max_left = prev_pt[0] - bend_gap - text_width
+                    x = min(desired_left, max_left)
+                    anchor = 'start'
                 y = connector.target_y - 8
-                anchor = 'middle'
             else:
                 x = connector.target_x + 8
                 y = connector.target_y + (prev_pt[1] - connector.target_y) * 0.70
@@ -1510,6 +1525,82 @@ def _layout_classes(diagram, model, verbosity="High"):
             'class_def': class_def, 'element_type': element_type
         }
     
+    # Special paired layout for the arrow-route regression matrix so route
+    # variants stay visually compact and AR2 probes occupy edge-compatible
+    # quadrants for true 2-segment elbows.
+    if diagram.diagram_id == "OrthogonalArrowTypeAndRoutes":
+        def _pair_key(name):
+            prefix, _, suffix = name.partition('_')
+            return prefix, suffix
+
+        def _index_of(name):
+            try:
+                return int(name[-2:])
+            except ValueError:
+                return 0
+
+        def _set_box(name, x, y):
+            if name in boxes:
+                boxes[name]['x'] = x
+                boxes[name]['y'] = y
+
+        box_width = max(box['width'] for box in boxes.values()) if boxes else 120
+        box_height = max(box['height'] for box in boxes.values()) if boxes else 40
+
+        # Original AR matrix: preserve compact pairwise left/right placement.
+        pair_spacing_x = box_width + 40
+        pair_block_width = pair_spacing_x + box_width + 80
+        pair_spacing_y = box_height + 65
+
+        for idx in range(1, 15):
+            row = (idx - 1) // 2
+            col_pair = (idx - 1) % 2
+            base_x = MARGIN + col_pair * pair_block_width
+            base_y = MARGIN + row * pair_spacing_y
+            _set_box(f"AR_S{idx:02d}", base_x, base_y)
+            _set_box(f"AR_T{idx:02d}", base_x + pair_spacing_x, base_y)
+
+        # AR2 matrix: explicit quadrants so forced source/target edges can be
+        # realized by a single elbow (two visual segments).
+        quadrant_patterns = {
+            # Encoded as ((src_x_slot, src_y_slot), (tgt_x_slot, tgt_y_slot))
+            # where 0=left/top and 1=right/bottom within the pair cell.
+            # These quadrants are chosen so a single elbow can satisfy both the
+            # source exit edge and target entry edge.
+            'lt': ((1, 0), (0, 1)),
+            'lb': ((1, 1), (0, 0)),
+            'rt': ((0, 0), (1, 1)),
+            'rb': ((0, 1), (1, 0)),
+            'tl': ((0, 1), (1, 0)),
+            'tr': ((1, 1), (0, 0)),
+            'bl': ((0, 0), (1, 1)),
+            'br': ((1, 0), (0, 1)),
+        }
+        ar2_patterns = {
+            1: 'lt', 2: 'lb', 3: 'rt', 4: 'rb',
+            5: 'tl', 6: 'tr', 7: 'bl', 8: 'br',
+            9: 'lt', 10: 'lb', 11: 'rt', 12: 'rb',
+            13: 'tl', 14: 'tr',
+        }
+
+        ar2_section_y = MARGIN + 7 * pair_spacing_y + 120
+        cell_width = box_width * 3 + 120
+        cell_height = box_height * 3 + 90
+        offset_x = box_width + 80
+        offset_y = box_height + 80
+
+        for idx in range(1, 15):
+            row = (idx - 1) // 4
+            col = (idx - 1) % 4
+            cell_x = MARGIN + col * cell_width
+            cell_y = ar2_section_y + row * cell_height
+            pattern = quadrant_patterns[ar2_patterns[idx]]
+            (src_px, src_py), (tgt_px, tgt_py) = pattern
+            _set_box(f"AR2_S{idx:02d}", cell_x + src_px * offset_x, cell_y + src_py * offset_y)
+            _set_box(f"AR2_T{idx:02d}", cell_x + tgt_px * offset_x, cell_y + tgt_py * offset_y)
+
+        return boxes
+
     # Simple grid layout: arrange in rows
     # Try to keep roughly square aspect ratio.
     # For the large orthogonal arrow-route test matrix, cap to 4 columns
@@ -2149,10 +2240,24 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         # Place target multiplicity close to the target endpoint.
                         if connector.tgt_mult:
                             if abs(last_seg[0][1] - last_seg[1][1]) < 1:
+                                text_width = max(len(connector.tgt_mult or " ") * CONNECTOR_CHAR_WIDTH, CONNECTOR_CHAR_WIDTH)
+                                endpoint_gap = 8
+                                bend_gap = 8
                                 direction = 1 if last_seg[1][0] >= last_seg[0][0] else -1
-                                text_x = connector.target_x - direction * 10
                                 text_y = connector.target_y - 8 - lane_dy
-                                anchor = 'end' if direction > 0 else 'start'
+                                if direction > 0:
+                                    # Text sits between target endpoint (right side) and pre-target bend (left side).
+                                    # Keep a gap from endpoint and from the vertical bend.
+                                    anchor = 'end'
+                                    desired_right = connector.target_x - endpoint_gap
+                                    min_right = last_seg[0][0] + bend_gap + text_width
+                                    text_x = max(desired_right, min_right)
+                                else:
+                                    # Mirror case: text sits to the right of the target endpoint and left of bend.
+                                    anchor = 'start'
+                                    desired_left = connector.target_x + endpoint_gap
+                                    max_left = last_seg[0][0] - bend_gap - text_width
+                                    text_x = min(desired_left, max_left)
                             else:
                                 text_x = connector.target_x + 8
                                 text_y = hy1 + (connector.target_y - hy1) * 0.7 - lane_dy
@@ -2214,11 +2319,18 @@ def _estimate_text_bbox(text_item: Dict[str, object]) -> Tuple[float, float, flo
     x = float(text_item.get('x', 0.0))
     y = float(text_item.get('y', 0.0))
     anchor = str(text_item.get('anchor', 'start'))
+    kind = str(text_item.get('kind', ''))
 
-    # Hover highlighting makes connector text bold, which expands glyph width.
-    # Inflate by 10% so canvas-fit logic remains safe during hover.
-    hover_growth = 1.10
-    width = max(1.0, len(text) * CONNECTOR_CHAR_WIDTH * hover_growth)
+    # Match width estimate to the font used for each connector text kind.
+    # Labels use FONT_FAMILY (Arial stack); multiplicities use monospace.
+    if kind == 'label':
+        char_width = LABEL_CHAR_WIDTH
+        hover_growth = 1.08
+    else:
+        char_width = CONNECTOR_CHAR_WIDTH
+        hover_growth = 1.10
+
+    width = max(1.0, len(text) * char_width * hover_growth)
     if anchor == 'middle':
         left = x - width / 2.0
     elif anchor == 'end':
@@ -2233,7 +2345,7 @@ def _estimate_text_bbox(text_item: Dict[str, object]) -> Tuple[float, float, flo
     return left, top, right, bottom
 
 
-def _estimate_render_content_bounds(boxes: Dict[str, Dict[str, float]], planner, verbosity_level: str) -> Tuple[float, float, float, float]:
+def _estimate_render_content_bounds(boxes: Dict[str, Dict[str, float]], planner, verbosity_level: str, layers_filter=None) -> Tuple[float, float, float, float]:
     """Estimate min/max bounds for boxes, connector geometry, and connector text."""
     min_x = float('inf')
     min_y = float('inf')
@@ -2250,7 +2362,11 @@ def _estimate_render_content_bounds(boxes: Dict[str, Dict[str, float]], planner,
         max_x = max(max_x, right)
         max_y = max(max_y, bottom)
 
-    for connector in planner.get_connectors(layer_filter=None):
+    connectors = planner.get_connectors(layer_filter=None)
+    if layers_filter is not None:
+        connectors = [c for c in connectors if not c.layer or c.layer in layers_filter]
+
+    for connector in connectors:
         for px, py in _path_points_from_connector(connector):
             min_x = min(min_x, px)
             min_y = min(min_y, py)
@@ -2263,6 +2379,40 @@ def _estimate_render_content_bounds(boxes: Dict[str, Dict[str, float]], planner,
             min_y = min(min_y, top)
             max_x = max(max_x, right)
             max_y = max(max_y, bottom)
+
+    if min_x == float('inf'):
+        return 0.0, 0.0, 0.0, 0.0
+
+    return min_x, min_y, max_x, max_y
+
+
+def _estimate_render_geometry_bounds(boxes: Dict[str, Dict[str, float]], planner, layers_filter=None) -> Tuple[float, float, float, float]:
+    """Estimate min/max bounds for boxes and connector geometry (excluding text)."""
+    min_x = float('inf')
+    min_y = float('inf')
+    max_x = float('-inf')
+    max_y = float('-inf')
+
+    for box in boxes.values():
+        left = box['x']
+        top = box['y']
+        right = box['x'] + box['width']
+        bottom = box['y'] + box['height']
+        min_x = min(min_x, left)
+        min_y = min(min_y, top)
+        max_x = max(max_x, right)
+        max_y = max(max_y, bottom)
+
+    connectors = planner.get_connectors(layer_filter=None)
+    if layers_filter is not None:
+        connectors = [c for c in connectors if not c.layer or c.layer in layers_filter]
+
+    for connector in connectors:
+        for px, py in _path_points_from_connector(connector):
+            min_x = min(min_x, px)
+            min_y = min(min_y, py)
+            max_x = max(max_x, px)
+            max_y = max(max_y, py)
 
     if min_x == float('inf'):
         return 0.0, 0.0, 0.0, 0.0
@@ -2792,18 +2942,29 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
 
     # Ensure all rendered content (including connector text) stays inside canvas.
     min_x, min_y, max_x_content, max_y_content = _estimate_render_content_bounds(
-        boxes, planner, verbosity_level
+        boxes, planner, verbosity_level, layers_filter
     )
-    # Keep a compact gutter while preserving safety for hover-expanded text.
-    content_edge_padding = 12
+    geom_min_x, geom_min_y, _, _ = _estimate_render_geometry_bounds(
+        boxes, planner, layers_filter
+    )
+    # Keep left and right in-canvas gutters visually symmetric.
+    content_edge_padding = MARGIN
     target_left = content_edge_padding
     target_top = title_band_height + 8
-    shift_dx = target_left - min_x
-    shift_dy = target_top - min_y
+    # Normalize geometry to a stable gutter, then add only the minimum extra
+    # shift needed to keep text from clipping the canvas.
+    shift_dx = target_left - geom_min_x
+    shift_dy = target_top - geom_min_y
+    projected_min_x = min_x + shift_dx
+    projected_min_y = min_y + shift_dy
+    if projected_min_x < content_edge_padding:
+        shift_dx += (content_edge_padding - projected_min_x)
+    if projected_min_y < target_top:
+        shift_dy += (target_top - projected_min_y)
     if abs(shift_dx) > 0.01 or abs(shift_dy) > 0.01:
         _shift_render_layout(boxes, planner, shift_dx, shift_dy)
         min_x, min_y, max_x_content, max_y_content = _estimate_render_content_bounds(
-            boxes, planner, verbosity_level
+            boxes, planner, verbosity_level, layers_filter
         )
 
     canvas_width = int(max_x_content + MARGIN)

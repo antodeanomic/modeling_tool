@@ -35,6 +35,21 @@ FORCED_EDGE_OVERRIDES = {
     ('AR_S12', 'AR_T12'): ('right', 'bottom'),
     ('AR_S13', 'AR_T13'): ('top', 'left'),
     ('AR_S14', 'AR_T14'): ('top', 'right'),
+    # Arrow-matrix 2-segment coverage (source_edge, target_edge).
+    ('AR2_S01', 'AR2_T01'): ('left', 'top'),
+    ('AR2_S02', 'AR2_T02'): ('left', 'bottom'),
+    ('AR2_S03', 'AR2_T03'): ('right', 'top'),
+    ('AR2_S04', 'AR2_T04'): ('right', 'bottom'),
+    ('AR2_S05', 'AR2_T05'): ('top', 'left'),
+    ('AR2_S06', 'AR2_T06'): ('top', 'right'),
+    ('AR2_S07', 'AR2_T07'): ('bottom', 'left'),
+    ('AR2_S08', 'AR2_T08'): ('bottom', 'right'),
+    ('AR2_S09', 'AR2_T09'): ('left', 'top'),
+    ('AR2_S10', 'AR2_T10'): ('left', 'bottom'),
+    ('AR2_S11', 'AR2_T11'): ('right', 'top'),
+    ('AR2_S12', 'AR2_T12'): ('right', 'bottom'),
+    ('AR2_S13', 'AR2_T13'): ('top', 'left'),
+    ('AR2_S14', 'AR2_T14'): ('top', 'right'),
 }
 
 # Force simple one-bend orthogonal routing for selected connectors.
@@ -44,6 +59,41 @@ FORCED_ELBOW_CONNECTORS = {
     ('Gateway', 'TraceContext'),
     ('OrderService', 'CircuitBreaker'),
     ('OrderService', 'RetryPolicy'),
+    # Arrow-matrix 2-segment coverage
+    ('AR2_S01', 'AR2_T01'),
+    ('AR2_S02', 'AR2_T02'),
+    ('AR2_S03', 'AR2_T03'),
+    ('AR2_S04', 'AR2_T04'),
+    ('AR2_S05', 'AR2_T05'),
+    ('AR2_S06', 'AR2_T06'),
+    ('AR2_S07', 'AR2_T07'),
+    ('AR2_S08', 'AR2_T08'),
+    ('AR2_S09', 'AR2_T09'),
+    ('AR2_S10', 'AR2_T10'),
+    ('AR2_S11', 'AR2_T11'),
+    ('AR2_S12', 'AR2_T12'),
+    ('AR2_S13', 'AR2_T13'),
+    ('AR2_S14', 'AR2_T14'),
+}
+
+# Exact elbow probes must remain true 2-segment orthogonal routes for the
+# arrow-matrix regression diagram. Do not let overlap-avoidance rewrite them
+# into longer routes.
+FORCED_EXACT_ELBOW_CONNECTORS = {
+    ('AR2_S01', 'AR2_T01'),
+    ('AR2_S02', 'AR2_T02'),
+    ('AR2_S03', 'AR2_T03'),
+    ('AR2_S04', 'AR2_T04'),
+    ('AR2_S05', 'AR2_T05'),
+    ('AR2_S06', 'AR2_T06'),
+    ('AR2_S07', 'AR2_T07'),
+    ('AR2_S08', 'AR2_T08'),
+    ('AR2_S09', 'AR2_T09'),
+    ('AR2_S10', 'AR2_T10'),
+    ('AR2_S11', 'AR2_T11'),
+    ('AR2_S12', 'AR2_T12'),
+    ('AR2_S13', 'AR2_T13'),
+    ('AR2_S14', 'AR2_T14'),
 }
 
 
@@ -598,6 +648,7 @@ class ConnectorPlanner:
         for connector in self.connectors:
             src_grid = self.grids[connector.source_name]
             tgt_grid = self.grids[connector.target_name]
+            exact_elbow_probe = (connector.source_name, connector.target_name) in FORCED_EXACT_ELBOW_CONNECTORS
             
             src_cx, src_cy = src_grid.get_center()
             tgt_cx, tgt_cy = tgt_grid.get_center()
@@ -690,7 +741,7 @@ class ConnectorPlanner:
                     # overlaps or obstacle underpasses even in the aligned-point path.
                     self._route_connector(connector)
 
-                    if self._has_critical_conflict(connector):
+                    if not exact_elbow_probe and self._has_critical_conflict(connector):
                         best_alt_tgt = self._find_alternative_target_point(
                             tgt_grid, entry_edge, connector.source_name, connector.target_name,
                             used_points, connector
@@ -710,9 +761,10 @@ class ConnectorPlanner:
 
                     # Final pass: for multi-segment connectors, allow source+target
                     # endpoint re-selection to eliminate obstacle overlap.
-                    self._reroute_multisegment_avoid_obstacles(
-                        connector, src_grid, tgt_grid, used_points
-                    )
+                    if not exact_elbow_probe:
+                        self._reroute_multisegment_avoid_obstacles(
+                            connector, src_grid, tgt_grid, used_points
+                        )
 
                     # Extend first and last segments outward to create label breathing room
                     self._extend_first_segment_for_label_clearance(connector)
@@ -820,7 +872,7 @@ class ConnectorPlanner:
             
             # Check for critical conflicts (overlaps with objects or heavy connector overlaps)
             # If detected, try alternative target connection points
-            if self._has_critical_conflict(connector):
+            if not exact_elbow_probe and self._has_critical_conflict(connector):
                 best_alt_tgt = self._find_alternative_target_point(
                     tgt_grid, entry_edge, connector.source_name, connector.target_name,
                     used_points, connector
@@ -843,9 +895,10 @@ class ConnectorPlanner:
 
             # Final pass: for multi-segment connectors, allow source+target
             # endpoint re-selection to eliminate obstacle overlap.
-            self._reroute_multisegment_avoid_obstacles(
-                connector, src_grid, tgt_grid, used_points
-            )
+            if not exact_elbow_probe:
+                self._reroute_multisegment_avoid_obstacles(
+                    connector, src_grid, tgt_grid, used_points
+                )
             
             # Extend first and last segments outward to create label breathing room
             self._extend_first_segment_for_label_clearance(connector)
@@ -924,83 +977,151 @@ class ConnectorPlanner:
         
         Pushes the first segment point further from the source in the direction
         of the source exit edge, then adjusts subsequent segments to maintain
-        orthogonal (90-degree) routing.
+        orthogonal (90-degree) routing. For horizontal segments, extends by
+        the minimum required room for source multiplicity + label text.
         """
         if not connector.segments or len(connector.segments) < 2 or not connector.source_edge:
             return
 
-        LABEL_CLEARANCE = 10  # pixels for ~1 monospace character
+        # With only two segment points (single bend + target), moving the first
+        # bend can make the second leg diagonal because the target endpoint is fixed.
+        if len(connector.segments) < 3:
+            return
+
+        MONOSPACE_CHAR_WIDTH = 7.5  # Connector multiplicity uses monospace at 11px
+        LABEL_CHAR_WIDTH = 6.1  # Connector label uses Arial-ish italic at 11px
+        VERTICAL_CLEARANCE = 10  # pixels for vertical segment spacing
+
+        # Keep one-space fallback when either text is absent.
+        src_mult_text = connector.src_mult or " "
+        label_text = connector.label or " "
+
+        # Required room from source endpoint to first vertical bend:
+        # endpoint gap + multiplicity + gap + label + post-label gap.
+        endpoint_gap = 8
+        between_text_gap = 6
+        post_label_gap = 8
+        required_horizontal_len = (
+            endpoint_gap
+            + len(src_mult_text) * MONOSPACE_CHAR_WIDTH
+            + between_text_gap
+            + len(label_text) * LABEL_CHAR_WIDTH
+            + post_label_gap
+        )
 
         x1, y1 = connector.source_x, connector.source_y
         x_seg0, y_seg0 = connector.segments[0]
         x_seg1, y_seg1 = connector.segments[1]
 
-        # Extend the first segment point outward based on source edge direction,
-        # then adjust the second segment to maintain orthogonal routing.
+        # Extend the first segment point outward based on source edge direction.
+        # Only adjust the second segment if it's an intermediate bend (3+ segments total),
+        # otherwise segments[1] is the target entry point and shouldn't be aligned.
+        has_intermediate_bend = len(connector.segments) >= 3
+        
         if connector.source_edge == 'top':
-            # First segment goes up, adjust y but keep x
-            connector.segments[0] = (x_seg0, y_seg0 - LABEL_CLEARANCE)
-            # Adjust second segment to maintain right angle: keep its x, align y with new seg0
-            connector.segments[1] = (x_seg1, y_seg0 - LABEL_CLEARANCE)
+            # First segment goes up, adjust y vertically
+            connector.segments[0] = (x_seg0, y_seg0 - VERTICAL_CLEARANCE)
+            # Only adjust second segment if there are intermediate bends to maintain
+            if has_intermediate_bend:
+                connector.segments[1] = (x_seg1, y_seg0 - VERTICAL_CLEARANCE)
         elif connector.source_edge == 'bottom':
             # First segment goes down
-            connector.segments[0] = (x_seg0, y_seg0 + LABEL_CLEARANCE)
-            connector.segments[1] = (x_seg1, y_seg0 + LABEL_CLEARANCE)
+            connector.segments[0] = (x_seg0, y_seg0 + VERTICAL_CLEARANCE)
+            if has_intermediate_bend:
+                connector.segments[1] = (x_seg1, y_seg0 + VERTICAL_CLEARANCE)
         elif connector.source_edge == 'left':
-            # First segment goes left
-            connector.segments[0] = (x_seg0 - LABEL_CLEARANCE, y_seg0)
-            # Adjust second segment to maintain right angle: align x with new seg0, keep y
-            connector.segments[1] = (x_seg0 - LABEL_CLEARANCE, y_seg1)
+            # First segment goes left horizontally, extend only as needed.
+            existing_len = abs(x_seg0 - connector.source_x)
+            extra = max(0.0, required_horizontal_len - existing_len)
+            new_x = x_seg0 - extra
+            connector.segments[0] = (new_x, y_seg0)
+            # Only adjust second segment if there are intermediate bends to maintain
+            if has_intermediate_bend:
+                connector.segments[1] = (new_x, y_seg1)
         elif connector.source_edge == 'right':
-            # First segment goes right
-            connector.segments[0] = (x_seg0 + LABEL_CLEARANCE, y_seg0)
-            connector.segments[1] = (x_seg0 + LABEL_CLEARANCE, y_seg1)
+            # First segment goes right horizontally, extend only as needed.
+            existing_len = abs(x_seg0 - connector.source_x)
+            extra = max(0.0, required_horizontal_len - existing_len)
+            new_x = x_seg0 + extra
+            connector.segments[0] = (new_x, y_seg0)
+            if has_intermediate_bend:
+                connector.segments[1] = (new_x, y_seg1)
 
     def _extend_last_segment_for_label_clearance(self, connector: ConnectorPath):
         """Extend the last segment to create space for target connector labels.
         
         Lengthens the final approach leg into the target by moving the
         penultimate bend point outward and adjusting its predecessor to
-        preserve orthogonal (90-degree) routing.
+        preserve orthogonal (90-degree) routing. For horizontal segments,
+        ensures room for target multiplicity with padding on both sides.
         """
         if not connector.segments or len(connector.segments) < 2 or not connector.target_edge:
             return
 
-        LABEL_CLEARANCE = 10  # pixels for ~1 monospace character
+        MONOSPACE_CHAR_WIDTH = 7.5  # Connector text uses monospace at 11px
+        VERTICAL_CLEARANCE = 10  # pixels for vertical segment spacing
 
-        # Last point should be the target entry point; second-last is the bend
-        # where the final approach leg begins.
-        bend_x, bend_y = connector.segments[-2]
+        # Keep one-space fallback when multiplicity is absent.
+        tgt_mult_text = connector.tgt_mult or " "
+
+        # Required room from target endpoint to last vertical bend:
+        # endpoint gap + multiplicity + pre-line gap.
+        endpoint_gap = 8
+        pre_line_gap = 8
+        required_horizontal_len = endpoint_gap + len(tgt_mult_text) * MONOSPACE_CHAR_WIDTH + pre_line_gap
+
+        # Identify the bend point immediately before the target endpoint.
+        # In most routes, target endpoint is not stored in segments, so the bend is segments[-1].
+        # If target endpoint is stored in segments, the bend is segments[-2].
+        target_point = (connector.target_x, connector.target_y)
+        if connector.segments[-1] == target_point:
+            if len(connector.segments) < 2:
+                return
+            bend_idx = len(connector.segments) - 2
+        else:
+            bend_idx = len(connector.segments) - 1
+
+        # 2-segment routes with only one bend cannot safely move the target-side bend
+        # without potentially turning the source leg diagonal. Keep them orthogonal.
+        if bend_idx == 0:
+            return
+
+        bend_x, bend_y = connector.segments[bend_idx]
 
         # Track previous point if present so we can preserve right angles.
-        has_prev = len(connector.segments) >= 3
+        has_prev = bend_idx - 1 >= 0
         if has_prev:
-            prev_x, prev_y = connector.segments[-3]
+            prev_idx = bend_idx - 1
+            prev_x, prev_y = connector.segments[prev_idx]
 
         if connector.target_edge == 'left':
-            # Final leg is horizontal left->right into target.
-            new_bend_x = bend_x - LABEL_CLEARANCE
-            connector.segments[-2] = (new_bend_x, bend_y)
+            # Final leg is horizontal left->right into target, extend only as needed.
+            existing_len = abs(connector.target_x - bend_x)
+            extra = max(0.0, required_horizontal_len - existing_len)
+            new_bend_x = bend_x - extra
+            connector.segments[bend_idx] = (new_bend_x, bend_y)
             if has_prev and abs(prev_x - bend_x) < 0.01:
-                connector.segments[-3] = (new_bend_x, prev_y)
+                connector.segments[prev_idx] = (new_bend_x, prev_y)
         elif connector.target_edge == 'right':
-            # Final leg is horizontal right->left into target.
-            new_bend_x = bend_x + LABEL_CLEARANCE
-            connector.segments[-2] = (new_bend_x, bend_y)
+            # Final leg is horizontal right->left into target, extend only as needed.
+            existing_len = abs(connector.target_x - bend_x)
+            extra = max(0.0, required_horizontal_len - existing_len)
+            new_bend_x = bend_x + extra
+            connector.segments[bend_idx] = (new_bend_x, bend_y)
             if has_prev and abs(prev_x - bend_x) < 0.01:
-                connector.segments[-3] = (new_bend_x, prev_y)
+                connector.segments[prev_idx] = (new_bend_x, prev_y)
         elif connector.target_edge == 'top':
             # Final leg is vertical top->down into target.
-            new_bend_y = bend_y - LABEL_CLEARANCE
-            connector.segments[-2] = (bend_x, new_bend_y)
+            new_bend_y = bend_y - VERTICAL_CLEARANCE
+            connector.segments[bend_idx] = (bend_x, new_bend_y)
             if has_prev and abs(prev_y - bend_y) < 0.01:
-                connector.segments[-3] = (prev_x, new_bend_y)
+                connector.segments[prev_idx] = (prev_x, new_bend_y)
         elif connector.target_edge == 'bottom':
             # Final leg is vertical bottom->up into target.
-            new_bend_y = bend_y + LABEL_CLEARANCE
-            connector.segments[-2] = (bend_x, new_bend_y)
+            new_bend_y = bend_y + VERTICAL_CLEARANCE
+            connector.segments[bend_idx] = (bend_x, new_bend_y)
             if has_prev and abs(prev_y - bend_y) < 0.01:
-                connector.segments[-3] = (prev_x, new_bend_y)
+                connector.segments[prev_idx] = (prev_x, new_bend_y)
 
 
     def _choose_best_orthogonal_segments(self, connector: ConnectorPath, mode: str) -> List[Tuple[float, float]]:
@@ -1239,10 +1360,12 @@ class ConnectorPlanner:
         tgt_edge = connector.target_edge
         src_grid = self.grids.get(connector.source_name)
         tgt_grid = self.grids.get(connector.target_name)
+        exact_elbow_probe = (connector.source_name, connector.target_name) in FORCED_EXACT_ELBOW_CONNECTORS
 
         # Guarded detour for vertical-to-side routes: route above/below the target
         # band first, then approach the side entry from outside the target body.
-        if src_grid is not None and tgt_grid is not None and src_edge in ['top', 'bottom'] and tgt_edge in ['left', 'right']:
+        if (not exact_elbow_probe and src_grid is not None and tgt_grid is not None and
+            src_edge in ['top', 'bottom'] and tgt_edge in ['left', 'right']):
             jog = GRID_CELL_SIZE_PX
             detour_x = tgt_grid.x - jog if tgt_edge == 'left' else tgt_grid.x + tgt_grid.width + jog
 
@@ -1295,7 +1418,8 @@ class ConnectorPlanner:
                 [elbow_a, (x2, y2)],
                 [elbow_b, (x2, y2)],
             ]
-            forced_candidates.extend(self._forced_detour_candidates(connector))
+            if (connector.source_name, connector.target_name) not in FORCED_EXACT_ELBOW_CONNECTORS:
+                forced_candidates.extend(self._forced_detour_candidates(connector))
             candidate_segments = [
                 segments for segments in forced_candidates
                 if self._path_respects_connector_edges(
