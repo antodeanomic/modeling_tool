@@ -736,6 +736,7 @@ class ConnectorPlanner:
                         self._extend_first_segment_for_label_clearance(connector)
                         self._extend_last_segment_for_label_clearance(connector)
 
+                    self._normalize_connector_to_orthogonal(connector)
                     self._register_connector_occupancy(connector)
                     continue
             
@@ -771,17 +772,26 @@ class ConnectorPlanner:
                 connector.source_y = src_pt.y
                 used_points[(connector.source_name, exit_edge, src_pt.index)] = 'outgoing'
             else:
-                # Fallback: take first non-reserved point on exit edge.
-                for pt in src_grid.get_points(exit_edge):
-                    if src_grid.is_reserved_point(exit_edge, pt.index):
-                        continue
-                    src_pt = pt
-                    connector.source_edge = exit_edge
-                    connector.source_point_idx = pt.index
-                    connector.source_x = pt.x
-                    connector.source_y = pt.y
-                    used_points[(connector.source_name, exit_edge, pt.index)] = 'outgoing'
-                    break
+                # Fallback: try preferred edge first, then adjacent alternatives,
+                # but never re-use an occupied endpoint slot.
+                fallback_edges = [exit_edge] + [
+                    e for e in self._get_fallback_edges(exit_edge) if e != exit_edge
+                ]
+                for edge in fallback_edges:
+                    for pt in src_grid.get_points(edge):
+                        if src_grid.is_reserved_point(edge, pt.index):
+                            continue
+                        if (connector.source_name, edge, pt.index) in used_points:
+                            continue
+                        src_pt = pt
+                        connector.source_edge = edge
+                        connector.source_point_idx = pt.index
+                        connector.source_x = pt.x
+                        connector.source_y = pt.y
+                        used_points[(connector.source_name, edge, pt.index)] = 'outgoing'
+                        break
+                    if src_pt is not None:
+                        break
             
             # Assign incoming point: find closest to source on entry_edge
             tgt_pt = None
@@ -817,20 +827,25 @@ class ConnectorPlanner:
                 used_points[(connector.target_name, entry_edge, tgt_pt.index)] = 'incoming'
 
             else:
-                # Fallback: take first non-corner point on entry edge.
-                for pt in tgt_grid.get_points(entry_edge):
-                    if tgt_grid.is_corner_point(entry_edge, pt.index):
-                        continue
-                    if (connector.target_name, entry_edge, pt.index) in used_points:
-                        continue
-                    tgt_pt = pt
-                    connector.target_edge = entry_edge
-                    connector.target_point_idx = pt.index
-                    connector.target_x = pt.x
-                    connector.target_y = pt.y
-                    used_points[(connector.target_name, entry_edge, pt.index)] = 'incoming'
-
-                    break
+                # Fallback: try preferred entry edge first, then alternatives.
+                fallback_edges = [entry_edge] + [
+                    e for e in self._get_fallback_edges(entry_edge) if e != entry_edge
+                ]
+                for edge in fallback_edges:
+                    for pt in tgt_grid.get_points(edge):
+                        if tgt_grid.is_corner_point(edge, pt.index):
+                            continue
+                        if (connector.target_name, edge, pt.index) in used_points:
+                            continue
+                        tgt_pt = pt
+                        connector.target_edge = edge
+                        connector.target_point_idx = pt.index
+                        connector.target_x = pt.x
+                        connector.target_y = pt.y
+                        used_points[(connector.target_name, edge, pt.index)] = 'incoming'
+                        break
+                    if tgt_pt is not None:
+                        break
 
             # Determine if we need multi-segment routing
             # Use multi-segment when source and target are not aligned on primary axis
@@ -870,7 +885,8 @@ class ConnectorPlanner:
             if self._should_apply_label_clearance_extensions(connector):
                 self._extend_first_segment_for_label_clearance(connector)
                 self._extend_last_segment_for_label_clearance(connector)
-            
+
+            self._normalize_connector_to_orthogonal(connector)
             self._register_connector_occupancy(connector)
 
     def _to_grid_cell(self, x: float, y: float) -> Tuple[int, int]:
@@ -880,7 +896,15 @@ class ConnectorPlanner:
         return (gx, gy)
 
     def _should_apply_label_clearance_extensions(self, connector: ConnectorPath) -> bool:
-        """Return False for dedicated AR2 two-segment probe connectors."""
+        """Gate label-clearance stretching to avoid distorting elbow routes.
+
+        Two-segment elbow paths are especially sensitive: moving the bend point
+        for label spacing can create diagonal segments and invert arrow approach
+        direction. Only apply this post-processing to richer 3+ segment routes.
+        """
+        if not connector.segments or len(connector.segments) < 3:
+            return False
+
         return not (
             connector.source_name.startswith('AR2_') and
             connector.target_name.startswith('AR2_')
@@ -1625,6 +1649,67 @@ class ConnectorPlanner:
         if connector.path_type == "multi_segment" and connector.segments:
             return [(connector.source_x, connector.source_y)] + connector.segments + [(connector.target_x, connector.target_y)]
         return [(connector.source_x, connector.source_y), (connector.target_x, connector.target_y)]
+
+    def _normalize_connector_to_orthogonal(self, connector: ConnectorPath):
+        """Ensure no diagonal segments remain after post-processing steps.
+
+        Label-clearance and reroute tweaks can occasionally create a diagonal
+        segment by shifting bends independently. This pass rewrites any diagonal
+        hop into a two-leg elbow while honoring source/target edge orientation
+        on the first and final legs.
+        """
+        points = self._build_path_points(connector)
+        if len(points) < 2:
+            return
+
+        normalized: List[Tuple[float, float]] = [points[0]]
+        last_idx = len(points) - 1
+
+        for idx in range(1, len(points)):
+            next_pt = points[idx]
+            curr_x, curr_y = normalized[-1]
+            next_x, next_y = next_pt
+
+            if abs(next_x - curr_x) <= 0.01 and abs(next_y - curr_y) <= 0.01:
+                continue
+
+            if abs(next_x - curr_x) <= 0.01 or abs(next_y - curr_y) <= 0.01:
+                normalized.append(next_pt)
+                continue
+
+            bend_a = (next_x, curr_y)  # horizontal then vertical
+            bend_b = (curr_x, next_y)  # vertical then horizontal
+
+            is_first_leg = len(normalized) == 1
+            is_final_leg = idx == last_idx
+
+            if is_final_leg and connector.target_edge in ['top', 'bottom']:
+                chosen_bend = bend_a
+            elif is_final_leg and connector.target_edge in ['left', 'right']:
+                chosen_bend = bend_b
+            elif is_first_leg and connector.source_edge in ['left', 'right']:
+                chosen_bend = bend_a
+            elif is_first_leg and connector.source_edge in ['top', 'bottom']:
+                chosen_bend = bend_b
+            else:
+                chosen_bend = bend_a
+
+            if chosen_bend != normalized[-1] and chosen_bend != next_pt:
+                normalized.append(chosen_bend)
+            normalized.append(next_pt)
+
+        compact: List[Tuple[float, float]] = []
+        for pt in normalized:
+            if not compact or compact[-1] != pt:
+                compact.append(pt)
+
+        if len(compact) <= 2:
+            connector.path_type = 'direct'
+            connector.segments = []
+            return
+
+        connector.path_type = 'multi_segment'
+        connector.segments = compact[1:-1]
 
     def _score_path(self, source_name: str, target_name: str, path_points: List[Tuple[float, float]]) -> int:
         """Score a path with obstacle-first priority.

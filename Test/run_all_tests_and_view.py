@@ -49,6 +49,8 @@ def run_all_tests():
     python_regression_tests = [
         'test_class_metadata_traceability.py',
         'test_class_diagram_title_and_endpoints.py',
+        'test_class_diagram_connector_routing.py',
+        'test_class_diagram_routing_guardrails.py',
     ]
     
     print("=" * 70)
