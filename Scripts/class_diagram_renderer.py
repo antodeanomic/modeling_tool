@@ -1500,7 +1500,9 @@ def _layout_two_segment_probe_pairs(diagram, boxes):
     cols = 4
     pair_dx = 300.0
     pair_dy = 170.0
-    cell_w = 820.0
+    # Tuned non-uniform column offsets keep outer spacing readable while
+    # significantly reducing the oversized gap between columns 2 and 3.
+    col_left_offsets = [0.0, 820.0, 1200.0, 2020.0]
     cell_h = 300.0
     src_anchor_x = 430.0
     src_anchor_y = 170.0
@@ -1525,7 +1527,7 @@ def _layout_two_segment_probe_pairs(diagram, boxes):
 
         row = idx // cols
         col = idx % cols
-        cell_left = MARGIN + col * cell_w
+        cell_left = MARGIN + col_left_offsets[col]
         cell_top = MARGIN + row * cell_h
 
         src_cx = cell_left + src_anchor_x
