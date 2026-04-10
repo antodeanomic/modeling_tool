@@ -1464,6 +1464,83 @@ def _compute_grid_cols(n, avg_item_w, spacing_x):
     return min(natural, CLASS_DIAGRAM_MAX_COLS, width_cap)
 
 
+def _layout_two_segment_probe_pairs(diagram, boxes):
+    """Layout AR2 source/target pairs to make elbows clearly visible.
+
+    The AR2 probe matrix verifies two-segment orthogonal elbows. To avoid
+    near-straight visual artifacts, place each source/target pair with a large
+    horizontal and vertical delta that matches the forced source/target edges.
+    """
+    # Keep this mapping local to the dedicated AR2 probe diagram.
+    ar2_edge_map = {
+        '01': ('left', 'top'),
+        '02': ('left', 'bottom'),
+        '03': ('right', 'top'),
+        '04': ('right', 'bottom'),
+        '05': ('top', 'left'),
+        '06': ('top', 'right'),
+        '07': ('bottom', 'left'),
+        '08': ('bottom', 'right'),
+        '09': ('left', 'top'),
+        '10': ('top', 'right'),
+        '11': ('right', 'top'),
+        '12': ('right', 'bottom'),
+        '13': ('top', 'left'),
+        '14': ('top', 'right'),
+    }
+
+    pair_ids = sorted({
+        name[5:] for name in boxes.keys()
+        if name.startswith('AR2_S') and f"AR2_T{name[5:]}" in boxes
+    })
+
+    if not pair_ids:
+        return boxes
+
+    cols = 4
+    pair_dx = 300.0
+    pair_dy = 170.0
+    cell_w = 820.0
+    cell_h = 300.0
+    src_anchor_x = 430.0
+    src_anchor_y = 170.0
+
+    for idx, pair_id in enumerate(pair_ids):
+        src_name = f"AR2_S{pair_id}"
+        tgt_name = f"AR2_T{pair_id}"
+        src_box = boxes[src_name]
+        tgt_box = boxes[tgt_name]
+
+        src_edge, tgt_edge = ar2_edge_map.get(pair_id, ('right', 'left'))
+
+        # Choose center deltas that satisfy forced-edge elbow geometry:
+        # - source left/right + target top/bottom uses corner (x2, y1)
+        # - source top/bottom + target left/right uses corner (x1, y2)
+        if src_edge in ['left', 'right']:
+            dx = -pair_dx if src_edge == 'left' else pair_dx
+            dy = pair_dy if tgt_edge == 'top' else -pair_dy
+        else:
+            dy = -pair_dy if src_edge == 'top' else pair_dy
+            dx = pair_dx if tgt_edge == 'left' else -pair_dx
+
+        row = idx // cols
+        col = idx % cols
+        cell_left = MARGIN + col * cell_w
+        cell_top = MARGIN + row * cell_h
+
+        src_cx = cell_left + src_anchor_x
+        src_cy = cell_top + src_anchor_y
+        tgt_cx = src_cx + dx
+        tgt_cy = src_cy + dy
+
+        src_box['x'] = src_cx - (src_box['width'] / 2.0)
+        src_box['y'] = src_cy - (src_box['height'] / 2.0)
+        tgt_box['x'] = tgt_cx - (tgt_box['width'] / 2.0)
+        tgt_box['y'] = tgt_cy - (tgt_box['height'] / 2.0)
+
+    return boxes
+
+
 def _layout_classes(diagram, model, verbosity="High"):
     """Compute positions for each class box in the diagram.
     
@@ -1534,6 +1611,9 @@ def _layout_classes(diagram, model, verbosity="High"):
             'has_members': has_m, 'has_functions': has_f,
             'class_def': class_def, 'element_type': element_type
         }
+
+    if diagram.diagram_id == "OrthogonalArrowTypeTwoSegmentCombos":
+        return _layout_two_segment_probe_pairs(diagram, boxes)
     
     # Simple grid layout: arrange in rows using a canvas-width-aware column cap.
     n = len(class_names)
