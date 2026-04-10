@@ -792,6 +792,7 @@
             panStartX: 0,
             panStartY: 0,
             isLoading: false,
+            applyFitOnLoad: false,  // set when a new diagram is selected; cleared after first load
             navHistory: [],  // back-navigation history stack
             navFuture: []    // forward-navigation history stack
         };
@@ -1083,6 +1084,7 @@
             const current = _getCurrentEntry();
             if (current) state.navHistory.push(current);
             state.navFuture = [];  // new navigation clears forward stack
+            state.applyFitOnLoad = true;  // fit on first view of this diagram
             applyDiagramSelection(diagram);
             updateMenuVisibility();
             updateLaneCheckboxes();
@@ -1298,6 +1300,8 @@
             if (!matched) return false;
 
             const preferred = Array.isArray(persisted.selectedLanes) ? persisted.selectedLanes : null;
+            // Restored startup selection is a fresh draw in this session.
+            state.applyFitOnLoad = true;
             applyDiagramSelection(matched, preferred);
             return true;
         }
@@ -1727,6 +1731,8 @@
             paletteInput.blur();
             state.navHistory = [];
             state.navFuture = [];
+            // Palette selection is a fresh diagram selection; auto-fit once.
+            state.applyFitOnLoad = true;
             applyDiagramSelection(diagram);
             updateMenuVisibility();
             updateLaneCheckboxes();
@@ -1973,8 +1979,8 @@
             const svg = diagramContainer.querySelector('svg');
             if (!svg) return;
             
-            const svgWidth = parseFloat(svg.getAttribute('width'));
-            const svgHeight = parseFloat(svg.getAttribute('height'));
+            const svgWidth = svg.getAttribute('width');
+            const svgHeight = svg.getAttribute('height');
             
             if (!svgWidth || !svgHeight) return;
 
@@ -1987,16 +1993,12 @@
             const areaWidth = usableWidth - 40;
             const areaHeight = diagramArea.clientHeight - 40;
             
-            const zoomX = areaWidth / svgWidth;
-            const zoomY = areaHeight / svgHeight;
+            const zoomX = areaWidth / parseFloat(svgWidth);
+            const zoomY = areaHeight / parseFloat(svgHeight);
             
             state.zoomLevel = Math.min(zoomX, zoomY, 3.0);
-            
-            // Center the zoomed canvas in the available viewport
-            const scaledWidth = svgWidth * state.zoomLevel;
-            const scaledHeight = svgHeight * state.zoomLevel;
-            state.panX = Math.max(0, (areaWidth - scaledWidth) / 2);
-            state.panY = Math.max(0, (areaHeight - scaledHeight) / 2);
+            state.panX = paneIsOpen ? -(paneWidth / 2) : 0;
+            state.panY = 0;
             
             updateZoom();
             updatePan();
@@ -2509,6 +2511,15 @@
                 
                 // Apply zoom to the newly loaded SVG
                 updateZoom();
+
+                // Auto-fit when a diagram is selected for the first time.
+                // Back/Forward navigation leaves zoom/pan as-is.
+                // Defer into a double-rAF so the browser has completed layout
+                // for the newly injected SVG before fitToView reads clientWidth.
+                if (state.applyFitOnLoad) {
+                    state.applyFitOnLoad = false;
+                    requestAnimationFrame(() => requestAnimationFrame(() => fitToView()));
+                }
 
                 // Wire class-diagram object hover highlighting for connectors/text.
                 setupClassDiagramHoverHighlight();

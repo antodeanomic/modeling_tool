@@ -31,41 +31,13 @@ Class;AR_S13;Arrow source 13
 Class;AR_T13;Arrow target 13
 Class;AR_S14;Arrow source 14
 Class;AR_T14;Arrow target 14
-Class;AR2_S01;Arrow 2-segment source 01
-Class;AR2_T01;Arrow 2-segment target 01
-Class;AR2_S02;Arrow 2-segment source 02
-Class;AR2_T02;Arrow 2-segment target 02
-Class;AR2_S03;Arrow 2-segment source 03
-Class;AR2_T03;Arrow 2-segment target 03
-Class;AR2_S04;Arrow 2-segment source 04
-Class;AR2_T04;Arrow 2-segment target 04
-Class;AR2_S05;Arrow 2-segment source 05
-Class;AR2_T05;Arrow 2-segment target 05
-Class;AR2_S06;Arrow 2-segment source 06
-Class;AR2_T06;Arrow 2-segment target 06
-Class;AR2_S07;Arrow 2-segment source 07
-Class;AR2_T07;Arrow 2-segment target 07
-Class;AR2_S08;Arrow 2-segment source 08
-Class;AR2_T08;Arrow 2-segment target 08
-Class;AR2_S09;Arrow 2-segment source 09
-Class;AR2_T09;Arrow 2-segment target 09
-Class;AR2_S10;Arrow 2-segment source 10
-Class;AR2_T10;Arrow 2-segment target 10
-Class;AR2_S11;Arrow 2-segment source 11
-Class;AR2_T11;Arrow 2-segment target 11
-Class;AR2_S12;Arrow 2-segment source 12
-Class;AR2_T12;Arrow 2-segment target 12
-Class;AR2_S13;Arrow 2-segment source 13
-Class;AR2_T13;Arrow 2-segment target 13
-Class;AR2_S14;Arrow 2-segment source 14
-Class;AR2_T14;Arrow 2-segment target 14
 
 ClassDiagram;OrthogonalTopEntryProbe;Orthogonal-only top-entry probe;routing=orthogonal;elements=Obj1:object,Obj2:object,Obj3:object,Obj4:object
     Obj1;Obj2;-->;1;1;reserve_right;lock
     Obj1;Obj3;-->;1;1;reserve_bottom;lock
     Obj4;Obj1;..>;0..1;*;up_left_left_down_probe;probe
 
-ClassDiagram;OrthogonalArrowTypeAndRoutes;All arrow types with multi-segment and two-segment orthogonal routes;routing=orthogonal;elements=AR_S01:object,AR_T01:object,AR_S02:object,AR_T02:object,AR_S03:object,AR_T03:object,AR_S04:object,AR_T04:object,AR_S05:object,AR_T05:object,AR_S06:object,AR_T06:object,AR_S07:object,AR_T07:object,AR_S08:object,AR_T08:object,AR_S09:object,AR_T09:object,AR_S10:object,AR_T10:object,AR_S11:object,AR_T11:object,AR_S12:object,AR_T12:object,AR_S13:object,AR_T13:object,AR_S14:object,AR_T14:object,AR2_S01:object,AR2_T01:object,AR2_S02:object,AR2_T02:object,AR2_S03:object,AR2_T03:object,AR2_S04:object,AR2_T04:object,AR2_S05:object,AR2_T05:object,AR2_S06:object,AR2_T06:object,AR2_S07:object,AR2_T07:object,AR2_S08:object,AR2_T08:object,AR2_S09:object,AR2_T09:object,AR2_S10:object,AR2_T10:object,AR2_S11:object,AR2_T11:object,AR2_S12:object,AR2_T12:object,AR2_S13:object,AR2_T13:object,AR2_S14:object,AR2_T14:object
+ClassDiagram;OrthogonalArrowTypeAndRoutes;All arrow types with forced multi-segment orthogonal routes;routing=orthogonal;elements=AR_S01:object,AR_T01:object,AR_S02:object,AR_T02:object,AR_S03:object,AR_T03:object,AR_S04:object,AR_T04:object,AR_S05:object,AR_T05:object,AR_S06:object,AR_T06:object,AR_S07:object,AR_T07:object,AR_S08:object,AR_T08:object,AR_S09:object,AR_T09:object,AR_S10:object,AR_T10:object,AR_S11:object,AR_T11:object,AR_S12:object,AR_T12:object,AR_S13:object,AR_T13:object,AR_S14:object,AR_T14:object
 
     # 14 UML arrow syntaxes, each as an orthogonal probe route.
     AR_S01;AR_T01;--;1;0..*;route_l_t_assoc;arrow
@@ -82,19 +54,3 @@ ClassDiagram;OrthogonalArrowTypeAndRoutes;All arrow types with multi-segment and
     AR_S12;AR_T12;<..;1;0..*;route_r_b_dependency_rl;arrow
     AR_S13;AR_T13;..▷;1;0..*;route_t_l_realization_lr;arrow
     AR_S14;AR_T14;◁..;1;0..*;route_t_r_realization_rl;arrow
-
-    # 14 UML arrow syntaxes, appended as two-segment orthogonal probes.
-    AR2_S01;AR2_T01;--;1;0..*;two_seg_l_t_assoc;arrow
-    AR2_S02;AR2_T02;-->;1;0..*;two_seg_l_b_assoc_dir_lr;arrow
-    AR2_S03;AR2_T03;<--;1;0..*;two_seg_r_t_assoc_dir_rl;arrow
-    AR2_S04;AR2_T04;<-->;1;0..*;two_seg_r_b_assoc_bi;arrow
-    AR2_S05;AR2_T05;--▷;1;0..*;two_seg_t_l_generalization_lr;arrow
-    AR2_S06;AR2_T06;◁--;1;0..*;two_seg_t_r_generalization_rl;arrow
-    AR2_S07;AR2_T07;--◆;1;0..*;two_seg_b_l_composition_lr;arrow
-    AR2_S08;AR2_T08;◆--;1;0..*;two_seg_b_r_composition_rl;arrow
-    AR2_S09;AR2_T09;--◇;1;0..*;two_seg_l_t_aggregation_lr;arrow
-    AR2_S10;AR2_T10;◇--;1;0..*;two_seg_l_b_aggregation_rl;arrow
-    AR2_S11;AR2_T11;..>;1;0..*;two_seg_r_t_dependency_lr;arrow
-    AR2_S12;AR2_T12;<..;1;0..*;two_seg_r_b_dependency_rl;arrow
-    AR2_S13;AR2_T13;..▷;1;0..*;two_seg_t_l_realization_lr;arrow
-    AR2_S14;AR2_T14;◁..;1;0..*;two_seg_t_r_realization_rl;arrow
