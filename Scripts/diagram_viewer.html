@@ -758,6 +758,16 @@
             <div class="menu-section-title">Connector Routing</div>
             <div class="routing-options" id="routingOptions"></div>
         </div>
+
+        <div class="menu-section">
+            <div class="menu-section-title">Catalog</div>
+            <div class="layers-list">
+                <div class="checkbox-option">
+                    <input type="checkbox" id="showTestDiagramsToggle">
+                    <label for="showTestDiagramsToggle">Show Test Diagrams</label>
+                </div>
+            </div>
+        </div>
         
         <div class="menu-section">
             <div class="menu-section-title">Display Layers</div>
@@ -781,6 +791,7 @@
             classDiagramId: '',    // selected class diagram ID
             verbosity: 'High',
             routing: 'orthogonal',   // temporary: class diagrams are orthogonal-only
+            showTestDiagrams: false,
             selectedLanes: [],
             allLanes: [],
             allDiagrams: [],       // aggregated from all CSVs
@@ -1323,6 +1334,7 @@
         const breadcrumbInfo = document.getElementById('breadcrumbInfo');
         const verbosityOptions = document.getElementById('verbosityOptions');
         const routingOptions = document.getElementById('routingOptions');
+        const showTestDiagramsToggle = document.getElementById('showTestDiagramsToggle');
         const layersList = document.getElementById('layersList');
         const detailsPane = document.getElementById('detailsPane');
         const detailsPaneClose = document.getElementById('detailsPaneClose');
@@ -1401,6 +1413,9 @@
         async function init() {
             try {
                 console.log('Initializing diagram viewer...');
+
+                // Test-diagram visibility is intentionally session-defaulted off.
+                showTestDiagramsToggle.checked = state.showTestDiagrams;
                 
                 // Check URL parameters for diagram override
                 const urlParams = new URLSearchParams(window.location.search);
@@ -1430,13 +1445,7 @@
                 }
                 
                 // Fetch all diagrams from all CSVs
-                const response = await fetch('/api/all_diagrams');
-                if (!response.ok) {
-                    throw new Error(`Failed to load diagrams: ${response.statusText}`);
-                }
-                const data = await response.json();
-                
-                state.allDiagrams = data.diagrams || [];
+                await refreshDiagramCatalog();
                 if (state.allDiagrams.length === 0) {
                     diagramArea.innerHTML = '<div class="error">No diagrams found</div>';
                     return;
@@ -1544,6 +1553,24 @@
                     paletteDropdown.classList.remove('open');
                 }
             });
+        }
+
+        function buildAllDiagramsUrl() {
+            const params = new URLSearchParams();
+            if (state.showTestDiagrams) {
+                params.set('include_test', '1');
+            }
+            const query = params.toString();
+            return query ? `/api/all_diagrams?${query}` : '/api/all_diagrams';
+        }
+
+        async function refreshDiagramCatalog() {
+            const response = await fetch(buildAllDiagramsUrl());
+            if (!response.ok) {
+                throw new Error(`Failed to load diagrams: ${response.statusText}`);
+            }
+            const data = await response.json();
+            state.allDiagrams = data.diagrams || [];
         }
         
         function updatePaletteHighlight(items) {
@@ -1671,38 +1698,8 @@
                     folderDiv.style.fontSize = '13px';
                     folderDiv.textContent = formatFolderName(key);
                     paletteDropdown.appendChild(folderDiv);
-                    
-                    // Render diagrams in this folder (sort so CLS comes before SEQ)
                     const node = treeNode[key];
-                    if (node._diagrams) {
-                        // Sort so class_diagram comes before sequence
-                        const sortedDiagrams = node._diagrams.sort((a, b) => {
-                            // Class diagrams first, sequence diagrams second
-                            if (a.type === 'class_diagram' && b.type === 'sequence') return -1;
-                            if (a.type === 'sequence' && b.type === 'class_diagram') return 1;
-                            // If same type, sort by name
-                            return a.name.localeCompare(b.name);
-                        });
-                        
-                        sortedDiagrams.forEach(d => {
-                            const item = document.createElement('div');
-                            item.className = 'palette-item';
-                            const typePrefix = d.type === 'sequence' ? 'seq' : 'cd';
-                            item.dataset.value = typePrefix + ':' + d.csv + ':' + d.id;
-                            item.style.paddingLeft = ((depth + 1) * 16) + 'px';
-                            
-                            const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
-                            item.innerHTML = `<span class="item-type">${typeLabel}</span> ${escapeHtml(d.name)}`;
-                            const onSelect = (e) => {
-                                e.preventDefault();
-                                selectPaletteItem(d);
-                            };
-                            item.addEventListener('mousedown', onSelect);
-                            item.addEventListener('click', onSelect);
-                            paletteDropdown.appendChild(item);
-                        });
-                    }
-                    
+
                     // Recursively render subfolders
                     renderTree(node, depth + 1);
                 });
@@ -1759,6 +1756,10 @@
             const selectedRouting = menu.querySelector(`input[name="routing"][value="${state.routing}"]`);
             if (selectedRouting) {
                 selectedRouting.checked = true;
+            }
+
+            if (showTestDiagramsToggle) {
+                showTestDiagramsToggle.checked = !!state.showTestDiagrams;
             }
         }
         
@@ -1828,6 +1829,7 @@
         menuButton.addEventListener('click', () => {
             menu.classList.toggle('active');
         });
+        showTestDiagramsToggle.addEventListener('change', onShowTestDiagramsChange);
         
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#menu') && !e.target.closest('#menuButton')) {
@@ -2070,6 +2072,37 @@
             }
             savePersistedViewerState();
             await loadDiagram();
+        }
+
+        async function onShowTestDiagramsChange(e) {
+            state.showTestDiagrams = e.target.checked;
+            const currentDiagramKey = getCurrentDiagramKey();
+
+            await refreshDiagramCatalog();
+            populatePalette('');
+            savePersistedViewerState();
+
+            if (!currentDiagramKey) {
+                return;
+            }
+
+            const stillVisible = state.allDiagrams.find(diagram => getDiagramKeyFor(diagram) === currentDiagramKey);
+            if (stillVisible) {
+                return;
+            }
+
+            state.navHistory = [];
+            state.navFuture = [];
+            paletteInput.value = '';
+            state.diagramType = '';
+            state.sequence = '';
+            state.classDiagramId = '';
+            state.csv = '';
+            state.allLanes = [];
+            state.selectedLanes = [];
+            updateLaneCheckboxes();
+            updateNavHistory();
+            diagramContainer.innerHTML = '<div style="color: #999; font-size: 16px;">Select a diagram from the palette above</div>';
         }
 
         async function loadClassMetadata() {
