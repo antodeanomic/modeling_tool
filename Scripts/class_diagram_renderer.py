@@ -1573,7 +1573,7 @@ def _layout_fanout_verification(diagram, model, verbosity="High"):
         "FanoutBottom": {
             "hub": "HubBottom",
             "targets": [
-                "Bottom_L_far", "Bottom_L_mid", "Bottom_L_near", "Bottom_L_dir",
+                "Bottom_L_far", "Bottom_L_mid", "Bottom_L_near", "Bottom_dir",
                 "Bottom_R_near", "Bottom_R_mid", "Bottom_R_far",
             ],
             "hub_side": "top",

@@ -454,11 +454,17 @@ def _validate_csv_top_slot_order(context):
     )
 
 
+def _is_direct_connector(connector):
+    label = (connector.label or "").strip().lower()
+    target = (connector.target_name or "").strip().lower()
+    return label == "dir" or label.endswith("_dir") or target.endswith("_dir")
+
+
 def _validate_csv_single_direct_connection(diagram_id, context):
     planner = _build_csv_fanout_planner(diagram_id)
     direct = [
         connector for connector in planner.connectors
-        if (connector.label or "").endswith("_dir")
+        if _is_direct_connector(connector)
     ]
     _assert(
         len(direct) == 1,
@@ -510,6 +516,41 @@ def _validate_csv_top_first_segment_depth_order(context):
     right_far = _depth("Top_R_far")
     right_mid = _depth("Top_R_mid")
     right_near = _depth("Top_R_near")
+
+    _assert(
+        left_near > left_mid > left_far,
+        (
+            f"FAIL [{context}] left first-segment depth must be near > mid > far; "
+            f"got near={left_near}, mid={left_mid}, far={left_far}"
+        ),
+    )
+    _assert(
+        right_near > right_mid > right_far,
+        (
+            f"FAIL [{context}] right first-segment depth must be near > mid > far; "
+            f"got near={right_near}, mid={right_mid}, far={right_far}"
+        ),
+    )
+
+
+def _validate_csv_bottom_first_segment_depth_order(context):
+    planner = _build_csv_fanout_planner("FanoutBottom")
+    connector_map = _get_connector_map(planner)
+
+    def _depth(name):
+        connector = connector_map[("HubBottom", name)]
+        pts = _path_points(connector)
+        _assert(len(pts) >= 2, f"FAIL [{context}] {name}: missing path points")
+        source_y = pts[0][1]
+        bend_y = pts[1][1]
+        return bend_y - source_y
+
+    left_far = _depth("Bottom_L_far")
+    left_mid = _depth("Bottom_L_mid")
+    left_near = _depth("Bottom_L_near")
+    right_far = _depth("Bottom_R_far")
+    right_mid = _depth("Bottom_R_mid")
+    right_near = _depth("Bottom_R_near")
 
     _assert(
         left_near > left_mid > left_far,
@@ -717,12 +758,30 @@ def _validate_top_side_entry_mode_order(planner, context):
 
 def _validate_csv_top_odd_direct_centered(context):
     planner = _build_csv_fanout_planner("FanoutTop")
-    direct = [connector for connector in planner.connectors if (connector.label or "").endswith("_dir")]
+    direct = [connector for connector in planner.connectors if _is_direct_connector(connector)]
     _assert(
         len(direct) == 1,
         f"FAIL [{context}] odd fanout must have exactly one direct connector; got {len(direct)}",
     )
     hub_center = planner.grids["HubTop"].get_center()[0]
+    direct_conn = direct[0]
+    _assert(
+        abs(direct_conn.source_x - hub_center) <= 1e-6,
+        (
+            f"FAIL [{context}] direct connector must use centered source slot; "
+            f"source_x={direct_conn.source_x}, hub_center={hub_center}"
+        ),
+    )
+
+
+def _validate_csv_bottom_odd_direct_centered(context):
+    planner = _build_csv_fanout_planner("FanoutBottom")
+    direct = [connector for connector in planner.connectors if _is_direct_connector(connector)]
+    _assert(
+        len(direct) == 1,
+        f"FAIL [{context}] odd fanout must have exactly one direct connector; got {len(direct)}",
+    )
+    hub_center = planner.grids["HubBottom"].get_center()[0]
     direct_conn = direct[0]
     _assert(
         abs(direct_conn.source_x - hub_center) <= 1e-6,
@@ -895,7 +954,7 @@ def run_test() -> int:
                 "FanoutBottom",
                 "HubBottom",
                 [
-                    "Bottom_L_far", "Bottom_L_mid", "Bottom_L_near", "Bottom_L_dir",
+                    "Bottom_L_far", "Bottom_L_mid", "Bottom_L_near", "Bottom_dir",
                     "Bottom_R_near", "Bottom_R_mid", "Bottom_R_far",
                 ],
                 "bottom",
@@ -906,6 +965,16 @@ def run_test() -> int:
             "csv bottom fanout source edges",
             lambda: None,
             lambda _p: _validate_csv_source_edge("FanoutBottom", "bottom", "csv bottom fanout source edges"),
+        ),
+        (
+            "csv bottom first-segment depth order",
+            lambda: None,
+            lambda _p: _validate_csv_bottom_first_segment_depth_order("csv bottom first-segment depth order"),
+        ),
+        (
+            "csv bottom odd direct centered",
+            lambda: None,
+            lambda _p: _validate_csv_bottom_odd_direct_centered("csv bottom odd direct centered"),
         ),
         (
             "csv bottom single direct",

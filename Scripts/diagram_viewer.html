@@ -831,7 +831,8 @@
                     classDiagramId: state.classDiagramId,
                     verbosity: state.verbosity,
                     routing: state.routing,
-                    selectedLanes: Array.isArray(state.selectedLanes) ? [...state.selectedLanes] : []
+                    selectedLanes: Array.isArray(state.selectedLanes) ? [...state.selectedLanes] : [],
+                    showTestDiagrams: state.showTestDiagrams
                 };
                 localStorage.setItem(VIEWER_STATE_KEY, JSON.stringify(payload));
             } catch (_err) {
@@ -1295,6 +1296,9 @@
             if (persisted.routing === 'orthogonal') {
                 state.routing = persisted.routing;
             }
+            if (typeof persisted.showTestDiagrams === 'boolean') {
+                state.showTestDiagrams = persisted.showTestDiagrams;
+            }
 
             const targetId = persisted.diagramType === 'class_diagram'
                 ? persisted.classDiagramId
@@ -1414,7 +1418,12 @@
             try {
                 console.log('Initializing diagram viewer...');
 
-                // Test-diagram visibility is intentionally session-defaulted off.
+                // Restore showTestDiagrams from persisted state before the first catalog
+                // fetch so test diagrams are included when the user previously enabled them.
+                const earlyPersisted = loadPersistedViewerState();
+                if (earlyPersisted && typeof earlyPersisted.showTestDiagrams === 'boolean') {
+                    state.showTestDiagrams = earlyPersisted.showTestDiagrams;
+                }
                 showTestDiagramsToggle.checked = state.showTestDiagrams;
                 
                 // Check URL parameters for diagram override

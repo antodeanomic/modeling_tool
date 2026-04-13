@@ -38,7 +38,7 @@ Left targets                               Direct                        Right t
 
 
 
-Bottom fanout (mirror of top)
+3) Fanout routing when first two segments of connector go down and then left/right 
 
                        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
                        |                    CentralHub                       |
@@ -52,7 +52,21 @@ Bottom fanout (mirror of top)
 <------------------------------------+                         +----------------------------------->
 
 
+4) Fanout routing when first three segments of connector go down and then left/right and then down again
 
+Left targets                               Direct                        Right targets
+
+                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                       |                 CentralHub                |
+                       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                         | 1..*  | 5 | 1..*  | 1      | 1..*  | 1 | 1
+                   L_far |       |   |       |        |       |   | R_far
+              +----------+       |   |       |        |       |   +----------+ 
+              |            L_mid |   |       | dir    |       | R_mid        |   
+              |        +---------+   |       |        |       +---------+    |                                           
+              |        |      L_near |       |        | R_near          |    |              
+              |        |    +--------+                +--------+        |    |
+              |        |    |                                  |        |    |              
 
 
 Left fanout (completed)

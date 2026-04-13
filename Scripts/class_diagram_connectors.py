@@ -812,14 +812,181 @@ class ConnectorPlanner:
             # This produces non-crossing paths regardless of target arrangement.
             if exit_edge == 'bottom':
                 base = src_grid.y + src_grid.height
-                for sorted_idx, connector in enumerate(fanout_group):
-                    depth_idx = n - 1 - sorted_idx
+                center_x = src_grid.get_center()[0]
+
+                usable_points = [
+                    pt for pt in edge_points
+                    if not src_grid.is_reserved_point(exit_edge, pt.index)
+                ]
+                if not usable_points:
+                    continue
+
+                left_slots = sorted(
+                    [pt for pt in usable_points if pt.x < center_x],
+                    key=lambda pt: pt.x,
+                    reverse=True,
+                )
+                right_slots = sorted(
+                    [pt for pt in usable_points if pt.x > center_x],
+                    key=lambda pt: pt.x,
+                )
+                center_slots = sorted(
+                    usable_points,
+                    key=lambda pt: (abs(pt.x - center_x), pt.x),
+                )
+
+                tx_map: Dict[int, float] = {
+                    id(connector): self.grids[connector.target_name].get_center()[0]
+                    for connector in fanout_group
+                }
+
+                has_left = any(tx_map[id(c)] < center_x for c in fanout_group)
+                has_right = any(tx_map[id(c)] >= center_x for c in fanout_group)
+
+                direct_candidates = [
+                    c for c in fanout_group
+                    if ('dir' in (c.label or '').lower()) or ('_dir' in (c.target_name or '').lower())
+                ]
+                use_semantic_bottom_fanout = has_left and has_right and (n % 2 == 1) and bool(direct_candidates)
+
+                if not use_semantic_bottom_fanout:
+                    for sorted_idx, connector in enumerate(fanout_group):
+                        depth_idx = n - 1 - sorted_idx
+                        bend = base + FANOUT_BASE_GAP + depth_idx * FANOUT_LANE_STEP
+                        pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                        if pt:
+                            assignments[id(connector)] = {
+                                'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
+                            }
+                    continue
+
+                direct_connectors: List[ConnectorPath] = [
+                    min(
+                        direct_candidates,
+                        key=lambda c: (abs(tx_map[id(c)] - center_x), tx_map[id(c)]),
+                    )
+                ]
+
+                selected_points: Dict[int, ConnectionPoint] = {}
+                used_slot_indices: Set[int] = set()
+
+                def _fits_gap(slot_index: int) -> bool:
+                    return all(abs(slot_index - used_idx) >= min_slot_gap for used_idx in used_slot_indices)
+
+                def _claim_slot(slot_candidates: List[ConnectionPoint], tx_value: float) -> Optional[ConnectionPoint]:
+                    for slot in sorted(slot_candidates, key=lambda pt: (abs(pt.x - tx_value), abs(pt.x - center_x), pt.x)):
+                        if slot.index not in used_slot_indices and _fits_gap(slot.index):
+                            used_slot_indices.add(slot.index)
+                            return slot
+                    return None
+
+                def _claim_priority(slot_candidates: List[ConnectionPoint]) -> Optional[ConnectionPoint]:
+                    for slot in slot_candidates:
+                        if slot.index not in used_slot_indices and _fits_gap(slot.index):
+                            used_slot_indices.add(slot.index)
+                            return slot
+                    return None
+
+                for connector in sorted(direct_connectors, key=lambda c: abs(tx_map[id(c)] - center_x)):
+                    tx = tx_map[id(connector)]
+                    slot = _claim_slot(center_slots, tx)
+                    if slot is None:
+                        slot = _claim_slot(usable_points, tx)
+                    if slot is not None:
+                        if len(direct_connectors) == 1:
+                            selected_points[id(connector)] = ConnectionPoint(
+                                edge=exit_edge,
+                                index=slot.index,
+                                x=center_x,
+                                y=slot.y,
+                            )
+                        else:
+                            selected_points[id(connector)] = slot
+
+                remaining = [c for c in fanout_group if id(c) not in selected_points]
+
+                def _bottom_semantic_rank(connector: ConnectorPath) -> int:
+                    label = (connector.label or '').lower()
+                    if 'near' in label:
+                        return 0
+                    if 'mid' in label:
+                        return 1
+                    if 'far' in label:
+                        return 2
+                    return 99
+
+                left_remaining = sorted(
+                    [c for c in remaining if tx_map[id(c)] < center_x],
+                    key=lambda c: (_bottom_semantic_rank(c), -tx_map[id(c)]),
+                )
+                right_remaining = sorted(
+                    [c for c in remaining if tx_map[id(c)] >= center_x],
+                    key=lambda c: (_bottom_semantic_rank(c), tx_map[id(c)]),
+                )
+
+                def _unclaimed(points: List[ConnectionPoint]) -> List[ConnectionPoint]:
+                    return [pt for pt in points if pt.index not in used_slot_indices]
+
+                for connector in left_remaining:
+                    tx = tx_map[id(connector)]
+                    slot = _claim_priority(left_slots)
+                    if slot is None:
+                        slot = _claim_priority(center_slots)
+                    if slot is None:
+                        slot = _claim_slot(_unclaimed(usable_points), tx)
+                    if slot is not None:
+                        selected_points[id(connector)] = slot
+
+                for connector in right_remaining:
+                    tx = tx_map[id(connector)]
+                    slot = _claim_priority(right_slots)
+                    if slot is None:
+                        slot = _claim_priority(center_slots)
+                    if slot is None:
+                        slot = _claim_slot(_unclaimed(usable_points), tx)
+                    if slot is not None:
+                        selected_points[id(connector)] = slot
+
+                for connector in fanout_group:
+                    if id(connector) in selected_points:
+                        continue
+                    slot = _claim_slot(_unclaimed(usable_points), tx_map[id(connector)])
+                    if slot is not None:
+                        selected_points[id(connector)] = slot
+
+                bend_depth_rank: Dict[int, int] = {}
+                for connector in direct_connectors:
+                    if id(connector) in selected_points:
+                        bend_depth_rank[id(connector)] = 0
+
+                def _depth_rank(connector: ConnectorPath, fallback_rank: int) -> int:
+                    label = (connector.label or '').lower()
+                    if 'near' in label:
+                        return 3
+                    if 'mid' in label:
+                        return 2
+                    if 'far' in label:
+                        return 1
+                    return fallback_rank
+
+                for rank, connector in enumerate(left_remaining, start=1):
+                    if id(connector) in selected_points:
+                        bend_depth_rank[id(connector)] = _depth_rank(connector, rank)
+                for rank, connector in enumerate(right_remaining, start=1):
+                    if id(connector) in selected_points:
+                        computed = _depth_rank(connector, rank)
+                        existing = bend_depth_rank.get(id(connector), computed)
+                        bend_depth_rank[id(connector)] = max(existing, computed)
+
+                for connector in fanout_group:
+                    pt = selected_points.get(id(connector))
+                    if pt is None:
+                        continue
+                    depth_idx = bend_depth_rank.get(id(connector), 1)
                     bend = base + FANOUT_BASE_GAP + depth_idx * FANOUT_LANE_STEP
-                    pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
-                    if pt:
-                        assignments[id(connector)] = {
-                            'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
-                        }
+                    assignments[id(connector)] = {
+                        'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
+                    }
             elif exit_edge == 'top':
                 base = src_grid.y
                 center_x = src_grid.get_center()[0]
@@ -895,7 +1062,15 @@ class ConnectorPlanner:
                     if slot is None:
                         slot = _claim_slot(usable_points, tx_map[id(connector)])
                     if slot is not None:
-                        selected_points[id(connector)] = slot
+                        if len(direct_connectors) == 1:
+                            selected_points[id(connector)] = ConnectionPoint(
+                                edge=exit_edge,
+                                index=slot.index,
+                                x=center_x,
+                                y=slot.y,
+                            )
+                        else:
+                            selected_points[id(connector)] = slot
 
                 # Split remaining connectors by side and assign semantic order.
                 remaining = [c for c in fanout_group if id(c) not in selected_points]
