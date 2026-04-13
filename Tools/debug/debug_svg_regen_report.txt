@@ -1,0 +1,409 @@
+Debug SVG regeneration report
+Timestamp: 2026-04-13T11:53:37
+Repo root: C:\Users\antod\OneDrive\Documents\repo\modeling_tool
+Python: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\.venv\Scripts\python.exe
+
+Discovery details
+- search logic: server.find_csv_files_hierarchical + server.find_csv_files
+- all_diagrams source: server.CSV_FILES map
+- hierarchical entries discovered: 64
+- unique CSV entries in server.CSV_FILES: 62
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_message_nesting.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_message_nesting.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_MSG_NESTING out=generated_svgs\Process_01_System_40_Tests_10_Basic_test_message_nesting.csv__sequence__SoftReq_TEST_MSG_NESTING__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_multiline_participants.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_multiline_participants.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_FAIL: id=1 ValueError: Sequence has no lanes. Did you forget to add steps?
+Traceback (most recent call last):
+  File "C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Scripts\debug_regen_all_svgs.py", line 99, in main
+    svg = render_svg(model, seq, verbosity_level="High", lanes_filter=None)
+  File "C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Scripts\svg_renderer.py", line 454, in render_svg
+    raise ValueError("Sequence has no lanes. Did you forget to add steps?")
+ValueError: Sequence has no lanes. Did you forget to add steps?
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_multirow.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_multirow.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_006 out=generated_svgs\Process_01_System_40_Tests_10_Basic_test_multirow.csv__sequence__SoftReq_TEST_006__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_nested_self_messages.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_nested_self_messages.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_NESTED out=generated_svgs\Process_01_System_40_Tests_10_Basic_test_nested_self_messages.csv__sequence__SoftReq_TEST_NESTED__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_note_ordering.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_note_ordering.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=NoteOrderTest out=generated_svgs\Process_01_System_40_Tests_10_Basic_test_note_ordering.csv__sequence__NoteOrderTest__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_notes.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_notes.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_001 out=generated_svgs\Process_01_System_40_Tests_10_Basic_test_notes.csv__sequence__SoftReq_TEST_001__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_parameters.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_parameters.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_004 out=generated_svgs\Process_01_System_40_Tests_10_Basic_test_parameters.csv__sequence__SoftReq_TEST_004__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_states.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_states.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_002 out=generated_svgs\Process_01_System_40_Tests_10_Basic_test_states.csv__sequence__SoftReq_TEST_002__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/10_Basic/test_verbosity.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\10_Basic\test_verbosity.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_003 out=generated_svgs\Process_01_System_40_Tests_10_Basic_test_verbosity.csv__sequence__SoftReq_TEST_003__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_class_diagram_all_connector_combinations.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_class_diagram_all_connector_combinations.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=2
+CLASS_OK: id=OrthogonalTopEntryProbe name=Orthogonal-only top-entry probe out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_class_diagram_all_connector_combinations.csv__class__OrthogonalTopEntryProbe__orthogonal__High.svg
+CLASS_OK: id=OrthogonalArrowTypeAndRoutes name=All arrow types with forced multi-segment orthogonal routes out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_class_diagram_all_connector_combinations.csv__class__OrthogonalArrowTypeAndRoutes__orthogonal__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_class_diagram_orthogonal_stress.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_class_diagram_orthogonal_stress.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=1
+CLASS_OK: id=OrthogonalStressDense name=Dense right-angle routing stress test out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_class_diagram_orthogonal_stress.csv__class__OrthogonalStressDense__orthogonal__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_class_diagram_two_segment_combinations.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_class_diagram_two_segment_combinations.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=1
+CLASS_OK: id=OrthogonalArrowTypeTwoSegmentCombos name=All arrow types as two-segment orthogonal route probes out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_class_diagram_two_segment_combinations.csv__class__OrthogonalArrowTypeTwoSegmentCombos__orthogonal__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_code_syntax.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_code_syntax.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_comprehensive_nesting.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_comprehensive_nesting.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_COMPREHENSIVE_TEST out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_comprehensive_nesting.csv__sequence__SoftReq_COMPREHENSIVE_TEST__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_include_classes.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_include_classes.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_include_demo.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_include_demo.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=IncludeTest out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_include_demo.csv__sequence__IncludeTest__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_layers.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_layers.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_005 out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_layers.csv__sequence__SoftReq_TEST_005__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_mapping.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_mapping.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_self_message_label_alignment.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_self_message_label_alignment.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_SELF_MSG_LABEL_ALIGNMENT out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_self_message_label_alignment.csv__sequence__SoftReq_TEST_SELF_MSG_LABEL_ALIGNMENT__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_structure_diagram.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_structure_diagram.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=4
+CLASS_OK: id=BasicRelationships name=Basic class relationships out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_structure_diagram.csv__class__BasicRelationships__orthogonal__High.svg
+CLASS_OK: id=OrthogonalLayout name=Orthogonal connector routing out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_structure_diagram.csv__class__OrthogonalLayout__orthogonal__High.svg
+CLASS_OK: id=MixedElements name=Mixed element types out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_structure_diagram.csv__class__MixedElements__orthogonal__High.svg
+CLASS_OK: id=LayeredArchitecture name=Layered architecture view out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_structure_diagram.csv__class__LayeredArchitecture__orthogonal__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_success_note.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_success_note.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=TEST_SUCCESS_ONLY out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_success_note.csv__sequence__TEST_SUCCESS_ONLY__High.svg
+
+CSV_KEY: Process/01_System/40_Tests/20_Advanced/test_ui_controls.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\40_Tests\20_Advanced\test_ui_controls.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_UI_001 out=generated_svgs\Process_01_System_40_Tests_20_Advanced_test_ui_controls.csv__sequence__SoftReq_TEST_UI_001__High.svg
+
+CSV_KEY: Process/01_System/sequence_data_pipeline.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\sequence_data_pipeline.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SEQ_003_DataUploadProcessing out=generated_svgs\Process_01_System_sequence_data_pipeline.csv__sequence__SEQ_003_DataUploadProcessing__High.svg
+
+CSV_KEY: Process/01_System/sequence_user_login.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\sequence_user_login.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SEQ_002_UserLogin out=generated_svgs\Process_01_System_sequence_user_login.csv__sequence__SEQ_002_UserLogin__High.svg
+
+CSV_KEY: Process/01_System/system_structure.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\01_System\system_structure.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=5
+CLASS_OK: id=UserInteraction name=Users interact with the system through the web UI out=generated_svgs\Process_01_System_system_structure.csv__class__UserInteraction__orthogonal__High.svg
+CLASS_OK: id=SystemComponents name=Main system components and their responsibilities out=generated_svgs\Process_01_System_system_structure.csv__class__SystemComponents__orthogonal__High.svg
+CLASS_OK: id=DataFlow name=How data flows through the system out=generated_svgs\Process_01_System_system_structure.csv__class__DataFlow__orthogonal__High.svg
+CLASS_OK: id=SystemStorage name=Where diagrams are stored and cached out=generated_svgs\Process_01_System_system_structure.csv__class__SystemStorage__orthogonal__High.svg
+CLASS_OK: id=SystemLayers name=Architectural layers of the system out=generated_svgs\Process_01_System_system_structure.csv__class__SystemLayers__orthogonal__High.svg
+
+CSV_KEY: Process/02_Architecture/20_Components/10_Parser/csv_parser.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\20_Components\10_Parser\csv_parser.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/02_Architecture/20_Components/20_Renderer/svg_renderer.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\20_Components\20_Renderer\svg_renderer.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/02_Architecture/20_Components/30_DataModel/data_model_component.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\20_Components\30_DataModel\data_model_component.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/02_Architecture/20_Components/40_WebServer/web_server.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\20_Components\40_WebServer\web_server.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/02_Architecture/30_Classes/10_CoreModel/data_model.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\30_Classes\10_CoreModel\data_model.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/02_Architecture/30_Classes/20_CoreComponents/class_diagrams.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\30_Classes\20_CoreComponents\class_diagrams.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=6
+CLASS_OK: id=DataModelRelationships name=Relationships between model dataclasses out=generated_svgs\Process_02_Architecture_30_Classes_20_CoreComponents_class_diagrams.csv__class__DataModelRelationships__orthogonal__High.svg
+CLASS_OK: id=ParserToModel name=Parser produces Model from CSV files out=generated_svgs\Process_02_Architecture_30_Classes_20_CoreComponents_class_diagrams.csv__class__ParserToModel__orthogonal__High.svg
+CLASS_OK: id=RendererDependencies name=Renderer reads Model to produce SVG out=generated_svgs\Process_02_Architecture_30_Classes_20_CoreComponents_class_diagrams.csv__class__RendererDependencies__orthogonal__High.svg
+CLASS_OK: id=ServerDependencies name=Server orchestrates parser and renderer out=generated_svgs\Process_02_Architecture_30_Classes_20_CoreComponents_class_diagrams.csv__class__ServerDependencies__orthogonal__High.svg
+CLASS_OK: id=TestDependencies name=Test framework uses parser and renderer out=generated_svgs\Process_02_Architecture_30_Classes_20_CoreComponents_class_diagrams.csv__class__TestDependencies__orthogonal__High.svg
+CLASS_OK: id=UtilityDependencies name=Utility scripts and their dependencies out=generated_svgs\Process_02_Architecture_30_Classes_20_CoreComponents_class_diagrams.csv__class__UtilityDependencies__orthogonal__High.svg
+
+CSV_KEY: Process/02_Architecture/30_Classes/40_Testing/test_framework.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\30_Classes\40_Testing\test_framework.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/02_Architecture/30_Classes/50_Utilities/utilities.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\30_Classes\50_Utilities\utilities.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Process/02_Architecture/architecture_structure.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\architecture_structure.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=1
+CLASS_OK: id=ArchitecturePackages name=Package and component structure out=generated_svgs\Process_02_Architecture_architecture_structure.csv__class__ArchitecturePackages__orthogonal__High.svg
+
+CSV_KEY: Process/02_Architecture/sequence_parser_flow.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\02_Architecture\sequence_parser_flow.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SEQ_001_ParseDiagram out=generated_svgs\Process_02_Architecture_sequence_parser_flow.csv__sequence__SEQ_001_ParseDiagram__High.svg
+
+CSV_KEY: Process/traceability.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Process\traceability.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Source/requirements.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Source\requirements.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Source/sample_model.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Source\sample_model.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=2
+SEQUENCE_OK: id=SoftReq0001 out=generated_svgs\Source_sample_model.csv__sequence__SoftReq0001__High.svg
+CLASS_OK: id=CalculatorDiagonalArchitecture name=Calculator architecture with diagonal connectors out=generated_svgs\Source_sample_model.csv__class__CalculatorDiagonalArchitecture__orthogonal__High.svg
+CLASS_OK: id=CalculatorOrthogonalArchitecture name=Calculator architecture with orthogonal connectors out=generated_svgs\Source_sample_model.csv__class__CalculatorOrthogonalArchitecture__orthogonal__High.svg
+
+CSV_KEY: Source/temp.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Source\temp.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Test/sample_model.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\sample_model.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_COMPREHENSIVE_TEST out=generated_svgs\Test_sample_model.csv__sequence__SoftReq_COMPREHENSIVE_TEST__High.svg
+
+CSV_KEY: Test/test_code_syntax.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\test_code_syntax.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Test/tests/fanout.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\fanout.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=2
+CLASS_OK: id=FanoutTop name=Fanout Scen2: Up-sideways-up out=generated_svgs\Test_tests_fanout.csv__class__FanoutTop__orthogonal__High.svg
+CLASS_OK: id=FanoutBottom name=Fanout Scen2 Mirror: Down-sideways-down out=generated_svgs\Test_tests_fanout.csv__class__FanoutBottom__orthogonal__High.svg
+
+CSV_KEY: Test/tests/test_code_syntax.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_code_syntax.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Test/tests/test_comprehensive_nesting.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_comprehensive_nesting.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_COMPREHENSIVE_TEST out=generated_svgs\Test_tests_test_comprehensive_nesting.csv__sequence__SoftReq_COMPREHENSIVE_TEST__High.svg
+
+CSV_KEY: Test/tests/test_include_classes.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_include_classes.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Test/tests/test_include_demo.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_include_demo.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=IncludeTest out=generated_svgs\Test_tests_test_include_demo.csv__sequence__IncludeTest__High.svg
+
+CSV_KEY: Test/tests/test_layers.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_layers.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_005 out=generated_svgs\Test_tests_test_layers.csv__sequence__SoftReq_TEST_005__High.svg
+
+CSV_KEY: Test/tests/test_mapping.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_mapping.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=0
+
+CSV_KEY: Test/tests/test_message_nesting.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_message_nesting.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_MSG_NESTING out=generated_svgs\Test_tests_test_message_nesting.csv__sequence__SoftReq_TEST_MSG_NESTING__High.svg
+
+CSV_KEY: Test/tests/test_multiconnector_rightangle.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_multiconnector_rightangle.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=1
+CLASS_OK: id=MultiConnectorTest name=11 Symmetrical Right-Angle Connectors out=generated_svgs\Test_tests_test_multiconnector_rightangle.csv__class__MultiConnectorTest__orthogonal__High.svg
+
+CSV_KEY: Test/tests/test_multiline_participants.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_multiline_participants.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_FAIL: id=1 ValueError: Sequence has no lanes. Did you forget to add steps?
+Traceback (most recent call last):
+  File "C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Scripts\debug_regen_all_svgs.py", line 99, in main
+    svg = render_svg(model, seq, verbosity_level="High", lanes_filter=None)
+  File "C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Scripts\svg_renderer.py", line 454, in render_svg
+    raise ValueError("Sequence has no lanes. Did you forget to add steps?")
+ValueError: Sequence has no lanes. Did you forget to add steps?
+
+CSV_KEY: Test/tests/test_multirow.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_multirow.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_006 out=generated_svgs\Test_tests_test_multirow.csv__sequence__SoftReq_TEST_006__High.svg
+
+CSV_KEY: Test/tests/test_nested_self_messages.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_nested_self_messages.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_NESTED out=generated_svgs\Test_tests_test_nested_self_messages.csv__sequence__SoftReq_TEST_NESTED__High.svg
+
+CSV_KEY: Test/tests/test_note_ordering.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_note_ordering.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=NoteOrderTest out=generated_svgs\Test_tests_test_note_ordering.csv__sequence__NoteOrderTest__High.svg
+
+CSV_KEY: Test/tests/test_notes.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_notes.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_001 out=generated_svgs\Test_tests_test_notes.csv__sequence__SoftReq_TEST_001__High.svg
+
+CSV_KEY: Test/tests/test_parameters.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_parameters.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_004 out=generated_svgs\Test_tests_test_parameters.csv__sequence__SoftReq_TEST_004__High.svg
+
+CSV_KEY: Test/tests/test_self_message_label_alignment.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_self_message_label_alignment.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_SELF_MSG_LABEL_ALIGNMENT out=generated_svgs\Test_tests_test_self_message_label_alignment.csv__sequence__SoftReq_TEST_SELF_MSG_LABEL_ALIGNMENT__High.svg
+
+CSV_KEY: Test/tests/test_states.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_states.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_002 out=generated_svgs\Test_tests_test_states.csv__sequence__SoftReq_TEST_002__High.svg
+
+CSV_KEY: Test/tests/test_structure_diagram.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_structure_diagram.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=0 class_diagrams=4
+CLASS_OK: id=BasicRelationships name=Basic class relationships out=generated_svgs\Test_tests_test_structure_diagram.csv__class__BasicRelationships__orthogonal__High.svg
+CLASS_OK: id=OrthogonalLayout name=Orthogonal connector routing out=generated_svgs\Test_tests_test_structure_diagram.csv__class__OrthogonalLayout__orthogonal__High.svg
+CLASS_OK: id=MixedElements name=Mixed element types out=generated_svgs\Test_tests_test_structure_diagram.csv__class__MixedElements__orthogonal__High.svg
+CLASS_OK: id=LayeredArchitecture name=Layered architecture view out=generated_svgs\Test_tests_test_structure_diagram.csv__class__LayeredArchitecture__orthogonal__High.svg
+
+CSV_KEY: Test/tests/test_success_note.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_success_note.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=TEST_SUCCESS_ONLY out=generated_svgs\Test_tests_test_success_note.csv__sequence__TEST_SUCCESS_ONLY__High.svg
+
+CSV_KEY: Test/tests/test_ui_controls.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_ui_controls.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_UI_001 out=generated_svgs\Test_tests_test_ui_controls.csv__sequence__SoftReq_TEST_UI_001__High.svg
+
+CSV_KEY: Test/tests/test_verbosity.csv
+CSV_PATH: C:\Users\antod\OneDrive\Documents\repo\modeling_tool\Test\tests\test_verbosity.csv
+SEARCH_CONTEXT: discovered via server.CSV_FILES traversal
+PARSE_OK: sequences=1 class_diagrams=0
+SEQUENCE_OK: id=SoftReq_TEST_003 out=generated_svgs\Test_tests_test_verbosity.csv__sequence__SoftReq_TEST_003__High.svg
+
+Summary
+- csv_ok: 62
+- csv_fail: 0
+- sequence_ok: 33
+- sequence_fail: 2
+- class_ok: 29
+- class_fail: 0
+- generated_svg_files: 62
+
+Failure list
+- Process/01_System/40_Tests/10_Basic/test_multiline_participants.csv :: SEQUENCE_FAIL: id=1 ValueError: Sequence has no lanes. Did you forget to add steps?
+- Test/tests/test_multiline_participants.csv :: SEQUENCE_FAIL: id=1 ValueError: Sequence has no lanes. Did you forget to add steps?

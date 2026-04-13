@@ -1790,7 +1790,6 @@ def _layout_classes(diagram, model, verbosity="High"):
     
     if not class_names:
         return {}
-    boxes = _expand_boxes_for_connector_capacity(diagram, boxes)
     
     # Reorder class names: place children immediately after their owner
     # Build a map of source -> [targets]

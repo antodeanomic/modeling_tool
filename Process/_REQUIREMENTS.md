@@ -73,6 +73,14 @@ Requirements are organized by type and linked to related artifacts.
 | ClassRouting_0002 | Orthogonal routing prioritizes simple elbows and avoids diagonal fallbacks | ClassRouting_0001 | Rendering_0020 | Implemented |
 | ClassRouting_0003 | Domain-layer dense fan-out uses increased vertical spacing during layout to reduce overlap pressure | ClassRouting_0002 | Rendering_0020 | Implemented |
 | ClassRouting_0004 | Domain-layer connector text placement uses occupancy-aware lane nudging to reduce stacked text overlap | ClassRouting_0003 | Rendering_0021 | Implemented |
+| ClassRouting_0005 | Fanout mode (Mode 2) is the only allowed same-side multi-connector strategy for class diagrams; shared-trunk fanout is out of scope | ClassRouting_0001 | Rendering_0020;Rendering_0022 | Required |
+| ClassRouting_0006 | Fanout geometry order is mandatory: Object -> distinct connect-start point -> multiplicity text on vertical leg -> vertical segment -> connector label text before bend -> right-angle bend -> horizontal run | ClassRouting_0005 | Rendering_0022 | Required |
+| ClassRouting_0007 | Fanout must be visually explicit for top and bottom source edges and must preserve left/right symmetry across equivalent target groups | ClassRouting_0005 | Rendering_0022 | Required |
+| ClassRouting_0008 | Reject non-fanout patterns: shared trunk, micro-offset pseudo-lanes, missing first-segment multiplicity, or label placement only at horizontal endpoints | ClassRouting_0006;ClassRouting_0007 | Rendering_0022 | Required |
+| ClassRouting_0009 | Fanout must be defined and validated from all four source sides (top, bottom, left, right) using mirrored lane behavior where applicable | ClassRouting_0005 | Rendering_0022;Rendering_0023 | Required |
+| ClassRouting_0010 | Left/right fanout branches must start with a horizontal first segment from side-wall connection points; top/bottom fanout branches start with a vertical first segment | ClassRouting_0006;ClassRouting_0009 | Rendering_0023 | Required |
+| ClassRouting_0011 | Side-wall fanout capacity is provided by extending vertical object edges and adding additional side connection points at 2-character spacing | ClassRouting_0009 | Rendering_0023 | Required |
+| ClassRouting_0012 | Direct fanout connectors are prioritized ahead of non-direct branches and always remain perpendicular to the source object side | ClassRouting_0009;ClassRouting_0010 | Rendering_0023 | Required |
 | ClassUI_0001 | Hovering a class object highlights directly connected connectors and connector text while fading unrelated links | UserInterface_0001 | UserInterface_0007 | Implemented |
 
 ## Class Diagram Constraints (2026-04 Update)
@@ -81,4 +89,6 @@ Requirements are organized by type and linked to related artifacts.
 |:---|:---|:---|:---|:---|
 | Rendering_0020 | Orthogonal connector segments are axis-aligned (horizontal/vertical only) in class diagrams | ClassRouting_0001 | ClassRouting_0002 | Implemented |
 | Rendering_0021 | Connector text readability is prioritized via collision-aware placement over exact geometric centering | ClassRouting_0004 | ClassUI_0001 | Implemented |
+| Rendering_0022 | Fanout lane spacing must allocate distinct start slots and distinct vertical text bands so multiplicity and connector text are readable on each vertical leg before bend | ClassRouting_0005;ClassRouting_0006 | ClassRouting_0007 | Required |
+| Rendering_0023 | Fanout routing must preserve orientation-specific first-segment rules and side-point alignment: top/bottom use vertical-first, left/right use horizontal-first at aligned '+' side points | ClassRouting_0009;ClassRouting_0010;ClassRouting_0011 | ClassRouting_0008 | Required |
 | UserInterface_0007 | Hover highlighting is non-destructive: no click/persist state required in hover-only mode | ClassUI_0001 | UserInterface_0001 | Implemented |

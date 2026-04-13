@@ -42,7 +42,8 @@ def find_csv_files_hierarchical():
                         'name': file,
                         'path': abs_path,
                         'hierarchy': hierarchy,
-                        'relative_path': os.path.join(rel_path, file).replace(os.sep, '/')
+                        'relative_path': os.path.join(rel_path, file).replace(os.sep, '/'),
+                        'csv_id': os.path.join('diagrams', rel_path, file).replace(os.sep, '/').replace('./', '')
                     })
     
     # Scan Process/ folder to capture System and Architecture hierarchy
@@ -68,71 +69,88 @@ def find_csv_files_hierarchical():
                             'name': file,
                             'path': abs_path,
                             'hierarchy': hierarchy,
-                            'relative_path': os.path.join(rel_path, file).replace(os.sep, '/')
+                            'relative_path': os.path.join(rel_path, file).replace(os.sep, '/'),
+                            'csv_id': os.path.join('Process', rel_path, file).replace(os.sep, '/').replace('./', '')
+                        })
+    
+    # Scan Test/tests/ folder for test diagrams
+    test_dir = os.path.join(repo_root, 'Test', 'tests')
+    if os.path.isdir(test_dir):
+        for root, dirs, files in os.walk(test_dir):
+            for file in files:
+                if file.endswith('.csv'):
+                    abs_path = os.path.abspath(os.path.join(root, file))
+                    # Calculate relative path from Test/ folder
+                    rel_path = os.path.relpath(root, test_dir)
+                    hierarchy = ['Test'] if rel_path == '.' else ['Test', rel_path]
+                    
+                    # Check if already exists (avoid duplicates)
+                    if not any(item['name'] == file and item['path'] == abs_path for item in csv_files_with_hierarchy):
+                        csv_files_with_hierarchy.append({
+                            'name': file,
+                            'path': abs_path,
+                            'hierarchy': hierarchy,
+                            'relative_path': os.path.join(rel_path, file).replace(os.sep, '/'),
+                            'csv_id': os.path.join('Test', 'tests', rel_path, file).replace(os.sep, '/').replace('./', '')
                         })
     
     return csv_files_with_hierarchy
 
 def find_csv_files():
-    """Search for all CSV files in common locations relative to this script."""
+    """Search for all CSV files and return a unique-key map."""
     # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.dirname(script_dir)  # Parent of Scripts/
     
-    # Build search paths using absolute paths
-    search_dirs = [
-        os.path.join(repo_root, 'Source'),              # Source/
-        os.path.join(repo_root, 'Test/tests'),          # Test/tests/
-        os.path.join(repo_root, 'tests'),               # tests/
-        os.path.join(repo_root, 'Process'),             # Process/
-        os.path.join(repo_root, 'Process/System'),      # Process/System/
-        os.path.join(repo_root, 'Process/Architecture'), # Process/Architecture/
-        os.path.join(repo_root, 'Process/architecture'), # Process/architecture/ (legacy)
-        script_dir,                                      # Scripts/
-    ]
-    
     csv_files = {}
+
+    # Add CSV files from hierarchical folders with stable relative IDs
+    hierarchical = find_csv_files_hierarchical()
+    for item in hierarchical:
+        csv_files[item['csv_id']] = item['path']
+
+    # Include additional top-level folders not covered by hierarchical scan.
+    extra_dirs = [
+        os.path.join(repo_root, 'Source'),
+        os.path.join(repo_root, 'Test'),
+        os.path.join(repo_root, 'tests'),
+        script_dir,
+    ]
     found_dirs = []
-    
-    for search_dir in search_dirs:
+    for search_dir in extra_dirs:
         search_dir = os.path.normpath(search_dir)
         if not os.path.isdir(search_dir):
             continue
         found_dirs.append(search_dir)
         try:
             for file in os.listdir(search_dir):
-                if file.endswith('.csv'):
-                    path = os.path.join(search_dir, file)
-                    abs_path = os.path.abspath(path)
-                    # Use filename as key, avoid duplicates
-                    if file not in csv_files:
-                        csv_files[file] = abs_path
+                if not file.endswith('.csv'):
+                    continue
+                path = os.path.join(search_dir, file)
+                abs_path = os.path.abspath(path)
+                rel_key = os.path.relpath(abs_path, repo_root).replace(os.sep, '/')
+                csv_files[rel_key] = abs_path
         except (OSError, FileNotFoundError) as e:
             print(f"[warn] Error listing {search_dir}: {e}")
-            pass
-    
-    # Recursively search entire Process/ directory for CSVs
-    process_dir = os.path.join(repo_root, 'Process')
-    if os.path.isdir(process_dir):
-        try:
-            for root, dirs, files in os.walk(process_dir):
-                for file in files:
-                    if file.endswith('.csv'):
-                        path = os.path.join(root, file)
-                        abs_path = os.path.abspath(path)
-                        if file not in csv_files:
-                            csv_files[file] = abs_path
-        except (OSError, FileNotFoundError) as e:
-            print(f"[warn] Error walking Process/: {e}")
-            pass
-    
-    # Also add CSV files from hierarchical diagrams/ folder
-    hierarchical = find_csv_files_hierarchical()
-    for item in hierarchical:
-        # Use the relative path as key for hierarchical CSVs to avoid conflicts
-        key = item['name']  # Could also use relative_path for uniqueness
-        if key not in csv_files:
-            csv_files[key] = item['path']
+
+    # Remove mirrored legacy architecture CSVs when canonical nested copies exist.
+    process_arch_root = 'Process/02_Architecture/'
+    shallow_arch_keys = [
+        key for key in csv_files
+        if key.startswith(process_arch_root) and key.count('/') == 2
+    ]
+    deep_arch_basenames = {
+        os.path.basename(key)
+        for key in csv_files
+        if key.startswith(process_arch_root) and key.count('/') > 2
+    }
+    pruned_count = 0
+    for key in shallow_arch_keys:
+        if os.path.basename(key) in deep_arch_basenames:
+            del csv_files[key]
+            pruned_count += 1
+    if pruned_count:
+        print(f"[OK] Pruned {pruned_count} mirrored Process/02_Architecture CSV(s)")
     
     if not csv_files:
         raise FileNotFoundError(f"Could not find any CSV files in: {found_dirs}")
@@ -142,18 +160,33 @@ def find_csv_files():
 
 def find_default_csv(csv_files):
     """Find the default CSV to load (prefer test_notes for comprehensive testing)."""
-    if 'test_notes.csv' in csv_files:
-        return 'test_notes.csv'
-    if 'test_success_note.csv' in csv_files:
-        return 'test_success_note.csv'
-    if 'sample_model.csv' in csv_files:
-        return 'sample_model.csv'
+    for suffix in ('/test_notes.csv', '/test_success_note.csv', '/sample_model.csv'):
+        for key in csv_files:
+            if key.endswith(suffix):
+                return key
     # Fall back to first test CSV
-    test_csvs = [f for f in csv_files if f.startswith('test_')]
+    test_csvs = [f for f in csv_files if os.path.basename(f).startswith('test_')]
     if test_csvs:
         return sorted(test_csvs)[0]
     # Last resort: first available
     return list(csv_files.keys())[0]
+
+
+def resolve_csv_key(csv_name):
+    """Resolve a CSV key from path-like or legacy filename input."""
+    if not csv_name:
+        return DEFAULT_CSV
+
+    normalized = str(csv_name).replace('\\', '/').strip()
+    if normalized in CSV_FILES:
+        return normalized
+
+    basename = os.path.basename(normalized)
+    matches = [key for key in CSV_FILES if os.path.basename(key) == basename]
+    if len(matches) == 1:
+        return matches[0]
+
+    return None
 
 try:
     CSV_FILES = find_csv_files()
@@ -191,11 +224,12 @@ def load_model(csv_name=None):
     """Load model from CSV by name."""
     if csv_name is None:
         csv_name = DEFAULT_CSV
-    
-    if csv_name not in CSV_FILES:
+
+    resolved_csv = resolve_csv_key(csv_name)
+    if not resolved_csv:
         raise ValueError(f"CSV not found: {csv_name}")
-    
-    return parse_csv(CSV_FILES[csv_name])
+
+    return parse_csv(CSV_FILES[resolved_csv])
 
 def load_model_and_sequence(csv_name, sequence_id):
     """Load and return model and sequence from CSV.
@@ -225,8 +259,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 # Handle 'diagram' parameter (e.g., diagram=tests/test_notes.csv)
                 diagram_param = params.get('diagram', [''])[0]
                 if diagram_param:
-                    # Extract just the filename from path
-                    csv_name = diagram_param.split('/')[-1] if '/' in diagram_param else diagram_param
+                    csv_name = diagram_param.replace('\\', '/')
                 else:
                     csv_name = params.get('csv', [DEFAULT_CSV])[0]
                 
@@ -302,7 +335,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
         elif parsed_path.path == '/api/diagram':
             self.handle_diagram_request(parsed_path.query)
         elif parsed_path.path == '/api/all_diagrams':
-            self.handle_all_diagrams_request()
+            self.handle_all_diagrams_request(parsed_path.query)
         elif parsed_path.path == '/api/csvs':
             self.handle_csvs_request()
         elif parsed_path.path == '/api/lanes':
@@ -316,7 +349,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 # Handle 'diagram' parameter
                 diagram_param = params.get('diagram', [''])[0]
                 if diagram_param:
-                    csv_name = diagram_param.split('/')[-1] if '/' in diagram_param else diagram_param
+                    csv_name = diagram_param.replace('\\', '/')
                 else:
                     csv_name = params.get('csv', [DEFAULT_CSV])[0]
                 
@@ -450,34 +483,107 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
     
-    def handle_all_diagrams_request(self):
+    def handle_all_diagrams_request(self, query_string=''):
         """Return all diagrams from all CSVs with hierarchy information."""
         try:
+            params = parse_qs(query_string, keep_blank_values=True)
+            include_test = params.get('include_test', ['0'])[0] == '1'
+
             # Get hierarchical CSV information
             hierarchical_csvs = find_csv_files_hierarchical()
-            hierarchy_lookup = {item['name']: item['hierarchy'] for item in hierarchical_csvs}
+            hierarchy_lookup = {item['csv_id']: item['hierarchy'] for item in hierarchical_csvs}
+
+            def is_test_csv_key(csv_key):
+                hierarchy = hierarchy_lookup.get(csv_key, [])
+                normalized = str(csv_key).replace('\\', '/').lower()
+                return (
+                    (hierarchy and hierarchy[0] == 'Test') or
+                    normalized.startswith('test/tests/') or
+                    '/40_tests/' in normalized
+                )
+
+            # If multiple test CSV copies exist for the same filename, keep only
+            # one source to avoid duplicate test diagrams in the palette.
+            test_groups = {}
+            for key in CSV_FILES.keys():
+                if is_test_csv_key(key):
+                    test_groups.setdefault(os.path.basename(key).lower(), []).append(key)
+
+            suppressed_test_csvs = set()
+            for basename, keys in test_groups.items():
+                if len(keys) <= 1:
+                    continue
+                preferred = next((k for k in keys if str(k).replace('\\', '/').lower().startswith('test/tests/')), None)
+                if preferred is None:
+                    preferred = sorted(keys, key=lambda k: (len(k), k))[0]
+                for key in keys:
+                    if key != preferred:
+                        suppressed_test_csvs.add(key)
             
             diagrams = []
-            for csv_name, csv_path in sorted(CSV_FILES.items()):
+            seen_keys = set()
+            skipped_non_renderable = 0
+
+            def append_if_visible(entry):
+                """Apply list hygiene rules for the viewer payload."""
+                if not entry.get('id') or not entry.get('csv'):
+                    return
+
+                hierarchy = entry.get('hierarchy') or []
+                csv_key = str(entry.get('csv') or '').replace('\\', '/').lower()
+                is_test_entry = (
+                    (hierarchy and hierarchy[0] == 'Test') or
+                    csv_key.startswith('test/tests/') or
+                    '/40_tests/' in csv_key
+                )
+                if not include_test and is_test_entry:
+                    return
+
+                entry_type = str(entry.get('type') or '')
+                entry_id = str(entry.get('id') or '')
+                entry_name = str(entry.get('name') or '')
+
+                # Semantic dedupe across mirrored CSV sources.
+                # Prefer first entry encountered in sorted CSV key order.
+                if entry_type == 'sequence':
+                    key = (entry_type, entry_id)
+                else:
+                    key = (entry_type, entry_id, entry_name)
+                if key in seen_keys:
+                    return
+
+                seen_keys.add(key)
+                diagrams.append(entry)
+
+            for csv_name in sorted(CSV_FILES.keys()):
+                if csv_name in suppressed_test_csvs:
+                    continue
                 try:
                     model = load_model(csv_name)
                     # Get hierarchy for this CSV if it exists
                     hierarchy = hierarchy_lookup.get(csv_name, [])
                     
                     for s in model.sequences:
-                        diagrams.append({
+                        sequence_lanes = s.get_lanes()
+                        # Hide non-renderable sequence entries (e.g., malformed test
+                        # fixtures with no lanes/steps), which otherwise show up as
+                        # selectable items that fail at render time.
+                        if not sequence_lanes:
+                            skipped_non_renderable += 1
+                            continue
+                        append_if_visible({
                             'type': 'sequence',
                             'id': s.seq_id,
                             'name': s.seq_id,
                             'csv': csv_name,
-                            'lanes': s.get_lanes(),
-                            'symbols': s.get_lanes(),
+                            'lanes': sequence_lanes,
+                            'symbols': sequence_lanes,
                             'hierarchy': hierarchy,
                             'parent_diagram': s.parent_diagram,
                             'child_diagrams': s.child_diagrams
                         })
                     for d in model.class_diagrams:
-                        diagrams.append({
+                        append_if_visible({
                             'type': 'class_diagram',
                             'id': d.diagram_id,
                             'name': d.description or d.diagram_id,
@@ -493,6 +599,10 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                     print(f"[all_diagrams] Error loading {csv_name}: {e}")
             
             print(f"[all_diagrams] Found {len(diagrams)} diagram(s) across {len(CSV_FILES)} CSV(s)")
+            if suppressed_test_csvs:
+                print(f"[all_diagrams] Suppressed {len(suppressed_test_csvs)} duplicate test CSV source(s)")
+            if skipped_non_renderable:
+                print(f"[all_diagrams] Skipped {skipped_non_renderable} non-renderable sequence diagram(s)")
             
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')

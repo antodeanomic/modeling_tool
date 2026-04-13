@@ -1,6 +1,7 @@
 from model import Model, SequenceDef, NoteDef
 from datetime import datetime
 import random
+import os
 
 FONT_SIZE = 12  # Font size for all text labels
 MONOSPACE_CHAR_WIDTH = 7.2  # Width of each character in monospaced font at 12px
@@ -1235,7 +1236,10 @@ def render_svg(model: Model, seq: SequenceDef, verbosity_level="High", lanes_fil
                 debug_log.append(f"   └─ {note.note_type} ({lane_name}) @ Y={note_y:.0f}")
     
     # Write debug log to file
-    debug_file = f'../Test/tests/{seq.seq_id}_render_order.txt'
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    debug_dir = os.path.normpath(os.path.join(script_dir, '..', 'Test', 'tests'))
+    os.makedirs(debug_dir, exist_ok=True)
+    debug_file = os.path.join(debug_dir, f'{seq.seq_id}_render_order.txt')
     with open(debug_file, 'w', encoding='utf-8') as f:
         f.write("\n".join(debug_log))
     

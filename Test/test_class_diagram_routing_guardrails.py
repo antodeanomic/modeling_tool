@@ -5,7 +5,10 @@ Validates every class diagram found in workspace CSV artifacts against:
 1) non-orthogonal (diagonal) connector segments,
 2) connector segments passing through object bodies,
 3) endpoint approach direction mismatches against selected edges,
-4) same-axis segment overlap for a non-trivial shared span.
+4) same-axis segment overlap for a non-trivial shared span,
+5) corner point usage in connectors,
+6) insufficient clearance between connectors and object edges (disabled - needs refinement),
+7) minor segment overlaps on same axis.
 """
 
 from __future__ import annotations
@@ -28,6 +31,9 @@ from parser import parse_csv
 
 EPS = 0.5
 MIN_OVERLAP_SPAN = max(6.0, GRID_CELL_SIZE_PX / 2)
+MIN_MINOR_OVERLAP_SPAN = EPS
+NEAR_BORDER_CLEARANCE = 3.0
+NEAR_BORDER_MIN_SPAN = max(8.0, GRID_CELL_SIZE_PX / 2)
 
 
 @dataclass
@@ -149,6 +155,101 @@ def _segment_overlap_span(seg_a: Tuple[Tuple[float, float], Tuple[float, float]]
     return 0.0
 
 
+def _segment_near_box_border(a: Tuple[float, float], b: Tuple[float, float], box,
+                             clearance: float = NEAR_BORDER_CLEARANCE,
+                             min_span: float = NEAR_BORDER_MIN_SPAN) -> bool:
+    """Check whether an orthogonal segment runs very close to a box border.
+
+    This flags "border-hugging" routes that do not enter the object but visually
+    pass through/against its outline.
+    """
+    x1, y1 = a
+    x2, y2 = b
+
+    if abs(y1 - y2) <= EPS:
+        y = y1
+        near_top = abs(y - box.y) <= clearance
+        near_bottom = abs(y - (box.y + box.height)) <= clearance
+        if not (near_top or near_bottom):
+            return False
+        seg_min = min(x1, x2)
+        seg_max = max(x1, x2)
+        overlap = min(seg_max, box.x + box.width) - max(seg_min, box.x)
+        return overlap >= min_span
+
+    if abs(x1 - x2) <= EPS:
+        x = x1
+        near_left = abs(x - box.x) <= clearance
+        near_right = abs(x - (box.x + box.width)) <= clearance
+        if not (near_left or near_right):
+            return False
+        seg_min = min(y1, y2)
+        seg_max = max(y1, y2)
+        overlap = min(seg_max, box.y + box.height) - max(seg_min, box.y)
+        return overlap >= min_span
+
+    return False
+
+
+def _edge_has_perpendicular_departure(edge: str, from_pt: Tuple[float, float], to_pt: Tuple[float, float],
+                                      entering: bool) -> bool:
+    """Require first/last visible segment to move perpendicular to the endpoint edge."""
+    dx = to_pt[0] - from_pt[0]
+    dy = to_pt[1] - from_pt[1]
+
+    if entering:
+        if edge in {"top", "bottom"}:
+            return abs(dy) > EPS
+        if edge in {"left", "right"}:
+            return abs(dx) > EPS
+        return False
+
+    if edge in {"top", "bottom"}:
+        return abs(dy) > EPS
+    if edge in {"left", "right"}:
+        return abs(dx) > EPS
+    return False
+
+
+def _connection_point_on_corner(edge: str, point_idx: int, grid) -> bool:
+    """Check if a connection point index is at a corner of its edge."""
+    if not grid:
+        return False
+    if not edge:  # Empty edge means point not assigned
+        return False
+    return grid.is_corner_point(edge, point_idx)
+
+
+def _segments_overlap_on_same_axis(seg_a: Tuple[Tuple[float, float], Tuple[float, float]],
+                                   seg_b: Tuple[Tuple[float, float], Tuple[float, float]], 
+                                   min_span: float = MIN_MINOR_OVERLAP_SPAN) -> bool:
+    """Check if two segments overlap on the same axis (not just intersect).
+    
+    Returns True if they occupy the same line with overlap length >= min_span.
+    """
+    (a1, a2), (b1, b2) = seg_a, seg_b
+    
+    # Both horizontal
+    if abs(a1[1] - a2[1]) <= EPS and abs(b1[1] - b2[1]) <= EPS:
+        if abs(a1[1] - b1[1]) > EPS:
+            return False
+        a_min, a_max = sorted([a1[0], a2[0]])
+        b_min, b_max = sorted([b1[0], b2[0]])
+        overlap = max(0.0, min(a_max, b_max) - max(a_min, b_min))
+        return overlap >= min_span
+    
+    # Both vertical
+    if abs(a1[0] - a2[0]) <= EPS and abs(b1[0] - b2[0]) <= EPS:
+        if abs(a1[0] - b1[0]) > EPS:
+            return False
+        a_min, a_max = sorted([a1[1], a2[1]])
+        b_min, b_max = sorted([b1[1], b2[1]])
+        overlap = max(0.0, min(a_max, b_max) - max(a_min, b_min))
+        return overlap >= min_span
+    
+    return False
+
+
 def _validate_connector_shapes(csv_path: Path, diagram_id: str, routing_mode: str, planner) -> List[RoutingIssue]:
     issues: List[RoutingIssue] = []
 
@@ -159,6 +260,34 @@ def _validate_connector_shapes(csv_path: Path, diagram_id: str, routing_mode: st
         segment_list = list(_iter_segments(points))
         connector_key = (connector.source_name, connector.target_name)
         connector_segments[connector_key] = segment_list
+
+        # Check for corner point usage
+        src_grid = planner.grids.get(connector.source_name)
+        tgt_grid = planner.grids.get(connector.target_name)
+        
+        if src_grid and connector.source_edge and _connection_point_on_corner(connector.source_edge, connector.source_point_idx, src_grid):
+            issues.append(RoutingIssue(
+                csv_path=str(csv_path),
+                diagram_id=diagram_id,
+                routing_mode=routing_mode,
+                issue_type="corner_usage",
+                detail=(
+                    f"{connector.source_name}->{connector.target_name} exits from corner: "
+                    f"{connector.source_edge}#{connector.source_point_idx} of {connector.source_name}"
+                ),
+            ))
+        
+        if tgt_grid and connector.target_edge and _connection_point_on_corner(connector.target_edge, connector.target_point_idx, tgt_grid):
+            issues.append(RoutingIssue(
+                csv_path=str(csv_path),
+                diagram_id=diagram_id,
+                routing_mode=routing_mode,
+                issue_type="corner_usage",
+                detail=(
+                    f"{connector.source_name}->{connector.target_name} enters corner: "
+                    f"{connector.target_edge}#{connector.target_point_idx} of {connector.target_name}"
+                ),
+            ))
 
         for idx, (a, b) in enumerate(segment_list):
             if not _is_axis_aligned(a, b):
@@ -189,6 +318,17 @@ def _validate_connector_shapes(csv_path: Path, diagram_id: str, routing_mode: st
                             f"but first segment is {points[0]} -> {points[first_idx]}"
                         ),
                     ))
+                if not _edge_has_perpendicular_departure(connector.source_edge, points[0], points[first_idx], entering=False):
+                    issues.append(RoutingIssue(
+                        csv_path=str(csv_path),
+                        diagram_id=diagram_id,
+                        routing_mode=routing_mode,
+                        issue_type="corner_like_endpoint",
+                        detail=(
+                            f"{connector.source_name}->{connector.target_name} leaves {connector.source_edge} "
+                            f"without perpendicular departure: {points[0]} -> {points[first_idx]}"
+                        ),
+                    ))
 
             prev_idx = len(points) - 2
             while prev_idx >= 0 and points[prev_idx] == points[-1]:
@@ -203,6 +343,17 @@ def _validate_connector_shapes(csv_path: Path, diagram_id: str, routing_mode: st
                         detail=(
                             f"{connector.source_name}->{connector.target_name} enters {connector.target_edge} "
                             f"but final segment is {points[prev_idx]} -> {points[-1]}"
+                        ),
+                    ))
+                if not _edge_has_perpendicular_departure(connector.target_edge, points[prev_idx], points[-1], entering=True):
+                    issues.append(RoutingIssue(
+                        csv_path=str(csv_path),
+                        diagram_id=diagram_id,
+                        routing_mode=routing_mode,
+                        issue_type="corner_like_endpoint",
+                        detail=(
+                            f"{connector.source_name}->{connector.target_name} enters {connector.target_edge} "
+                            f"without perpendicular arrival: {points[prev_idx]} -> {points[-1]}"
                         ),
                     ))
 
@@ -224,11 +375,23 @@ def _validate_connector_shapes(csv_path: Path, diagram_id: str, routing_mode: st
                             f"crosses object {obstacle_name}: {a} -> {b}"
                         ),
                     ))
+                elif _segment_near_box_border(a, b, obstacle_box):
+                    issues.append(RoutingIssue(
+                        csv_path=str(csv_path),
+                        diagram_id=diagram_id,
+                        routing_mode=routing_mode,
+                        issue_type="near_object_border",
+                        detail=(
+                            f"{connector.source_name}->{connector.target_name} segment#{idx} "
+                            f"runs too close to border of {obstacle_name}: {a} -> {b}"
+                        ),
+                    ))
 
     connector_items = sorted(connector_segments.items(), key=lambda item: item[0])
     for (conn_a, segs_a), (conn_b, segs_b) in itertools.combinations(connector_items, 2):
         for seg_a in segs_a:
             for seg_b in segs_b:
+                # Check large overlaps (existing check)
                 overlap = _segment_overlap_span(seg_a, seg_b)
                 if overlap >= MIN_OVERLAP_SPAN:
                     issues.append(RoutingIssue(
@@ -241,6 +404,21 @@ def _validate_connector_shapes(csv_path: Path, diagram_id: str, routing_mode: st
                             f"for span {overlap:.1f}px"
                         ),
                     ))
+                
+                # Check any overlap on same axis (even small ones)
+                if _segments_overlap_on_same_axis(seg_a, seg_b, min_span=MIN_MINOR_OVERLAP_SPAN):
+                    overlap = _segment_overlap_span(seg_a, seg_b)
+                    if overlap < MIN_OVERLAP_SPAN:  # Only report if not already caught above
+                        issues.append(RoutingIssue(
+                            csv_path=str(csv_path),
+                            diagram_id=diagram_id,
+                            routing_mode=routing_mode,
+                            issue_type="segment_overlap_minor",
+                            detail=(
+                                f"{conn_a[0]}->{conn_a[1]} overlaps {conn_b[0]}->{conn_b[1]} "
+                                f"for span {overlap:.1f}px on same axis"
+                            ),
+                        ))
 
     return issues
 
