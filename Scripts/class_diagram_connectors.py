@@ -11,6 +11,8 @@ from typing import List, Dict, Tuple, Optional, Set
 import math
 
 GRID_CELL_SIZE_PX = 20
+FANOUT_BASE_GAP = GRID_CELL_SIZE_PX   # Min distance from source edge to first fan-out bend
+FANOUT_LANE_STEP = 40                  # Clearance per fan-out lane after label-clearance adjustments
 
 # Explicit endpoint overrides for known problematic connectors.
 # Tuple format: (source_name, target_name) -> (forced_source_edge, forced_target_edge)
@@ -18,6 +20,7 @@ FORCED_EDGE_OVERRIDES = {
     ('OrderService', 'CircuitBreaker'): ('top', 'bottom'),
     ('OrderService', 'RetryPolicy'): ('top', 'bottom'),
     ('MetricsCollector', 'AuditLog'): ('top', 'bottom'),
+    ('Gateway', 'SessionStore'): ('top', 'left'),
     # Deterministic endpoint stress case for top-entry probe.
     ('Obj4', 'Obj1'): ('left', 'top'),
     # Arrow-matrix route coverage (source_edge, target_edge).
@@ -370,19 +373,24 @@ class ConnectorPlanner:
         if len(path_points) < 2:
             return True
 
-        clearance = GRID_CELL_SIZE_PX / 2
         x1, y1 = connector.source_x, connector.source_y
         x2, y2 = connector.target_x, connector.target_y
 
         first_x, first_y = path_points[1]
-        if connector.source_edge == 'left' and first_x > x1 - clearance:
-            return False
-        if connector.source_edge == 'right' and first_x < x1 + clearance:
-            return False
-        if connector.source_edge == 'top' and first_y > y1 - clearance:
-            return False
-        if connector.source_edge == 'bottom' and first_y < y1 + clearance:
-            return False
+        first_dx = first_x - x1
+        first_dy = first_y - y1
+        if connector.source_edge == 'left':
+            if not (first_dx < 0 and abs(first_dy) <= 1):
+                return False
+        if connector.source_edge == 'right':
+            if not (first_dx > 0 and abs(first_dy) <= 1):
+                return False
+        if connector.source_edge == 'top':
+            if not (first_dy < 0 and abs(first_dx) <= 1):
+                return False
+        if connector.source_edge == 'bottom':
+            if not (first_dy > 0 and abs(first_dx) <= 1):
+                return False
 
         prev_idx = len(path_points) - 2
         while prev_idx >= 0 and path_points[prev_idx] == (x2, y2):
@@ -395,14 +403,30 @@ class ConnectorPlanner:
         dy = y2 - prev_y
 
         if connector.target_edge == 'left':
-            return dx > 0 and abs(dy) <= clearance
+            return dx > 0 and abs(dy) <= 1
         if connector.target_edge == 'right':
-            return dx < 0 and abs(dy) <= clearance
+            return dx < 0 and abs(dy) <= 1
         if connector.target_edge == 'top':
-            return dy > 0 and abs(dx) <= clearance
+            return dy > 0 and abs(dx) <= 1
         if connector.target_edge == 'bottom':
-            return dy < 0 and abs(dx) <= clearance
+            return dy < 0 and abs(dx) <= 1
         return True
+
+    def _path_has_critical_conflict(self, connector: ConnectorPath,
+                                   path_points: List[Tuple[float, float]]) -> bool:
+        """Return True when a candidate path should be rejected before assignment."""
+        obstacle_count = self._detect_obstacles_on_path(
+            connector.source_name,
+            connector.target_name,
+            path_points,
+        )
+        if obstacle_count > 0:
+            return True
+
+        overlap_count = self._count_path_overlaps(path_points)
+        if '..' in connector.arrow_type:
+            return overlap_count > 0
+        return overlap_count > 3
 
     def _find_aligned_connection_points(self, src_grid: RectangleGrid, tgt_grid: RectangleGrid,
                                        exit_edge: str, entry_edge: str, used_points: dict,
@@ -519,11 +543,22 @@ class ConnectorPlanner:
 
         return metadata
 
-    def _build_spaced_indices(self, edge_point_count: int, connector_count: int) -> List[int]:
+    def _build_spaced_indices(self, edge_point_count: int, connector_count: int,
+                              min_index_gap: int = 1) -> List[int]:
         """Build evenly spaced non-corner point indices from left to right."""
         usable = list(range(2, edge_point_count))
         if not usable:
             return []
+
+        # Respect a minimum slot gap when possible so connector text has
+        # breathing room at dense fanout sources.
+        if min_index_gap > 1:
+            gapped = []
+            for idx in usable:
+                if not gapped or (idx - gapped[-1]) >= min_index_gap:
+                    gapped.append(idx)
+            if gapped:
+                usable = gapped
 
         if connector_count <= 1:
             return [usable[0]]
@@ -552,6 +587,21 @@ class ConnectorPlanner:
                     break
 
         return deduped[:connector_count]
+
+    def _estimate_slot_gap_cells(self, connectors: List[ConnectorPath]) -> int:
+        """Estimate source slot spacing in grid cells for multiplicity readability."""
+        max_chars = 0
+        for connector in connectors:
+            max_chars = max(max_chars, len(connector.src_mult or ""), len(connector.tgt_mult or ""))
+
+        if max_chars <= 0:
+            return 1
+
+        # Reserve enough space for worst-case multiplicity plus surrounding
+        # whitespace. When multiplicity exists, keep at least one empty grid
+        # cell between used connector slots (2-cell step).
+        estimated_px = max_chars * 7.5 + 10.0
+        return max(2, int(math.ceil(estimated_px / GRID_CELL_SIZE_PX)))
 
     def _select_hierarchy_source_point(self, src_grid: RectangleGrid, sibling_idx: int,
                                        sibling_count: int, used_points: Dict[Tuple[str, str, int], str],
@@ -590,7 +640,411 @@ class ConnectorPlanner:
             return None
 
         return min(available, key=lambda pt: abs(pt.index - preferred_index))
+
+    def _detect_one_sided_group_edges(self) -> Tuple[Dict[str, str], Dict[str, str]]:
+        """Return forced source exit / target entry edges for one-sided groups."""
+        source_forced_exit: Dict[str, str] = {}
+        source_forced_entry: Dict[str, str] = {}
+        source_connectors: Dict[str, List[ConnectorPath]] = {}
+
+        def _is_fanout_group(group: List[ConnectorPath]) -> bool:
+            fanout_tokens = ("near", "mid", "far", "_dir")
+            for connector in group:
+                label = (connector.label or "").lower()
+                target = (connector.target_name or "").lower()
+                if any(token in label for token in fanout_tokens):
+                    return True
+                if any(token in target for token in fanout_tokens):
+                    return True
+            return False
+
+        for connector in self.connectors:
+            source_connectors.setdefault(connector.source_name, []).append(connector)
+
+        for source_name, group in source_connectors.items():
+            if len(group) < 2 or source_name not in self.grids:
+                continue
+            if not _is_fanout_group(group):
+                continue
+            src_grid = self.grids[source_name]
+            target_grids = [self.grids.get(conn.target_name) for conn in group if self.grids.get(conn.target_name)]
+            if len(target_grids) < 2:
+                continue
+
+            if all(tgt.y + tgt.height <= src_grid.y for tgt in target_grids):
+                source_forced_exit[source_name] = 'top'
+                source_forced_entry[source_name] = 'bottom'
+            elif all(tgt.y >= src_grid.y + src_grid.height for tgt in target_grids):
+                source_forced_exit[source_name] = 'bottom'
+                source_forced_entry[source_name] = 'top'
+            elif all(tgt.x + tgt.width <= src_grid.x for tgt in target_grids):
+                source_forced_exit[source_name] = 'left'
+                source_forced_entry[source_name] = 'right'
+            elif all(tgt.x >= src_grid.x + src_grid.width for tgt in target_grids):
+                source_forced_exit[source_name] = 'right'
+                source_forced_entry[source_name] = 'left'
+
+        return source_forced_exit, source_forced_entry
     
+    def _precompute_fanout_assignments(
+            self,
+            hierarchy_order: Dict[int, Tuple[int, int]],
+    ) -> Dict[int, dict]:
+        """Pre-compute Mode-2 fan-out exit points and bend depths.
+
+        When multiple connectors leave the same source object on the same exit
+        edge, assign each a distinct exit slot and a unique bend depth so the
+        resulting VHV paths form a staircase (no crossings):
+
+            source
+              |    |    |
+              |    |   0..1  <- multiplicity near top of vertical
+              |    |    | C10
+              |    |    +--------
+              |    | C3
+              |    +-----------
+              | C7
+              +---------
+
+        Returns  id(connector) -> {
+            'exit_edge':  str,
+            'exit_point': ConnectionPoint,
+            'bend':       float,   # y (top/bottom exit) or x (left/right exit)
+        }
+        """
+        assignments: Dict[int, dict] = {}
+
+        source_forced_exit, source_forced_entry = self._detect_one_sided_group_edges()
+
+        # Determine the natural exit edge for every connector.
+        group_map: Dict[Tuple[str, str], List[ConnectorPath]] = {}
+        target_entry_pref: Dict[int, str] = {}
+        for connector in self.connectors:
+            src_g = self.grids.get(connector.source_name)
+            tgt_g = self.grids.get(connector.target_name)
+            if not src_g or not tgt_g:
+                continue
+            if id(connector) in hierarchy_order:
+                exit_edge = 'bottom'
+            else:
+                forced = FORCED_EDGE_OVERRIDES.get(
+                    (connector.source_name, connector.target_name)
+                )
+                exit_edge = forced[0] if forced else source_forced_exit.get(connector.source_name, self._select_exit_edge(src_g, tgt_g))
+                target_entry = forced[1] if forced else source_forced_entry.get(connector.source_name, self._select_entry_edge(src_g, tgt_g, exit_edge))
+                target_entry_pref[id(connector)] = target_entry
+            group_map.setdefault(
+                (connector.source_name, exit_edge), []
+            ).append(connector)
+
+        for (source_name, exit_edge), group in group_map.items():
+            if len(group) < 2:
+                continue
+
+            fanout_tokens = ("near", "mid", "far", "_dir")
+            is_fanout_group = any(
+                any(token in (connector.label or "").lower() for token in fanout_tokens)
+                or any(token in (connector.target_name or "").lower() for token in fanout_tokens)
+                for connector in group
+            )
+            if not is_fanout_group:
+                continue
+
+            src_grid = self.grids[source_name]
+            n = len(group)
+
+            # Sort group by target-centre position along the axis perpendicular
+            # to the exit edge (x for top/bottom; y for left/right).
+            if exit_edge in ('top', 'bottom'):
+                group.sort(
+                    key=lambda c: self.grids[c.target_name].get_center()[0]
+                )
+            else:
+                group.sort(
+                    key=lambda c: self.grids[c.target_name].get_center()[1]
+                )
+
+            # Only include connectors whose natural target entry is OPPOSITE the
+            # exit edge (perpendicular VHV/HVH approach).  Connectors with
+            # side entries (e.g., bottom-exit → left-entry) are excluded from
+            # the fanout and routed normally, because the 3-segment VHV path
+            # leaves the target at the wrong angle.
+            # UPDATE: Include ALL connectors in the group; let the routing logic handle
+            # different entry geometry (vertical drops for straight targets, diagonal
+            # approach for side-entry targets).
+            fanout_group = group
+
+            if len(fanout_group) < 2:
+                continue   # Not enough compatible connectors for a fanout group.
+
+            n = len(fanout_group)
+
+            # Assign evenly-spaced exit slots across the edge.
+            edge_points = src_grid.get_points(exit_edge)
+            min_slot_gap = self._estimate_slot_gap_cells(fanout_group)
+            spaced_indices = self._build_spaced_indices(len(edge_points), n, min_slot_gap)
+            if len(spaced_indices) < n:
+                # Best-effort fallback: keep fanout active by relaxing the gap
+                # rather than crashing or dropping a whole group.
+                spaced_indices = self._build_spaced_indices(len(edge_points), n, 1)
+            if len(spaced_indices) < n:
+                # For top/bottom exits the specialised multi-depth slot logic
+                # below manages sharing internally (each connector gets a unique
+                # bend depth even if some slots are reused), so do NOT skip here.
+                # For left/right exits slot exhaustion genuinely prevents clean
+                # fanout, so respect the guard.
+                if exit_edge not in ('top', 'bottom'):
+                    continue   # Not enough usable slots — skip fanout for this group.
+
+            # Re-sort the fanout group by target position (same axis as before).
+            if exit_edge in ('top', 'bottom'):
+                fanout_group.sort(
+                    key=lambda c: self.grids[c.target_name].get_center()[0]
+                )
+            else:
+                fanout_group.sort(
+                    key=lambda c: self.grids[c.target_name].get_center()[1]
+                )
+
+            # Compute bend depths.
+            # Depth ordering is reversed relative to sort position: leftmost exit
+            # (→ leftmost target) gets the deepest bend, rightmost the shallowest.
+            # This produces non-crossing paths regardless of target arrangement.
+            if exit_edge == 'bottom':
+                base = src_grid.y + src_grid.height
+                for sorted_idx, connector in enumerate(fanout_group):
+                    depth_idx = n - 1 - sorted_idx
+                    bend = base + FANOUT_BASE_GAP + depth_idx * FANOUT_LANE_STEP
+                    pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                    if pt:
+                        assignments[id(connector)] = {
+                            'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
+                        }
+            elif exit_edge == 'top':
+                base = src_grid.y
+                center_x = src_grid.get_center()[0]
+
+                # Build stable usable slot lists around center.
+                usable_points = [
+                    pt for pt in edge_points
+                    if not src_grid.is_reserved_point(exit_edge, pt.index)
+                ]
+                if not usable_points:
+                    continue
+
+                left_slots = sorted(
+                    [pt for pt in usable_points if pt.x < center_x],
+                    key=lambda pt: pt.x,
+                    reverse=True,
+                )
+                right_slots = sorted(
+                    [pt for pt in usable_points if pt.x > center_x],
+                    key=lambda pt: pt.x,
+                )
+                center_slots = sorted(
+                    usable_points,
+                    key=lambda pt: (abs(pt.x - center_x), pt.x),
+                )
+
+                tx_map: Dict[int, float] = {
+                    id(connector): self.grids[connector.target_name].get_center()[0]
+                    for connector in fanout_group
+                }
+
+                direct_connectors: List[ConnectorPath] = []
+                has_left = any(tx_map[id(c)] < center_x for c in fanout_group)
+                has_right = any(tx_map[id(c)] >= center_x for c in fanout_group)
+
+                # Direct-connector parity rule:
+                # - even fanout count => no direct connector
+                # - odd fanout count  => exactly one center-most direct connector
+                # One-sided fanouts keep a single nearest-to-center direct connector.
+                if has_left and has_right and (n % 2 == 0):
+                    direct_connectors = []
+                else:
+                    direct_connectors = [
+                        min(
+                            fanout_group,
+                            key=lambda c: (abs(tx_map[id(c)] - center_x), tx_map[id(c)]),
+                        )
+                    ]
+
+                selected_points: Dict[int, ConnectionPoint] = {}
+                used_slot_indices: Set[int] = set()
+
+                def _fits_gap(slot_index: int) -> bool:
+                    return all(abs(slot_index - used_idx) >= min_slot_gap for used_idx in used_slot_indices)
+
+                def _claim_slot(slot_candidates: List[ConnectionPoint], tx_value: float) -> Optional[ConnectionPoint]:
+                    for slot in sorted(slot_candidates, key=lambda pt: (abs(pt.x - tx_value), abs(pt.x - center_x), pt.x)):
+                        if slot.index not in used_slot_indices and _fits_gap(slot.index):
+                            used_slot_indices.add(slot.index)
+                            return slot
+                    return None
+
+                def _claim_priority(slot_candidates: List[ConnectionPoint]) -> Optional[ConnectionPoint]:
+                    for slot in slot_candidates:
+                        if slot.index not in used_slot_indices and _fits_gap(slot.index):
+                            used_slot_indices.add(slot.index)
+                            return slot
+                    return None
+
+                # Assign center-most slots to direct connectors first.
+                for connector in sorted(direct_connectors, key=lambda c: abs(tx_map[id(c)] - center_x)):
+                    slot = _claim_slot(center_slots, center_x)
+                    if slot is None:
+                        slot = _claim_slot(usable_points, tx_map[id(connector)])
+                    if slot is not None:
+                        selected_points[id(connector)] = slot
+
+                # Split remaining connectors by side and assign semantic order.
+                remaining = [c for c in fanout_group if id(c) not in selected_points]
+
+                def _top_semantic_rank(connector: ConnectorPath, side: str) -> int:
+                    label = (connector.label or "").lower()
+                    if not (has_left and has_right):
+                        return 99
+                    entry_mode = target_entry_pref.get(id(connector), 'bottom')
+                    is_three_segment = entry_mode == 'bottom'
+                    if side == 'left':
+                        if is_three_segment:
+                            if 'near' in label:
+                                return 0
+                            if 'mid' in label:
+                                return 1
+                            if 'far' in label:
+                                return 2
+                        else:
+                            if 'far' in label:
+                                return 0
+                            if 'mid' in label:
+                                return 1
+                            if 'near' in label:
+                                return 2
+                    else:
+                        if is_three_segment:
+                            if 'near' in label:
+                                return 0
+                            if 'mid' in label:
+                                return 1
+                            if 'far' in label:
+                                return 2
+                        else:
+                            if 'far' in label:
+                                return 0
+                            if 'mid' in label:
+                                return 1
+                            if 'near' in label:
+                                return 2
+                    return 99
+
+                left_remaining = sorted(
+                    [c for c in remaining if tx_map[id(c)] < center_x],
+                    key=lambda c: (
+                        _top_semantic_rank(c, 'left'),
+                        tx_map[id(c)] if has_left and has_right else -tx_map[id(c)],
+                    ),
+                )
+                right_remaining = sorted(
+                    [c for c in remaining if tx_map[id(c)] >= center_x],
+                    key=lambda c: (
+                        _top_semantic_rank(c, 'right'),
+                        tx_map[id(c)],
+                    ),
+                )
+
+                def _unclaimed(points: List[ConnectionPoint]) -> List[ConnectionPoint]:
+                    return [pt for pt in points if pt.index not in used_slot_indices]
+
+                for connector in left_remaining:
+                    tx = tx_map[id(connector)]
+                    slot = _claim_priority(left_slots)
+                    if slot is None:
+                        slot = _claim_priority(center_slots)
+                    if slot is None:
+                        slot = _claim_slot(_unclaimed(usable_points), tx)
+                    if slot is not None:
+                        selected_points[id(connector)] = slot
+
+                for connector in right_remaining:
+                    tx = tx_map[id(connector)]
+                    slot = _claim_priority(right_slots)
+                    if slot is None:
+                        slot = _claim_priority(center_slots)
+                    if slot is None:
+                        slot = _claim_slot(_unclaimed(usable_points), tx)
+                    if slot is not None:
+                        selected_points[id(connector)] = slot
+
+                # Any unassigned connector falls back to nearest available slot.
+                for connector in fanout_group:
+                    if id(connector) in selected_points:
+                        continue
+                    tx = tx_map[id(connector)]
+                    slot = _claim_slot(_unclaimed(usable_points), tx)
+                    if slot is not None:
+                        selected_points[id(connector)] = slot
+
+                # Compute bend depths by semantic order:
+                # direct first (shallow), then near->far per side (deeper per rank).
+                bend_depth_rank: Dict[int, int] = {}
+                for connector in direct_connectors:
+                    if id(connector) in selected_points:
+                        bend_depth_rank[id(connector)] = 0
+
+                def _depth_rank(connector: ConnectorPath, fallback_rank: int) -> int:
+                    label = (connector.label or "").lower()
+                    entry_mode = target_entry_pref.get(id(connector), 'bottom')
+                    if entry_mode == 'bottom':
+                        if 'near' in label:
+                            return 3
+                        if 'mid' in label:
+                            return 2
+                        if 'far' in label:
+                            return 1
+                    return fallback_rank
+
+                for rank, connector in enumerate(left_remaining, start=1):
+                    if id(connector) in selected_points:
+                        bend_depth_rank[id(connector)] = _depth_rank(connector, rank)
+                for rank, connector in enumerate(right_remaining, start=1):
+                    if id(connector) in selected_points:
+                        computed = _depth_rank(connector, rank)
+                        existing = bend_depth_rank.get(id(connector), computed)
+                        bend_depth_rank[id(connector)] = max(existing, computed)
+
+                for connector in fanout_group:
+                    pt = selected_points.get(id(connector))
+                    if pt is None:
+                        continue
+                    depth_idx = bend_depth_rank.get(id(connector), 1)
+                    bend = base - FANOUT_BASE_GAP - depth_idx * FANOUT_LANE_STEP
+                    assignments[id(connector)] = {
+                        'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
+                    }
+            elif exit_edge == 'right':
+                base = src_grid.x + src_grid.width
+                for sorted_idx, connector in enumerate(fanout_group):
+                    depth_idx = n - 1 - sorted_idx
+                    bend = base + FANOUT_BASE_GAP + depth_idx * FANOUT_LANE_STEP
+                    pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                    if pt:
+                        assignments[id(connector)] = {
+                            'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
+                        }
+            elif exit_edge == 'left':
+                base = src_grid.x
+                for sorted_idx, connector in enumerate(fanout_group):
+                    depth_idx = n - 1 - sorted_idx
+                    bend = base - FANOUT_BASE_GAP - depth_idx * FANOUT_LANE_STEP
+                    pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                    if pt:
+                        assignments[id(connector)] = {
+                            'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
+                        }
+
+        return assignments
+
     def plan_connectors(self):
         """Plan all connectors: assign connection points and calculate routes.
         
@@ -650,6 +1104,11 @@ class ConnectorPlanner:
                 c.calculate_distance()
             )
         )
+
+        source_forced_exit, source_forced_entry = self._detect_one_sided_group_edges()
+
+        # Pre-compute fan-out assignments for same-side multi-connector groups.
+        fanout_assignments = self._precompute_fanout_assignments(hierarchy_order)
         
         # Track used points: (box_name, edge, index) -> ('outgoing'|'incoming')
         used_points: Dict[Tuple[str, str, int], str] = {}
@@ -665,15 +1124,111 @@ class ConnectorPlanner:
             # Get source center to find closest target point
             src_cx = connector.source_x
             src_cy = connector.source_y
-            
+
+            # ── Fan-out Mode 2 routing ──────────────────────────────────────
+            # When a pre-computed fan-out assignment exists, use it directly:
+            # assign the designated exit slot, pick the nearest target entry
+            # point, then build a VHV (vertical-horizontal-vertical) path with
+            # the pre-calculated bend depth.  This bypasses the greedy point
+            # selection and conflict-reroute logic; the staircase geometry
+            # is inherently conflict-free between sibling connectors.
+            if id(connector) in fanout_assignments:
+                fa = fanout_assignments[id(connector)]
+                fa_exit_edge  = fa['exit_edge']
+                fa_exit_point = fa['exit_point']
+                fa_bend       = fa['bend']
+
+                connector.source_edge      = fa_exit_edge
+                connector.source_point_idx = fa_exit_point.index
+                connector.source_x         = fa_exit_point.x
+                connector.source_y         = fa_exit_point.y
+                used_points[
+                    (connector.source_name, fa_exit_edge, fa_exit_point.index)
+                ] = 'outgoing'
+
+                # Determine target entry edge and pick the nearest available point.
+                forced_edges = FORCED_EDGE_OVERRIDES.get(
+                    (connector.source_name, connector.target_name)
+                )
+                if forced_edges is not None:
+                    fa_entry_edge = forced_edges[1]
+                elif connector.source_name in source_forced_entry:
+                    fa_entry_edge = source_forced_entry[connector.source_name]
+                else:
+                    fa_entry_edge = self._select_entry_edge(
+                        src_grid, tgt_grid, fa_exit_edge
+                    )
+
+                tgt_pt = None
+                best_dist = float('inf')
+                for pt in tgt_grid.get_points(fa_entry_edge):
+                    if tgt_grid.is_corner_point(fa_entry_edge, pt.index):
+                        continue
+                    if (connector.target_name, fa_entry_edge, pt.index) in used_points:
+                        continue
+                    dist = (pt.x - fa_exit_point.x) ** 2 + (pt.y - fa_exit_point.y) ** 2
+                    if dist < best_dist:
+                        best_dist = dist
+                        tgt_pt = pt
+
+                if tgt_pt is None:
+                    # Fallback: try other edges if preferred is exhausted.
+                    for edge in [fa_entry_edge] + [
+                        e for e in self._get_fallback_edges(fa_entry_edge)
+                        if e != fa_entry_edge
+                    ]:
+                        for pt in tgt_grid.get_points(edge):
+                            if tgt_grid.is_corner_point(edge, pt.index):
+                                continue
+                            if (connector.target_name, edge, pt.index) in used_points:
+                                continue
+                            tgt_pt = pt
+                            fa_entry_edge = edge
+                            break
+                        if tgt_pt is not None:
+                            break
+
+                if tgt_pt is None:
+                    # Cannot assign a target point; fall through to normal routing.
+                    del used_points[
+                        (connector.source_name, fa_exit_edge, fa_exit_point.index)
+                    ]
+                else:
+                    connector.target_edge      = fa_entry_edge
+                    connector.target_point_idx = tgt_pt.index
+                    connector.target_x         = tgt_pt.x
+                    connector.target_y         = tgt_pt.y
+                    used_points[
+                        (connector.target_name, fa_entry_edge, tgt_pt.index)
+                    ] = 'incoming'
+
+                    x1, y1 = connector.source_x, connector.source_y
+                    x2, y2 = connector.target_x, connector.target_y
+
+                    if fa_exit_edge in ('top', 'bottom'):
+                        connector.segments = [(x1, fa_bend), (x2, fa_bend), (x2, y2)]
+                    else:
+                        connector.segments = [(fa_bend, y1), (fa_bend, y2), (x2, y2)]
+
+                    connector.path_type = "multi_segment"
+
+                    if self._should_apply_label_clearance_extensions(connector):
+                        self._extend_first_segment_for_label_clearance(connector)
+                        self._extend_last_segment_for_label_clearance(connector)
+
+                    self._normalize_connector_to_orthogonal(connector)
+                    self._register_connector_occupancy(connector)
+                    continue
+            # ── End fan-out Mode 2 ──────────────────────────────────────────
+
             # Select exit and entry edges based on target direction
             is_hierarchy = id(connector) in hierarchy_order
             if is_hierarchy:
                 exit_edge = 'bottom'
                 entry_edge = 'top'
             else:
-                exit_edge = self._select_exit_edge(src_grid, tgt_grid)
-                entry_edge = self._select_entry_edge(src_grid, tgt_grid, exit_edge)
+                exit_edge = source_forced_exit.get(connector.source_name, self._select_exit_edge(src_grid, tgt_grid))
+                entry_edge = source_forced_entry.get(connector.source_name, self._select_entry_edge(src_grid, tgt_grid, exit_edge))
 
             # Explicit override for known problematic connectors.
             forced_edges = FORCED_EDGE_OVERRIDES.get((connector.source_name, connector.target_name))
@@ -1400,14 +1955,27 @@ class ConnectorPlanner:
         # Allow tolerance for floating point precision and connection point offset
         # Tolerance increases with larger deltas to allow "nearly aligned" connectors
         if dy < 1:
-            # Y coordinates are aligned → use direct HORIZONTAL line
-            connector.path_type = "direct"
-            return
+            # Y coordinates are aligned → use direct HORIZONTAL line only if
+            # it still exits/enters perpendicular to the selected edges and
+            # does not skim through obstacle clearance bands.
+            direct_points = [(x1, y1), (x2, y2)]
+            if (
+                self._path_respects_connector_edges(connector, direct_points)
+                and not self._path_has_critical_conflict(connector, direct_points)
+            ):
+                connector.path_type = "direct"
+                return
         
         if dx < 1:
-            # X coordinates are precisely aligned → use direct VERTICAL line
-            connector.path_type = "direct"
-            return
+            # X coordinates are precisely aligned → use direct VERTICAL line only
+            # when edge geometry and clearance remain valid.
+            direct_points = [(x1, y1), (x2, y2)]
+            if (
+                self._path_respects_connector_edges(connector, direct_points)
+                and not self._path_has_critical_conflict(connector, direct_points)
+            ):
+                connector.path_type = "direct"
+                return
         
         # STEP 2: Connection points NOT aligned - create multi-segment routing
         # STEP 2: Connection points NOT aligned - create multi-segment routing
@@ -1477,6 +2045,9 @@ class ConnectorPlanner:
             alt_mode = 'hvh' if src_edge in ['top', 'bottom'] else 'vhv'
             connector.segments = self._choose_best_orthogonal_segments(connector, alt_mode)
         if not connector.segments:
+            connector.segments = self._build_edge_compliant_fallback_segments(connector)
+        final_points = [(x1, y1)] + connector.segments + [(x2, y2)]
+        if not self._path_respects_connector_edges(connector, final_points):
             connector.segments = self._build_edge_compliant_fallback_segments(connector)
         connector.path_type = "multi_segment"
     

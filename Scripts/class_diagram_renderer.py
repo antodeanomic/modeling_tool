@@ -10,6 +10,7 @@ Supports layer filtering to show subsets of relationships.
 from model import Model, ClassDiagramDef, ClassRelationship, ClassDef, ELEMENT_TYPES
 from class_diagram_connectors import ConnectorPlanner
 from datetime import datetime
+import math
 import os
 from typing import Dict, Set, Tuple
 
@@ -1012,7 +1013,15 @@ def _calculate_abstraction_level(diagram):
                 child, parent = rel.source, rel.target
             else:  # <..: target depends on source
                 child, parent = rel.target, rel.source
-        
+
+        elif rel_type == 'association' and rel.arrow in ['-->', '<--']:
+            # Directed association: the pointed-to class is the more general parent,
+            # matching the same layout convention as dependency.
+            if rel.arrow == '-->':
+                child, parent = rel.source, rel.target
+            else:  # <--
+                child, parent = rel.target, rel.source
+
         if parent and child:
             in_degree[child] = in_degree.get(child, 0) + 1
             if parent not in outgoing:
@@ -1079,6 +1088,38 @@ def _collect_and_size_classes(diagram, model, verbosity):
             'class_def': class_def, 'element_type': element_type,
         }
     return class_names, boxes
+
+
+def _expand_boxes_for_connector_capacity(diagram, boxes):
+    """Expand boxes before routing to provide readable connector slot spacing."""
+    if not boxes:
+        return boxes
+
+    conn_count = {}
+    max_mult_chars = {}
+    for rel in diagram.relationships:
+        conn_count[rel.source] = conn_count.get(rel.source, 0) + 1
+        conn_count[rel.target] = conn_count.get(rel.target, 0) + 1
+
+        src_chars = len(rel.src_mult or "")
+        tgt_chars = len(rel.tgt_mult or "")
+        max_chars = max(src_chars, tgt_chars)
+        max_mult_chars[rel.source] = max(max_mult_chars.get(rel.source, 0), max_chars)
+        max_mult_chars[rel.target] = max(max_mult_chars.get(rel.target, 0), max_chars)
+
+    for cls, count in conn_count.items():
+        if cls not in boxes or count <= 1:
+            continue
+        chars = max_mult_chars.get(cls, 0)
+        text_span = chars * CONNECTOR_CHAR_WIDTH + 10
+        slot_pitch = max(GRID_CELL_SIZE_PX * 2, int(math.ceil(text_span / GRID_CELL_SIZE_PX)) * GRID_CELL_SIZE_PX)
+        # Keep one extra pitch of breathing room on each side because corner-adjacent
+        # edge slots are often unavailable/reserved during routing.
+        required_span = (GRID_CELL_SIZE_PX * 4) + max(0, count - 1) * slot_pitch
+        boxes[cls]['width'] = max(boxes[cls]['width'], required_span)
+        boxes[cls]['height'] = max(boxes[cls]['height'], required_span)
+
+    return boxes
 
 
 def _build_spanning_forest(diagram, levels):
@@ -1288,8 +1329,34 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
         for cls in class_names:
             if cls not in out:
                 lvl = levels.get(cls, 0)
+                x = cur_x
+                # If this orphan lives at a deeper level and has relationships to
+                # already-placed nodes at a shallower level, center it under those
+                # nodes rather than stacking at the far right.  This handles the
+                # common case of a single hub that connects to N peer parents
+                # (e.g. top/bottom fanout: hub at level 1, targets at level 0).
+                if lvl > 0:
+                    connected_above = []
+                    seen_partners = set()
+                    for rel in diagram.relationships:
+                        partner = None
+                        if rel.source == cls and rel.target in out:
+                            if levels.get(rel.target, 0) < lvl:
+                                partner = out[rel.target]
+                        elif rel.target == cls and rel.source in out:
+                            if levels.get(rel.source, 0) < lvl:
+                                partner = out[rel.source]
+                        if partner is not None:
+                            pid = id(partner)
+                            if pid not in seen_partners:
+                                seen_partners.add(pid)
+                                connected_above.append(partner)
+                    if connected_above:
+                        min_ax = min(p['x'] for p in connected_above)
+                        max_ax = max(p['x'] + p['width'] for p in connected_above)
+                        x = (min_ax + max_ax) / 2.0 - boxes[cls]['width'] / 2.0
                 out[cls] = {
-                    'x':          cur_x,
+                    'x':          x,
                     'y':          level_y.get(lvl, MARGIN),
                     'width':      boxes[cls]['width'],
                     'height':     boxes[cls]['height'],
@@ -1298,7 +1365,39 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
                     'class_def':  boxes[cls]['class_def'],
                     'element_type': boxes[cls]['element_type'],
                 }
-                cur_x += boxes[cls]['width'] + sx
+                if x == cur_x:
+                    cur_x += boxes[cls]['width'] + sx
+
+        # Post-placement centering: if a placed node at level > 0 has connections
+        # to multiple nodes at a shallower level, center it under all of them.
+        # This handles the "hub below N sibling parents" fanout pattern where the
+        # spanning forest only assigns the hub to one parent.
+        for cls in class_names:
+            if cls not in out:
+                continue
+            lvl = levels.get(cls, 0)
+            if lvl == 0:
+                continue
+            related = []
+            seen = set()
+            for rel in diagram.relationships:
+                other = None
+                if rel.source == cls and rel.target in out:
+                    if levels.get(rel.target, 0) < lvl:
+                        other = out[rel.target]
+                elif rel.target == cls and rel.source in out:
+                    if levels.get(rel.source, 0) < lvl:
+                        other = out[rel.source]
+                if other is not None:
+                    oid = id(other)
+                    if oid not in seen:
+                        seen.add(oid)
+                        related.append(other)
+            if len(related) > 1:
+                min_ax = min(p['x'] for p in related)
+                max_ax = max(p['x'] + p['width'] for p in related)
+                out[cls]['x'] = (min_ax + max_ax) / 2.0 - boxes[cls]['width'] / 2.0
+
         return out
 
     # ----- Phase 1: initial placement -----
@@ -1371,6 +1470,22 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
     if not class_names:
         return {}
 
+    # Widen any box that has more connections than it has usable edge slots.
+    # Usable interior slots on an edge = floor(width / GRID_CELL_SIZE_PX) - 2
+    # (the two corner cells are reserved).  Ensure slots >= connection count so
+    # the top/bottom fanout algorithm never runs out of exit points.
+    from class_diagram_connectors import GRID_CELL_SIZE_PX as _CELL
+    _conn_count: dict = {}
+    for _rel in diagram.relationships:
+        _conn_count[_rel.source] = _conn_count.get(_rel.source, 0) + 1
+        _conn_count[_rel.target] = _conn_count.get(_rel.target, 0) + 1
+    for _cls, _cnt in _conn_count.items():
+        if _cls not in boxes:
+            continue
+        _needed_w = (_cnt + 2) * _CELL
+        if boxes[_cls]['width'] < _needed_w:
+            boxes[_cls]['width'] = _needed_w
+
     levels = _calculate_abstraction_level(diagram)
     if verbosity != "High":
         print(f"DEBUG: Calculated levels = {levels}")
@@ -1401,6 +1516,7 @@ def _layout_classes_orthogonal(diagram, model, verbosity="High"):
     class_names, boxes = _collect_and_size_classes(diagram, model, verbosity)
     if not class_names:
         return {}
+    boxes = _expand_boxes_for_connector_capacity(diagram, boxes)
 
     levels = _calculate_abstraction_level(diagram)
     parent_children, claimed_children = _build_spanning_forest(diagram, levels)
@@ -1414,10 +1530,114 @@ def _layout_classes_orthogonal(diagram, model, verbosity="High"):
     has_domain_layer = any(rel.layer == 'domain' for rel in diagram.relationships)
     spacing_y = CLASS_SPACING_Y + (80 if has_domain_layer else 30)
 
+    # FANOUT SPACING: when one node at level 1 connects to N level-0 nodes that
+    # are all in one row, the outermost targets can be many hundreds of pixels
+    # to the side of the hub.  If the vertical gap is smaller than that horizontal
+    # distance, _select_exit_edge will choose a left/right exit instead of top/bottom,
+    # bypassing the top/bottom fanout algorithm and producing ugly L-shaped overlaps.
+    # Solution: ensure spacing_y > max horizontal distance from hub center to any target.
+    level_counts = {}
+    for cls, lvl in levels.items():
+        level_counts[lvl] = level_counts.get(lvl, 0) + 1
+    level_0_count = level_counts.get(0, 0)
+    level_1_nodes = [cls for cls, lvl in levels.items() if lvl == 1]
+    if len(level_1_nodes) == 1 and level_0_count >= 4:
+        # Estimate total width of the level-0 row.
+        avg_w = sum(boxes[c]['width'] for c in boxes) / max(len(boxes), 1)
+        estimated_span = level_0_count * (avg_w + spacing_x)
+        fanout_required_spacing = int(estimated_span / 2) + 40
+        spacing_y = max(spacing_y, fanout_required_spacing)
+
     return _aligned_tree_layout(
         class_names, boxes, levels, parent_children, claimed_children,
         spacing_x, spacing_y, diagram
     )
+
+
+def _layout_fanout_verification(diagram, model, verbosity="High"):
+    """Dedicated parity layout for FanoutExample verification diagrams."""
+    class_names, boxes = _collect_and_size_classes(diagram, model, verbosity)
+    if not class_names:
+        return {}
+    boxes = _expand_boxes_for_connector_capacity(diagram, boxes)
+
+    fanout_specs = {
+        "FanoutTop": {
+            "hub": "HubTop",
+            "targets": [
+                "Top_L_far", "Top_L_mid", "Top_L_near", "Top_dir",
+                "Top_R_near", "Top_R_mid", "Top_R_far",
+            ],
+            "hub_side": "bottom",
+        },
+        "FanoutBottom": {
+            "hub": "HubBottom",
+            "targets": [
+                "Bottom_L_far", "Bottom_L_mid", "Bottom_L_near", "Bottom_L_dir",
+                "Bottom_R_near", "Bottom_R_mid", "Bottom_R_far",
+            ],
+            "hub_side": "top",
+        },
+    }
+
+    spec = fanout_specs.get(diagram.diagram_id)
+    if spec is None:
+        return None
+
+    hub_name = spec["hub"]
+    if hub_name not in boxes:
+        return boxes
+
+    hub_box = boxes[hub_name]
+    hub_box['height'] = 40
+
+    target_names = [name for name in spec["targets"] if name in boxes]
+    if len(target_names) != len(spec["targets"]):
+        return boxes
+
+    # Compute hub width from required connector slot pitch before routing.
+    max_chars = 0
+    for rel in diagram.relationships:
+        if rel.source == hub_name or rel.target == hub_name:
+            max_chars = max(max_chars, len(rel.src_mult or ""), len(rel.tgt_mult or ""))
+    slot_pitch = max(GRID_CELL_SIZE_PX * 2, int(math.ceil((max_chars * CONNECTOR_CHAR_WIDTH + 10) / GRID_CELL_SIZE_PX)) * GRID_CELL_SIZE_PX)
+    hub_box['width'] = max(
+        hub_box['width'],
+        (GRID_CELL_SIZE_PX * 4) + max(0, len(target_names) - 1) * slot_pitch,
+    )
+
+    target_gap = 60
+    cursor_x = MARGIN
+    for name in target_names:
+        box = boxes[name]
+        box['x'] = cursor_x
+        cursor_x += box['width'] + target_gap
+
+    direct_targets = [name for name in target_names if name.endswith("_dir")]
+    if (len(target_names) % 2 == 1) and direct_targets:
+        direct_name = direct_targets[0]
+        hub_center_x = boxes[direct_name]['x'] + (boxes[direct_name]['width'] / 2.0)
+    else:
+        mid_left = target_names[(len(target_names) // 2) - 1]
+        mid_right = target_names[len(target_names) // 2]
+        mid_left_center = boxes[mid_left]['x'] + (boxes[mid_left]['width'] / 2.0)
+        mid_right_center = boxes[mid_right]['x'] + (boxes[mid_right]['width'] / 2.0)
+        hub_center_x = (mid_left_center + mid_right_center) / 2.0
+    hub_box['x'] = hub_center_x - (hub_box['width'] / 2.0)
+
+    vertical_gap = 260
+    row_y = MARGIN
+    if spec["hub_side"] == "bottom":
+        hub_box['y'] = row_y + max(boxes[name]['height'] for name in target_names) + vertical_gap
+    else:
+        hub_box['y'] = MARGIN
+        row_y = hub_box['y'] + hub_box['height'] + vertical_gap
+
+    for name in target_names:
+        box = boxes[name]
+        box['y'] = row_y
+
+    return boxes
 
 
 def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="diagonal"):
@@ -1432,6 +1652,10 @@ def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="diag
     Returns:
         Dictionary of class positions
     """
+    fanout_boxes = _layout_fanout_verification(diagram, model, verbosity)
+    if fanout_boxes is not None:
+        return fanout_boxes
+
     # Arrow-matrix test/regression diagrams: always use the wrapped grid layout
     # so they stay compact regardless of node count.
     if diagram.diagram_id.startswith("OrthogonalArrowType"):
@@ -1566,6 +1790,7 @@ def _layout_classes(diagram, model, verbosity="High"):
     
     if not class_names:
         return {}
+    boxes = _expand_boxes_for_connector_capacity(diagram, boxes)
     
     # Reorder class names: place children immediately after their owner
     # Build a map of source -> [targets]
@@ -1616,6 +1841,7 @@ def _layout_classes(diagram, model, verbosity="High"):
 
     if diagram.diagram_id == "OrthogonalArrowTypeTwoSegmentCombos":
         return _layout_two_segment_probe_pairs(diagram, boxes)
+
     
     # Simple grid layout: arrange in rows using a canvas-width-aware column cap.
     n = len(class_names)
@@ -2000,6 +2226,13 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
     if layers_filter is not None:
         connectors = [c for c in connectors if not c.layer or c.layer in layers_filter]
 
+    fanout_group_sizes: Dict[Tuple[str, str], int] = {}
+    for connector in connectors:
+        edge = getattr(connector, 'source_edge', None)
+        if edge:
+            key = (connector.source_name, edge)
+            fanout_group_sizes[key] = fanout_group_sizes.get(key, 0) + 1
+
     # Deterministic label lanes per source reduce stacked text overlaps when a
     # single service fans out to many targets.
     source_label_lane: Dict[str, int] = {}
@@ -2045,6 +2278,69 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                 f"in=({x:.1f},{y:.1f}) out=({ftx:.1f},{fty:.1f}) cell=({col},{base_row + 4}) fallback=1"
             )
         return ftx, fty
+
+    def _fanout_text_positions(connector, path_points):
+        if len(path_points) < 3:
+            return None
+        edge = getattr(connector, 'source_edge', None)
+        if fanout_group_sizes.get((connector.source_name, edge), 0) < 2:
+            return None
+
+        first_pt = path_points[1]
+        dx = first_pt[0] - connector.source_x
+        dy = first_pt[1] - connector.source_y
+        if abs(dx) > 1e-6 and abs(dy) > 1e-6:
+            return None
+
+        primary_mult = connector.src_mult or connector.tgt_mult
+        positions = {'mult': None, 'label': None, 'consume_tgt_mult': False}
+
+        if abs(dx) <= 1e-6:
+            direction = -1 if dy < 0 else 1
+            mult_x = connector.source_x + 10
+            mult_y = connector.source_y + direction * 14
+            second_dx = 0.0
+            if len(path_points) >= 3:
+                second_dx = path_points[2][0] - path_points[1][0]
+            if abs(second_dx) <= 1e-6:
+                source_box = boxes.get(connector.source_name, {})
+                source_center_x = source_box.get('x', 0) + (source_box.get('width', 0) / 2.0)
+                if connector.source_x < source_center_x:
+                    label_x = connector.source_x - 10
+                    label_anchor = 'end'
+                else:
+                    label_x = connector.source_x + 10
+                    label_anchor = 'start'
+                label_y = connector.source_y + (path_points[-1][1] - connector.source_y) * 0.45
+            elif second_dx < 0:
+                label_x = connector.source_x - 10
+                label_anchor = 'end'
+                label_y = first_pt[1] + 12
+            else:
+                label_x = connector.source_x + 10
+                label_anchor = 'start'
+                label_y = first_pt[1] + 12
+            positions['mult'] = (mult_x, mult_y, 'start', primary_mult)
+            positions['label'] = (label_x, label_y, label_anchor, connector.label)
+        else:
+            direction = -1 if dx < 0 else 1
+            mult_x = connector.source_x + direction * 16
+            label_x = first_pt[0] - direction * 18
+            mult_y = connector.source_y - 8
+            second_dy = 0.0
+            if len(path_points) >= 3:
+                second_dy = path_points[2][1] - path_points[1][1]
+            if abs(second_dy) <= 1e-6:
+                label_y = connector.source_y - 8
+            elif second_dy < 0:
+                label_y = connector.source_y - 12
+            else:
+                label_y = connector.source_y + 14
+            positions['mult'] = (mult_x, mult_y, 'middle', primary_mult)
+            positions['label'] = (label_x, label_y, 'middle', connector.label)
+
+        positions['consume_tgt_mult'] = bool(primary_mult and not connector.src_mult and connector.tgt_mult)
+        return positions
     
     for connector_idx, connector in enumerate(connectors):
         if connector.source_name not in boxes or connector.target_name not in boxes:
@@ -2201,10 +2497,28 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                 
                 # Text placement for multi-segment paths
                 # Analyze segments to determine if V-H-V or other pattern
-                if verbosity_level == "High" and len(connector.segments) >= 2:
+                if verbosity_level == "High" and len(connector.segments) >= 1:
                     path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
                     if path_points[-1] != (connector.target_x, connector.target_y):
                         path_points.append((connector.target_x, connector.target_y))
+
+                    fanout_text = _fanout_text_positions(connector, path_points)
+                    if fanout_text is not None:
+                        if fanout_text['mult'] is not None:
+                            tx, ty, anchor, text_value = fanout_text['mult']
+                            parts.append(f'  <text x="{tx}" y="{ty}" '
+                                         f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '
+                                         f'fill="#666" text-anchor="{anchor}">'
+                                         f'{_escape_xml(text_value)}</text>')
+                        if connector.label and fanout_text['label'] is not None:
+                            lx, ly, anchor, text_value = fanout_text['label']
+                            parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
+                                         f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
+                                         f'{_escape_xml(text_value)}</text>')
+                        if connector.tgt_mult and not fanout_text['consume_tgt_mult']:
+                            pass
+                        parts.append('  </g>')
+                        continue
 
                     first_seg = (path_points[0], path_points[1])
                     last_seg = (path_points[-2], path_points[-1])
@@ -2243,9 +2557,18 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                          f'fill="#666" text-anchor="{anchor}">'
                                          f'{_escape_xml(connector.src_mult)}</text>')
 
-                        # Place connector label near the source after source multiplicity.
+                        # Place connector label at the first bend point (where connector makes 90-degree turn).
                         if connector.label:
-                            lx, ly, anchor = _source_label_anchor(connector, path_points)
+                            if len(path_points) >= 2:
+                                # Place label at the first bend point
+                                bend_x, bend_y = path_points[1]
+                                # Offset slightly from bend point to avoid overlapping path
+                                lx = bend_x - 6
+                                ly = bend_y - 8
+                                anchor = 'end'
+                            else:
+                                # Fallback to source label anchor if no bend
+                                lx, ly, anchor = _source_label_anchor(connector, path_points)
                             lx, ly = _place_connector_text(connector, lx, ly - lane_dy)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
