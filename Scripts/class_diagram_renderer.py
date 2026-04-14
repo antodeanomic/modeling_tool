@@ -3287,7 +3287,14 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
             boxes, planner, verbosity_level
         )
 
-    canvas_width = int(max_x_content + MARGIN)
+    title_text = diagram.description or diagram.diagram_id
+    title_font_size = 16
+    # Keep enough horizontal room for centered title text so it never clips
+    # when content bounds are narrower than the heading.
+    title_char_width = CHAR_WIDTH * (title_font_size / FONT_SIZE)
+    title_required_width = int(len(title_text) * title_char_width * 1.10 + 48)
+
+    canvas_width = int(max(max_x_content + MARGIN, title_required_width))
     canvas_height = int(max(max_y_content + MARGIN, title_band_height + 40))
     
     # Assign colors to boxes (needed for marker generation)
@@ -3303,7 +3310,6 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     lines.append(f'  <rect width="{canvas_width}" height="{canvas_height}" fill="white"/>')
 
     # Title
-    title_text = diagram.description or diagram.diagram_id
     lines.append(f'  <text x="{canvas_width / 2}" y="{title_text_y}" font-family="{FONT_FAMILY}" '
                  f'font-size="16" font-weight="bold" text-anchor="middle" fill="#333">'
                  f'{_escape_xml(title_text)}</text>')
