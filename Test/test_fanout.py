@@ -629,6 +629,62 @@ def _validate_multiconnector_connector4_text_and_mult(context):
     )
 
 
+def _validate_multiconnector_no_foreign_box_pass_through(context):
+    planner = _build_csv_planner("test_multiconnector_rightangle.csv", "MultiConnectorTest")
+
+    box_map = {
+        name: {
+            'x': grid.x,
+            'y': grid.y,
+            'width': grid.width,
+            'height': grid.height,
+        }
+        for name, grid in planner.grids.items()
+    }
+
+    for connector in planner.connectors:
+        if connector.source_name != "CentralHub" or connector.source_edge != "bottom":
+            continue
+        segments = _connector_segments(connector)
+        for seg in segments:
+            for box_name, box in box_map.items():
+                if box_name in (connector.source_name, connector.target_name):
+                    continue
+                _assert(
+                    not _segment_intersects_box(seg, box),
+                    (
+                        f"FAIL [{context}] {connector.source_name}->{connector.target_name} segment {seg} "
+                        f"passes through foreign box {box_name}={box}"
+                    ),
+                )
+
+
+def _validate_multiconnector_no_collinear_overlap(context):
+    planner = _build_csv_planner("test_multiconnector_rightangle.csv", "MultiConnectorTest")
+    central = [
+        c for c in planner.connectors
+        if c.source_name == "CentralHub" and c.source_edge == "bottom"
+    ]
+
+    for idx, a in enumerate(central):
+        segs_a = _connector_segments(a)
+        for b in central[idx + 1:]:
+            segs_b = _connector_segments(b)
+            overlaps = [
+                (sa, sb)
+                for sa in segs_a
+                for sb in segs_b
+                if _segments_overlap_collinear(sa, sb)
+            ]
+            _assert(
+                not overlaps,
+                (
+                    f"FAIL [{context}] collinear overlap between {a.target_name} and {b.target_name}: "
+                    f"overlaps={overlaps}"
+                ),
+            )
+
+
 def _assert_all_targets_on_side(boxes, hub_name, target_names, side, context):
     hub = boxes[hub_name]
     hub_left = hub['x']
@@ -1290,6 +1346,16 @@ def run_test() -> int:
             "multiconnector connector4 text and multiplicity",
             lambda: None,
             lambda _p: _validate_multiconnector_connector4_text_and_mult("multiconnector connector4 text and multiplicity"),
+        ),
+        (
+            "multiconnector no foreign box pass-through",
+            lambda: None,
+            lambda _p: _validate_multiconnector_no_foreign_box_pass_through("multiconnector no foreign box pass-through"),
+        ),
+        (
+            "multiconnector no collinear overlap",
+            lambda: None,
+            lambda _p: _validate_multiconnector_no_collinear_overlap("multiconnector no collinear overlap"),
         ),
     ]
 
