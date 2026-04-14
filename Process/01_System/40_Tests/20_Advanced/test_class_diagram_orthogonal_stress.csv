@@ -47,7 +47,7 @@ Class;NotificationEvent;Notification payload
 Class;AuditEvent;Audit payload
 Class;TraceContext;Correlation and trace identifiers
 
-ClassDiagram;OrthogonalStressDense;Dense right-angle routing stress test;routing=orthogonal
+ClassDiagram;OrthogonalStressDense;Dense right-angle routing stress test
     Gateway;AuthService;-->;1;1;auth;core
     Gateway;UserService;-->;1;1;profile;core
     Gateway;OrderService;-->;1;1;orders;core

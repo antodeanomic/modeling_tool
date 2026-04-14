@@ -39,7 +39,7 @@ ClassDiagram;CalculatorDiagonalArchitecture;Calculator architecture with diagona
     User;Keypad;-->;1;1;reads
     Keypad;Display;..>;;;notifies
 
-ClassDiagram;CalculatorOrthogonalArchitecture;Calculator architecture with orthogonal connectors;routing=orthogonal
+ClassDiagram;CalculatorOrthogonalArchitecture;Calculator architecture with orthogonal connectors
     User;Display;-->;1;1;updates
     User;Keypad;-->;1;1;reads
     Keypad;Display;..>;;;notifies

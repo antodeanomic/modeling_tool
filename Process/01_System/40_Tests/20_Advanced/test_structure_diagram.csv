@@ -24,7 +24,7 @@ ClassDiagram;BasicRelationships;Basic class relationships
     Cache;Logger;..>;;;logs;infrastructure
 
 # Orthogonal routing diagram
-ClassDiagram;OrthogonalLayout;Orthogonal connector routing;;routing=orthogonal
+ClassDiagram;OrthogonalLayout;Orthogonal connector routing;
     WebApp;Database;-->;1;1;uses
     WebApp;Cache;◇--;1;1;has
     Database;Logger;..>;;;logs

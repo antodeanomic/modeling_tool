@@ -28,7 +28,7 @@ Class;AR2_T13;Arrow 2-segment target 13
 Class;AR2_S14;Arrow 2-segment source 14
 Class;AR2_T14;Arrow 2-segment target 14
 
-ClassDiagram;OrthogonalArrowTypeTwoSegmentCombos;All arrow types as two-segment orthogonal route probes;routing=orthogonal;elements=AR2_S01:object,AR2_T01:object,AR2_S02:object,AR2_T02:object,AR2_S03:object,AR2_T03:object,AR2_S04:object,AR2_T04:object,AR2_S05:object,AR2_T05:object,AR2_S06:object,AR2_T06:object,AR2_S07:object,AR2_T07:object,AR2_S08:object,AR2_T08:object,AR2_S09:object,AR2_T09:object,AR2_S10:object,AR2_T10:object,AR2_S11:object,AR2_T11:object,AR2_S12:object,AR2_T12:object,AR2_S13:object,AR2_T13:object,AR2_S14:object,AR2_T14:object
+ClassDiagram;OrthogonalArrowTypeTwoSegmentCombos;All arrow types as two-segment orthogonal route probes;elements=AR2_S01:object,AR2_T01:object,AR2_S02:object,AR2_T02:object,AR2_S03:object,AR2_T03:object,AR2_S04:object,AR2_T04:object,AR2_S05:object,AR2_T05:object,AR2_S06:object,AR2_T06:object,AR2_S07:object,AR2_T07:object,AR2_S08:object,AR2_T08:object,AR2_S09:object,AR2_T09:object,AR2_S10:object,AR2_T10:object,AR2_S11:object,AR2_T11:object,AR2_S12:object,AR2_T12:object,AR2_S13:object,AR2_T13:object,AR2_S14:object,AR2_T14:object
 
     # 14 UML arrow syntaxes, intended for 2-segment orthogonal route checks.
     AR2_S01;AR2_T01;--;1;0..*;two_seg_l_t_assoc;arrow

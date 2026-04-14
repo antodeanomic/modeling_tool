@@ -3194,7 +3194,6 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     if layers_filter is not None:
         filtered_rels = [r for r in diagram.relationships if not r.layer or r.layer in layers_filter]
         # Create a temporary diagram with filtered relationships
-        from model import ClassDiagramDef
         filtered_diagram = ClassDiagramDef(
             diagram_id=diagram.diagram_id,
             description=diagram.description,
@@ -3208,9 +3207,45 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     if not filtered_diagram.relationships:
         return _empty_svg(diagram.description or diagram.diagram_id)
     
-    # Layout class boxes using routing-aware positioning
-    # Orthogonal routing uses grid-aligned layout, diagonal uses tree-based layout
-    effective_routing = "orthogonal"
+    def _auto_select_routing(diagram_def: ClassDiagramDef) -> str:
+        rels = diagram_def.relationships
+        if not rels:
+            return "orthogonal"
+
+        source_counts: Dict[str, int] = {}
+        has_text_or_multiplicity = False
+        has_dependency = False
+        has_structural = False
+
+        for rel in rels:
+            source_counts[rel.source] = source_counts.get(rel.source, 0) + 1
+            if rel.src_mult or rel.tgt_mult or rel.label:
+                has_text_or_multiplicity = True
+            if '..' in (rel.arrow or ''):
+                has_dependency = True
+            else:
+                has_structural = True
+
+        has_fanout = any(count >= 3 for count in source_counts.values())
+
+        # Fanout and dense labelled diagrams are easier to read with
+        # right-angle routing and dedicated lane spacing.
+        if has_fanout or has_text_or_multiplicity or len(rels) >= 4:
+            return "orthogonal"
+
+        # Pure lightweight dependency maps stay cleaner with diagonals.
+        if has_dependency and not has_structural:
+            return "diagonal"
+
+        return "diagonal"
+
+    configured_routing = (filtered_diagram.routing or "").strip().lower()
+    if configured_routing in ("diagonal", "orthogonal", "mixed"):
+        effective_routing = configured_routing
+    else:
+        effective_routing = _auto_select_routing(filtered_diagram)
+
+    # Layout class boxes using routing-aware positioning.
     boxes = _layout_classes_uml_standard(filtered_diagram, model, verbosity_level, routing=effective_routing)
     
     if not boxes:

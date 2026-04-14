@@ -260,11 +260,21 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
         return model  # Skip circular include
     _included_paths.add(abs_path)
 
-    with open(path, newline="", encoding="utf-8") as f:
+    with open(path, newline="", encoding="utf-8-sig") as f:
         reader = csv.reader(f, delimiter=';')
-        header = next(reader, None)
+        first_row = next(reader, None)
 
-        for row in reader:
+        def _row_stream():
+            if first_row is not None:
+                first_type = clean(first_row[0]) if len(first_row) > 0 else ""
+                first_name = clean(first_row[1]) if len(first_row) > 1 else ""
+                has_header = first_type == "Type" and first_name == "Name"
+                if not has_header:
+                    yield first_row
+            for r in reader:
+                yield r
+
+        for row in _row_stream():
             if not row or not clean(row[0]):
                 continue
 
@@ -333,16 +343,16 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
 
                 elif type_name == "ClassDiagram":
                     # Parse optional parameters from remaining columns
-                    routing = "diagonal"
+                    routing = "auto"
                     element_types = {}
                     parent_diagram, child_diagrams = parse_diagram_relationship_params(row, 3)
                     for col_idx in range(3, len(row)):
                         param = clean(row[col_idx])
                         if param.startswith("routing="):
-                            routing = param.split("=", 1)[1].strip()
+                            routing = param.split("=", 1)[1].strip().lower()
                             if routing not in ROUTING_MODES:
-                                model.warnings.append(f"Unknown routing mode '{routing}', using 'diagonal'")
-                                routing = "diagonal"
+                                model.warnings.append(f"Unknown routing mode '{routing}', using 'auto'")
+                                routing = "auto"
                         elif param.startswith("element_type="):
                             # Format: element_type=Name:type,Name:type
                             pairs = param.split("=", 1)[1].strip()

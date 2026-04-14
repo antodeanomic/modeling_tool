@@ -5,7 +5,7 @@ Include;svg_renderer.csv;Import renderer functions
 Include;web_server.csv;Import server classes
 Include;test_framework.csv;Import test framework
 Include;utilities.csv;Import utility classes
-ClassDiagram;DataModelRelationships;Relationships between model dataclasses;routing=orthogonal
+ClassDiagram;DataModelRelationships;Relationships between model dataclasses
     Model;ClassDef;◇--;1;0.*;contains
     Model;SequenceDef;◇--;1;0.*;contains
     Model;ClassDiagramDef;◇--;1;0.*;contains

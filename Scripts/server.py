@@ -414,9 +414,11 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 class_diagram = model.get_class_diagram(diagram_id)
                 if not class_diagram:
                     raise ValueError(f"Class diagram '{diagram_id}' not found")
-                
-                # Temporary policy: class diagrams are orthogonal-only.
-                class_diagram.routing = 'orthogonal'
+
+                if routing:
+                    routing_value = routing.strip().lower()
+                    if routing_value in ('auto', 'diagonal', 'orthogonal', 'mixed'):
+                        class_diagram.routing = routing_value
                 
                 # Handle layers filter: if 'lanes' parameter is present (even if empty),
                 # treat it as an explicit filter. If absent, show all.
