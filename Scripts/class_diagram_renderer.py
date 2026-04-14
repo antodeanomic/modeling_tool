@@ -2424,18 +2424,34 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     is_vertical_dominant = dy > dx
                     
                     if is_vertical_dominant:
+                        dense_bottom_group = (
+                            getattr(connector, 'source_edge', None) == 'bottom' and
+                            fanout_group_sizes.get((connector.source_name, 'bottom'), 0) >= 3
+                        )
+
                         # Nearly vertical: text to the right
-                        if connector.src_mult:
+                        source_side_mult = connector.src_mult
+                        if dense_bottom_group and not source_side_mult and connector.tgt_mult:
+                            source_side_mult = connector.tgt_mult
+
+                        if source_side_mult:
                             mx = connector.source_x + 8
-                            my = connector.source_y + (connector.target_y - connector.source_y) * 0.2
+                            if dense_bottom_group:
+                                my = connector.source_y + 14
+                            else:
+                                my = connector.source_y + (connector.target_y - connector.source_y) * 0.2
                             mx, my = _nudge_text_outside_boxes(mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="start">'
-                                         f'{_escape_xml(connector.src_mult)}</text>')
+                                         f'{_escape_xml(source_side_mult)}</text>')
                         
                         if connector.label:
-                            mx = connector.source_x + 8
-                            my = (connector.source_y + connector.target_y) / 2
+                            if dense_bottom_group:
+                                mx = connector.target_x + 8
+                                my = connector.target_y - 24 + lane_dy
+                            else:
+                                mx = connector.source_x + 8
+                                my = (connector.source_y + connector.target_y) / 2
                             mx, my = _nudge_text_outside_boxes(mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="start">'
@@ -2443,7 +2459,10 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         
                         if connector.tgt_mult:
                             mx = connector.target_x + 8
-                            my = connector.target_y + (connector.source_y - connector.target_y) * 0.2
+                            if dense_bottom_group:
+                                my = connector.target_y - 10
+                            else:
+                                my = connector.target_y + (connector.source_y - connector.target_y) * 0.2
                             mx, my = _nudge_text_outside_boxes(mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
                                          f'font-size="11" fill="#666" text-anchor="start">'

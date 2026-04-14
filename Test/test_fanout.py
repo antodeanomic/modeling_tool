@@ -349,6 +349,286 @@ def _build_csv_fanout_planner(diagram_id):
     return planner
 
 
+def _build_csv_planner(csv_filename, diagram_id):
+    model = parse_csv(os.path.join(REPO_ROOT, "Test", "tests", csv_filename))
+    diagram = next(d for d in model.class_diagrams if d.diagram_id == diagram_id)
+    boxes = _layout_classes_uml_standard(diagram, model, "High", routing="orthogonal")
+    planner = ConnectorPlanner(routing_mode="orthogonal")
+    for name, box in boxes.items():
+        planner.add_rectangle(name, box['x'], box['y'], box['width'], box['height'])
+    for rel in diagram.relationships:
+        planner.add_connector(rel.source, rel.target, rel.arrow, rel.src_mult, rel.tgt_mult, rel.label, rel.layer)
+    planner.plan_connectors()
+    return planner
+
+
+def _first_segment_length(connector):
+    pts = _path_points(connector)
+    for idx in range(len(pts) - 1):
+        x1, y1 = pts[idx]
+        x2, y2 = pts[idx + 1]
+        dx = x2 - x1
+        dy = y2 - y1
+        if abs(dx) <= 1e-6 and abs(dy) <= 1e-6:
+            continue
+        return math.hypot(dx, dy)
+    return 0.0
+
+
+def _validate_multiconnector_top_right_staircase(context):
+    planner = _build_csv_planner("test_multiconnector_rightangle.csv", "MultiConnectorTest")
+    hub_center_x = planner.grids["CentralHub"].get_center()[0]
+
+    candidates = []
+    for connector in planner.connectors:
+        if connector.source_name != "CentralHub" or connector.source_edge != "top":
+            continue
+        target_center_x = planner.grids[connector.target_name].get_center()[0]
+        if target_center_x < hub_center_x:
+            continue
+        candidates.append(connector)
+
+    _assert(
+        len(candidates) == 4,
+        f"FAIL [{context}] expected 4 top-right connectors from CentralHub, got {len(candidates)}",
+    )
+
+    ordered = sorted(candidates, key=lambda c: c.source_x, reverse=True)
+    lengths = [(_first_segment_length(connector), connector.target_name, connector.source_x) for connector in ordered]
+
+    # One-sided top-right fanout must staircase from near->far:
+    # near connector has the shortest first segment, and each farther connector
+    # uses a longer first segment to avoid crossing horizontal trunks.
+    for idx in range(len(lengths) - 1):
+        curr_len = lengths[idx][0]
+        next_len = lengths[idx + 1][0]
+        _assert(
+            curr_len < next_len,
+            (
+                f"FAIL [{context}] expected near->far first-segment lengths to be strictly increasing; "
+                f"got {lengths}"
+            ),
+        )
+
+
+def _validate_multiconnector_bottom_right_staircase(context):
+    planner = _build_csv_planner("test_multiconnector_rightangle.csv", "MultiConnectorTest")
+    hub_center_x = planner.grids["CentralHub"].get_center()[0]
+
+    candidates = []
+    for connector in planner.connectors:
+        if connector.source_name != "CentralHub" or connector.source_edge != "bottom":
+            continue
+        target_center_x = planner.grids[connector.target_name].get_center()[0]
+        if target_center_x <= hub_center_x:
+            continue
+        candidates.append(connector)
+
+    _assert(
+        len(candidates) == 3,
+        f"FAIL [{context}] expected 3 bottom-right connectors from CentralHub, got {len(candidates)}",
+    )
+
+    ordered = sorted(candidates, key=lambda c: c.source_x, reverse=True)
+    lengths = [(_first_segment_length(connector), connector.target_name, connector.source_x) for connector in ordered]
+
+    # For bottom-right fanout the right-most source slot must take the
+    # shortest first drop, then each farther slot goes deeper.
+    for idx in range(len(lengths) - 1):
+        curr_len = lengths[idx][0]
+        next_len = lengths[idx + 1][0]
+        _assert(
+            curr_len < next_len,
+            (
+                f"FAIL [{context}] expected right-most->left-most first-segment lengths to be strictly increasing; "
+                f"got {lengths}"
+            ),
+        )
+
+
+def _validate_multiconnector_bottom_label_order(context):
+    model = parse_csv(os.path.join(REPO_ROOT, "Test", "tests", "test_multiconnector_rightangle.csv"))
+    diagram = next(d for d in model.class_diagrams if d.diagram_id == "MultiConnectorTest")
+    svg = render_class_diagram_svg(model, diagram, verbosity_level="High")
+    root = ET.fromstring(svg)
+    ns = {'svg': 'http://www.w3.org/2000/svg'}
+
+    label_y = {}
+    for group in root.findall('.//svg:g[@class="cls-connector"]', ns):
+        if group.get('data-source') != 'CentralHub':
+            continue
+        target_name = group.get('data-target')
+        for text_elem in group.findall('svg:text', ns):
+            if text_elem.get('font-style') == 'italic':
+                label_y[target_name] = float(text_elem.get('y'))
+
+    _assert('Target4' in label_y and 'Target5' in label_y, f"FAIL [{context}] missing labels for Target4/Target5")
+    _assert(
+        label_y['Target4'] > label_y['Target5'],
+        (
+            f"FAIL [{context}] Connector 4 label must be below Connector 5 label in dense bottom fanout; "
+            f"got Target4_y={label_y['Target4']}, Target5_y={label_y['Target5']}"
+        ),
+    )
+
+
+def _connector_segments(connector):
+    pts = _path_points(connector)
+    segments = []
+    for idx in range(len(pts) - 1):
+        p1 = pts[idx]
+        p2 = pts[idx + 1]
+        if abs(p1[0] - p2[0]) <= 1e-6 and abs(p1[1] - p2[1]) <= 1e-6:
+            continue
+        segments.append((p1, p2))
+    return segments
+
+
+def _segment_intersects_box(seg, box):
+    (x1, y1), (x2, y2) = seg
+    left = box['x']
+    right = box['x'] + box['width']
+    top = box['y']
+    bottom = box['y'] + box['height']
+
+    if abs(x1 - x2) <= 1e-6:
+        x = x1
+        if x < left or x > right:
+            return False
+        seg_top = min(y1, y2)
+        seg_bottom = max(y1, y2)
+        return min(seg_bottom, bottom) - max(seg_top, top) > 1e-6
+
+    if abs(y1 - y2) <= 1e-6:
+        y = y1
+        if y < top or y > bottom:
+            return False
+        seg_left = min(x1, x2)
+        seg_right = max(x1, x2)
+        return min(seg_right, right) - max(seg_left, left) > 1e-6
+
+    return False
+
+
+def _segments_overlap_collinear(seg_a, seg_b):
+    (ax1, ay1), (ax2, ay2) = seg_a
+    (bx1, by1), (bx2, by2) = seg_b
+
+    a_vertical = abs(ax1 - ax2) <= 1e-6
+    b_vertical = abs(bx1 - bx2) <= 1e-6
+    if a_vertical != b_vertical:
+        return False
+
+    if a_vertical:
+        if abs(ax1 - bx1) > 1e-6:
+            return False
+        a_top, a_bottom = sorted((ay1, ay2))
+        b_top, b_bottom = sorted((by1, by2))
+        return min(a_bottom, b_bottom) - max(a_top, b_top) > 1e-6
+
+    if abs(ay1 - by1) > 1e-6:
+        return False
+    a_left, a_right = sorted((ax1, ax2))
+    b_left, b_right = sorted((bx1, bx2))
+    return min(a_right, b_right) - max(a_left, b_left) > 1e-6
+
+
+def _validate_multiconnector_bottom_connector9_geometry(context):
+    planner = _build_csv_planner("test_multiconnector_rightangle.csv", "MultiConnectorTest")
+    connector_map = {(c.source_name, c.target_name): c for c in planner.connectors}
+    c9 = connector_map[("CentralHub", "Target9")]
+    c5 = connector_map[("CentralHub", "Target5")]
+
+    segs9 = _connector_segments(c9)
+    segs5 = _connector_segments(c5)
+
+    _assert(
+        len(segs9) >= 4,
+        f"FAIL [{context}] Connector 9 must be a 4+ segment path, got {len(segs9)} segments: {_path_points(c9)}",
+    )
+
+    target5 = planner.grids["Target5"]
+    target5_box = {
+        'x': target5.x,
+        'y': target5.y,
+        'width': target5.width,
+        'height': target5.height,
+    }
+
+    _assert(
+        not any(_segment_intersects_box(seg, target5_box) for seg in segs9),
+        f"FAIL [{context}] Connector 9 path intersects Target5 box: {_path_points(c9)} vs box={target5_box}",
+    )
+
+    _assert(
+        not any(_segments_overlap_collinear(a, b) for a in segs9 for b in segs5),
+        (
+            f"FAIL [{context}] Connector 9 overlaps Connector 5 on a collinear segment; "
+            f"c9={_path_points(c9)} c5={_path_points(c5)}"
+        ),
+    )
+
+    # First horizontal run must be above Target5 (drop occurs before reaching Target5's vertical span).
+    pts9 = _path_points(c9)
+    first_horizontal_y = None
+    for idx in range(len(pts9) - 1):
+        (x1, y1), (x2, y2) = pts9[idx], pts9[idx + 1]
+        if abs(y1 - y2) <= 1e-6 and abs(x1 - x2) > 1e-6:
+            first_horizontal_y = y1
+            break
+    _assert(first_horizontal_y is not None, f"FAIL [{context}] Connector 9 missing first horizontal segment")
+    _assert(
+        first_horizontal_y < target5.y,
+        (
+            f"FAIL [{context}] Connector 9 first horizontal must run before Target5 (above its top); "
+            f"first_horizontal_y={first_horizontal_y}, target5_top={target5.y}"
+        ),
+    )
+
+
+def _validate_multiconnector_connector4_text_and_mult(context):
+    model = parse_csv(os.path.join(REPO_ROOT, "Test", "tests", "test_multiconnector_rightangle.csv"))
+    diagram = next(d for d in model.class_diagrams if d.diagram_id == "MultiConnectorTest")
+    svg = render_class_diagram_svg(model, diagram, verbosity_level="High")
+    root = ET.fromstring(svg)
+    ns = {'svg': 'http://www.w3.org/2000/svg'}
+
+    label_y = None
+    mult_positions = []
+    for group in root.findall('.//svg:g[@class="cls-connector"]', ns):
+        if group.get('data-source') != 'CentralHub' or group.get('data-target') != 'Target4':
+            continue
+        for text_elem in group.findall('svg:text', ns):
+            txt = (text_elem.text or '').strip()
+            if text_elem.get('font-style') == 'italic' and txt == 'Connector 4':
+                label_y = float(text_elem.get('y'))
+            if txt == '1':
+                mult_positions.append((float(text_elem.get('x')), float(text_elem.get('y'))))
+
+    _assert(label_y is not None, f"FAIL [{context}] missing Connector 4 label")
+    _assert(
+        len(mult_positions) >= 2,
+        f"FAIL [{context}] expected Connector 4 multiplicity at both source and target areas, got {mult_positions}",
+    )
+
+    # Ensure one multiplicity is near source (CentralHub bottom) and one near target (Target4 top).
+    source_y = 284.0
+    target_y = 429.0
+    near_source = [pos for pos in mult_positions if abs(pos[1] - source_y) <= 24.0]
+    near_target = [pos for pos in mult_positions if abs(pos[1] - target_y) <= 36.0]
+    _assert(near_source, f"FAIL [{context}] missing source-side multiplicity for Connector 4: {mult_positions}")
+    _assert(near_target, f"FAIL [{context}] missing target-side multiplicity for Connector 4: {mult_positions}")
+
+    target_mult_y = min(near_target, key=lambda pos: abs(pos[1] - target_y))[1]
+    _assert(
+        label_y < target_mult_y,
+        (
+            f"FAIL [{context}] Connector 4 label must be above the target-side multiplicity; "
+            f"label_y={label_y}, target_mult_y={target_mult_y}"
+        ),
+    )
+
+
 def _assert_all_targets_on_side(boxes, hub_name, target_names, side, context):
     hub = boxes[hub_name]
     hub_left = hub['x']
@@ -985,6 +1265,31 @@ def run_test() -> int:
             "csv bottom fanout target edges",
             lambda: None,
             lambda _p: _validate_csv_target_edge("FanoutBottom", "top", "csv bottom fanout target edges"),
+        ),
+        (
+            "multiconnector top-right staircase",
+            lambda: None,
+            lambda _p: _validate_multiconnector_top_right_staircase("multiconnector top-right staircase"),
+        ),
+        (
+            "multiconnector bottom-right staircase",
+            lambda: None,
+            lambda _p: _validate_multiconnector_bottom_right_staircase("multiconnector bottom-right staircase"),
+        ),
+        (
+            "multiconnector bottom label order",
+            lambda: None,
+            lambda _p: _validate_multiconnector_bottom_label_order("multiconnector bottom label order"),
+        ),
+        (
+            "multiconnector connector9 geometry",
+            lambda: None,
+            lambda _p: _validate_multiconnector_bottom_connector9_geometry("multiconnector connector9 geometry"),
+        ),
+        (
+            "multiconnector connector4 text and multiplicity",
+            lambda: None,
+            lambda _p: _validate_multiconnector_connector4_text_and_mult("multiconnector connector4 text and multiplicity"),
         ),
     ]
 

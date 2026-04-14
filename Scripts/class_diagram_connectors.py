@@ -742,11 +742,14 @@ class ConnectorPlanner:
                 continue
 
             fanout_tokens = ("near", "mid", "far", "_dir")
-            is_fanout_group = any(
+            semantic_fanout_group = any(
                 any(token in (connector.label or "").lower() for token in fanout_tokens)
                 or any(token in (connector.target_name or "").lower() for token in fanout_tokens)
                 for connector in group
             )
+            # Also treat dense same-edge groups as fanout even when labels are
+            # generic (e.g., "Connector 1..N").
+            is_fanout_group = semantic_fanout_group or (len(group) >= 4)
             if not is_fanout_group:
                 continue
 
@@ -1018,6 +1021,16 @@ class ConnectorPlanner:
                     for connector in fanout_group
                 }
 
+                semantic_direct_connectors: List[ConnectorPath] = [
+                    connector for connector in fanout_group
+                    if ('dir' in (connector.label or '').lower()) or ('_dir' in (connector.target_name or '').lower())
+                ]
+                has_semantic_fanout_tokens = any(
+                    any(token in (connector.label or '').lower() for token in ('near', 'mid', 'far', 'dir'))
+                    or any(token in (connector.target_name or '').lower() for token in ('_near', '_mid', '_far', '_dir'))
+                    for connector in fanout_group
+                )
+
                 direct_connectors: List[ConnectorPath] = []
                 has_left = any(tx_map[id(c)] < center_x for c in fanout_group)
                 has_right = any(tx_map[id(c)] >= center_x for c in fanout_group)
@@ -1025,16 +1038,25 @@ class ConnectorPlanner:
                 # Direct-connector parity rule:
                 # - even fanout count => no direct connector
                 # - odd fanout count  => exactly one center-most direct connector
-                # One-sided fanouts keep a single nearest-to-center direct connector.
-                if has_left and has_right and (n % 2 == 0):
+                # One-sided fanouts only keep a direct connector when semantics
+                # explicitly request one (dir/_dir).  Unlabelled one-sided
+                # groups use pure staircase routing.
+                if not has_semantic_fanout_tokens:
+                    direct_connectors = []
+                elif has_left and has_right and (n % 2 == 0):
                     direct_connectors = []
                 else:
-                    direct_connectors = [
-                        min(
-                            fanout_group,
-                            key=lambda c: (abs(tx_map[id(c)] - center_x), tx_map[id(c)]),
-                        )
-                    ]
+                    if has_left and has_right:
+                        direct_pool = semantic_direct_connectors or fanout_group
+                    else:
+                        direct_pool = semantic_direct_connectors
+                    if direct_pool:
+                        direct_connectors = [
+                            min(
+                                direct_pool,
+                                key=lambda c: (abs(tx_map[id(c)] - center_x), tx_map[id(c)]),
+                            )
+                        ]
 
                 selected_points: Dict[int, ConnectionPoint] = {}
                 used_slot_indices: Set[int] = set()
@@ -1187,6 +1209,17 @@ class ConnectorPlanner:
                         computed = _depth_rank(connector, rank)
                         existing = bend_depth_rank.get(id(connector), computed)
                         bend_depth_rank[id(connector)] = max(existing, computed)
+
+                if not has_semantic_fanout_tokens:
+                    ordered = sorted(
+                        [c for c in fanout_group if id(c) in selected_points],
+                        key=lambda c: selected_points[id(c)].x,
+                        reverse=True,
+                    )
+                    bend_depth_rank = {
+                        id(connector): rank
+                        for rank, connector in enumerate(ordered)
+                    }
 
                 for connector in fanout_group:
                     pt = selected_points.get(id(connector))
@@ -1618,6 +1651,184 @@ class ConnectorPlanner:
 
             self._normalize_connector_to_orthogonal(connector)
             self._register_connector_occupancy(connector)
+
+        self._normalize_dense_unlabeled_fanout_staircases()
+
+    def _normalize_dense_unlabeled_fanout_staircases(self):
+        """Stabilize unlabeled dense fanout groups with deterministic geometry.
+
+        Some stress diagrams use generic connector labels ("Connector N"), so
+        semantic near/mid/far ranking is unavailable. In those groups, enforce
+        deterministic first-segment depth ordering by source slot position.
+        """
+        if self.routing_mode != "orthogonal":
+            return
+
+        def _is_unlabeled(connector: ConnectorPath) -> bool:
+            label = (connector.label or '').lower()
+            target_name = (connector.target_name or '').lower()
+            if any(token in label for token in ('near', 'mid', 'far', 'dir')):
+                return False
+            if any(token in target_name for token in ('_near', '_mid', '_far', '_dir')):
+                return False
+            return True
+
+        def _first_len(connector: ConnectorPath) -> float:
+            if not connector.segments:
+                return 0.0
+            return abs(connector.segments[0][1] - connector.source_y)
+
+        def _hits_foreign_box_on_first_vertical(connector: ConnectorPath) -> bool:
+            if not connector.segments:
+                return False
+            if abs(connector.segments[0][0] - connector.source_x) > 1e-6:
+                return False
+            y1 = connector.source_y
+            y2 = connector.segments[0][1]
+            seg_top = min(y1, y2)
+            seg_bottom = max(y1, y2)
+            x = connector.source_x
+
+            for box_name, grid in self.grids.items():
+                if box_name == connector.source_name or box_name == connector.target_name:
+                    continue
+                if not (grid.x <= x <= (grid.x + grid.width)):
+                    continue
+                overlap_top = max(seg_top, grid.y)
+                overlap_bottom = min(seg_bottom, grid.y + grid.height)
+                if overlap_bottom - overlap_top > 1.0:
+                    return True
+            return False
+
+        def _first_foreign_box_on_vertical(
+            connector: ConnectorPath,
+            x: float,
+            y_start: float,
+            y_end: float,
+        ) -> Optional[RectangleGrid]:
+            seg_top = min(y_start, y_end)
+            seg_bottom = max(y_start, y_end)
+            blockers: List[RectangleGrid] = []
+            for box_name, grid in self.grids.items():
+                if box_name == connector.source_name or box_name == connector.target_name:
+                    continue
+                if not (grid.x <= x <= (grid.x + grid.width)):
+                    continue
+                overlap_top = max(seg_top, grid.y)
+                overlap_bottom = min(seg_bottom, grid.y + grid.height)
+                if overlap_bottom - overlap_top > 1.0:
+                    blockers.append(grid)
+            if not blockers:
+                return None
+            return min(blockers, key=lambda g: g.y)
+
+        source_groups: Dict[str, List[ConnectorPath]] = {}
+        for connector in self.connectors:
+            source_groups.setdefault(connector.source_name, []).append(connector)
+
+        for source_name, group in source_groups.items():
+            src_grid = self.grids.get(source_name)
+            if src_grid is None:
+                continue
+            center_x = src_grid.get_center()[0]
+
+            candidates: List[ConnectorPath] = []
+            for connector in group:
+                if connector.source_edge != 'top':
+                    continue
+                if connector.path_type != 'multi_segment' or len(connector.segments) < 2:
+                    continue
+                if not _is_unlabeled(connector):
+                    continue
+                if connector.target_name not in self.grids:
+                    continue
+                target_center_x = self.grids[connector.target_name].get_center()[0]
+                if target_center_x < center_x:
+                    continue
+                # Only normalize connectors whose first two routed segments are
+                # the expected vertical + horizontal top staircase shape.
+                if abs(connector.segments[0][0] - connector.source_x) > 1e-6:
+                    continue
+                if abs(connector.segments[1][1] - connector.segments[0][1]) > 1e-6:
+                    continue
+                candidates.append(connector)
+
+            if len(candidates) < 4:
+                continue
+
+            ordered = sorted(candidates, key=lambda c: c.source_x, reverse=True)
+            for rank, connector in enumerate(ordered):
+                desired_bend_y = connector.source_y - (FANOUT_BASE_GAP + (rank + 1) * FANOUT_LANE_STEP)
+                connector.segments[0] = (connector.segments[0][0], desired_bend_y)
+                connector.segments[1] = (connector.segments[1][0], desired_bend_y)
+
+            bottom_right_candidates: List[ConnectorPath] = []
+            for connector in group:
+                if connector.source_edge != 'bottom':
+                    continue
+                if connector.path_type != 'multi_segment' or len(connector.segments) < 2:
+                    continue
+                if not _is_unlabeled(connector):
+                    continue
+                if connector.target_name not in self.grids:
+                    continue
+                target_center_x = self.grids[connector.target_name].get_center()[0]
+                if target_center_x <= center_x:
+                    continue
+                if abs(connector.segments[0][0] - connector.source_x) > 1e-6:
+                    continue
+                if abs(connector.segments[1][1] - connector.segments[0][1]) > 1e-6:
+                    continue
+                if connector.segments[1][0] <= connector.source_x:
+                    continue
+                bottom_right_candidates.append(connector)
+
+            if len(bottom_right_candidates) < 2:
+                continue
+
+            baseline_len = min(_first_len(connector) for connector in bottom_right_candidates)
+            for connector in bottom_right_candidates:
+                first_len = _first_len(connector)
+                if first_len <= baseline_len + FANOUT_LANE_STEP:
+                    desired_bend_y = connector.segments[0][1]
+                elif _hits_foreign_box_on_first_vertical(connector):
+                    shortened_len = max(FANOUT_BASE_GAP + 10.0, baseline_len - GRID_CELL_SIZE_PX)
+                    desired_bend_y = connector.source_y + shortened_len
+                    connector.segments[0] = (connector.segments[0][0], desired_bend_y)
+                    connector.segments[1] = (connector.segments[1][0], desired_bend_y)
+                else:
+                    desired_bend_y = connector.segments[0][1]
+
+                blocker = _first_foreign_box_on_vertical(
+                    connector,
+                    connector.target_x,
+                    desired_bend_y,
+                    connector.target_y,
+                )
+                if blocker is None:
+                    continue
+
+                # Create a dogleg before the blocker so the vertical drop does
+                # not run through unrelated objects (e.g. Connector 9 vs Target5).
+                safe_x = min(connector.target_x - GRID_CELL_SIZE_PX, blocker.x - GRID_CELL_SIZE_PX)
+                safe_x = max(safe_x, connector.source_x + GRID_CELL_SIZE_PX)
+                if safe_x >= connector.target_x - 1.0:
+                    continue
+
+                drop_y = max(
+                    desired_bend_y + GRID_CELL_SIZE_PX,
+                    blocker.y + blocker.height + GRID_CELL_SIZE_PX / 2.0,
+                )
+                drop_y = min(drop_y, connector.target_y - GRID_CELL_SIZE_PX)
+                if drop_y <= desired_bend_y + 1.0:
+                    continue
+
+                connector.segments = [
+                    (connector.source_x, desired_bend_y),
+                    (safe_x, desired_bend_y),
+                    (safe_x, drop_y),
+                    (connector.target_x, drop_y),
+                ]
 
     def _to_grid_cell(self, x: float, y: float) -> Tuple[int, int]:
         """Convert SVG coordinates to connector occupancy grid coordinates."""
