@@ -49,7 +49,7 @@ Class;Right_B_far;Right bottom far target
 Class;Right_B_mid;Right bottom mid target
 Class;Right_B_near;Right bottom near target
 
-ClassDiagram;FanoutTop;Fanout Scen2: Up-sideways-up;routing=orthogonal
+ClassDiagram;FanoutTop;Fanout Scen2: Up-sideways-up
     HubTop;Top_L_far;-->;;5;L_far
     HubTop;Top_L_mid;-->;;1..*;L_mid
     HubTop;Top_L_near;-->;;1..*;L_near
@@ -58,7 +58,7 @@ ClassDiagram;FanoutTop;Fanout Scen2: Up-sideways-up;routing=orthogonal
     HubTop;Top_R_mid;-->;;1..*;R_mid
     HubTop;Top_R_far;-->;;5;R_far
 
-ClassDiagram;FanoutBottom;Fanout Scen2 Mirror: Down-sideways-down;routing=orthogonal
+ClassDiagram;FanoutBottom;Fanout Scen2 Mirror: Down-sideways-down
     HubBottom;Bottom_L_far;-->;;5;L_far
     HubBottom;Bottom_L_mid;-->;;1..*;L_mid
     HubBottom;Bottom_L_near;-->;;1..*;L_near
