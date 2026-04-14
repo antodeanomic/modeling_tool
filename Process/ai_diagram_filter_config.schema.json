@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "Process/ai_diagram_filter_config.schema.json",
+  "title": "AI Diagram Filter Config",
+  "description": "Future-facing schema for AI-authored, problem-focused diagram collections with per-diagram display filters.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "collection",
+    "defaults",
+    "diagrams"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "problemContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string"
+        },
+        "issueRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "generatedBy",
+        "generatedAtUtc"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9._-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "generatedBy": {
+          "type": "string",
+          "description": "Agent/model or workflow that produced this collection."
+        },
+        "generatedAtUtc": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verbosity",
+        "selectedLayers"
+      ],
+      "properties": {
+        "verbosity": {
+          "type": "string",
+          "enum": [
+            "Low",
+            "Normal",
+            "High"
+          ]
+        },
+        "selectedLayers": {
+          "type": "array",
+          "description": "Default layer selection when a diagram entry does not override layers.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "routing": {
+          "type": "string",
+          "enum": [
+            "orthogonal",
+            "diagonal",
+            "mixed"
+          ]
+        },
+        "showTestDiagrams": {
+          "type": "boolean"
+        }
+      }
+    },
+    "diagrams": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "csv",
+          "type",
+          "id"
+        ],
+        "properties": {
+          "csv": {
+            "type": "string",
+            "description": "CSV filename that owns the diagram, e.g. requirements.csv"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "class_diagram",
+              "sequence",
+              "state"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "Diagram identifier used by the viewer API"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional display name hint for humans"
+          },
+          "include": {
+            "type": "boolean",
+            "default": true,
+            "description": "Allows an AI to keep an entry in traceability while temporarily excluding it from the active focus set."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why this diagram is relevant to the problem context"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Priority in review order; lower value means earlier review"
+          },
+          "verbosity": {
+            "type": "string",
+            "enum": [
+              "Low",
+              "Normal",
+              "High"
+            ]
+          },
+          "selectedLayers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true,
+            "description": "Per-diagram layer override"
+          },
+          "routing": {
+            "type": "string",
+            "enum": [
+              "orthogonal",
+              "diagonal",
+              "mixed"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

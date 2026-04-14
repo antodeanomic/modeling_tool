@@ -37,6 +37,8 @@ Use these diagrams to understand:
 - `_REQUIREMENTS_FULL.md` - Extended requirements with additional context
 - `traceability.csv` - Requirement-to-implementation mapping
 - `ui_data.json` - UI configuration and metadata
+- `ai_diagram_filter_config.schema.json` - Future JSON schema for AI-authored problem-focused diagram collections and per-diagram filter settings
+- `ai_diagram_filter_config.example.json` - Example instance of the future AI diagram filter configuration
 
 ## Layer-Based Filtering
 

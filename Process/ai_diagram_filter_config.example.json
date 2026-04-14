@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "1.0",
+  "problemContext": {
+    "title": "SVG connector rendering regression",
+    "summary": "Review only diagrams relevant to fanout lane order, connector text placement, and orthogonal path continuity.",
+    "issueRefs": [
+      "local:svg-rendering-regression"
+    ],
+    "tags": [
+      "svg",
+      "routing",
+      "fanout"
+    ]
+  },
+  "collection": {
+    "id": "svg-routing-regression-2026-04-14",
+    "name": "SVG Routing Regression Focus Set",
+    "description": "AI-selected diagrams to help a human debug the active SVG rendering issue.",
+    "generatedBy": "GPT-5.3-Codex",
+    "generatedAtUtc": "2026-04-14T08:00:00Z"
+  },
+  "defaults": {
+    "verbosity": "Normal",
+    "selectedLayers": [
+      "API",
+      "Domain",
+      "Data"
+    ],
+    "routing": "orthogonal",
+    "showTestDiagrams": true
+  },
+  "diagrams": [
+    {
+      "csv": "fanout.csv",
+      "type": "class_diagram",
+      "id": "FanoutTop",
+      "name": "Fanout Top Verification",
+      "reason": "Validates top-side fanout lane ordering and direct-slot behavior.",
+      "rank": 1,
+      "verbosity": "High",
+      "selectedLayers": [
+        "Routing"
+      ]
+    },
+    {
+      "csv": "fanout.csv",
+      "type": "class_diagram",
+      "id": "FanoutBottom",
+      "name": "Fanout Bottom Verification",
+      "reason": "Validates bottom-side fanout lane ordering and centered direct connector behavior.",
+      "rank": 2,
+      "verbosity": "High",
+      "selectedLayers": [
+        "Routing"
+      ]
+    },
+    {
+      "csv": "requirements.csv",
+      "type": "class_diagram",
+      "id": "LayeredArchitecture",
+      "name": "Layered Architecture",
+      "reason": "Checks readability and text overlap pressure in dense connector areas.",
+      "rank": 3,
+      "verbosity": "Normal",
+      "selectedLayers": [
+        "Domain",
+        "Data"
+      ]
+    }
+  ]
+}

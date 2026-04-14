@@ -49,6 +49,8 @@ Requirements are organized by type and linked to related artifacts.
 |     UserInterface_0004 | Implement layer filtering checkboxes | - | UserInterface_0001 | Implemented |
 |     UserInterface_0005 | Enable live CSV reloading without restart | - | UserInterface_0001 | Implemented |
 |     UserInterface_0006 | Add cache-busting headers to prevent caching | - | UserInterface_0001 | Implemented |
+|     UserInterface_0009 | Support AI-generated problem-focused diagram collections so a human can review only diagrams relevant to a specific code/rendering issue | UserInterface_0001 | UserInterface_0010 | Future |
+|     UserInterface_0010 | Support an AI-authored filter configuration artifact (`Process/ai_diagram_filter_config.schema.json`) that defines a diagram collection and per-diagram display settings (verbosity plus selected layers) | UserInterface_0009;UserInterface_0003;UserInterface_0004 | UserInterface_0001 | Future |
 
 ## Constraints
 
