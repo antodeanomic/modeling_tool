@@ -2291,7 +2291,6 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
         if abs(dx) > 1e-6 and abs(dy) > 1e-6:
             return None
 
-        primary_mult = connector.src_mult or connector.tgt_mult
         positions = {'mult': None, 'label': None, 'consume_tgt_mult': False}
 
         if abs(dx) <= 1e-6:
@@ -2319,7 +2318,12 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                 label_x = connector.source_x + 10
                 label_anchor = 'start'
                 label_y = first_pt[1] + 12
-            positions['mult'] = (mult_x, mult_y, 'start', primary_mult)
+            if connector.src_mult:
+                positions['mult'] = (mult_x, mult_y, 'start', connector.src_mult)
+            elif connector.tgt_mult:
+                # Single multiplicity fallback: keep it near the source endpoint.
+                positions['mult'] = (mult_x, mult_y, 'start', connector.tgt_mult)
+                positions['consume_tgt_mult'] = True
             positions['label'] = (label_x, label_y, label_anchor, connector.label)
         else:
             direction = -1 if dx < 0 else 1
@@ -2335,11 +2339,65 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                 label_y = connector.source_y - 12
             else:
                 label_y = connector.source_y + 14
-            positions['mult'] = (mult_x, mult_y, 'middle', primary_mult)
+            if connector.src_mult:
+                positions['mult'] = (mult_x, mult_y, 'middle', connector.src_mult)
+            elif connector.tgt_mult:
+                # Single multiplicity fallback: keep it near the source endpoint.
+                positions['mult'] = (mult_x, mult_y, 'middle', connector.tgt_mult)
+                positions['consume_tgt_mult'] = True
             positions['label'] = (label_x, label_y, 'middle', connector.label)
-
-        positions['consume_tgt_mult'] = bool(primary_mult and not connector.src_mult and connector.tgt_mult)
         return positions
+
+    def _point_in_or_near_box(x: float, y: float, pad: float = 10.0) -> bool:
+        """Return True when text would land inside/too close to a class box."""
+        for box in boxes.values():
+            left = box['x'] - pad
+            right = box['x'] + box['width'] + pad
+            top = box['y'] - pad
+            bottom = box['y'] + box['height'] + pad
+            if left <= x <= right and top <= y <= bottom:
+                return True
+        return False
+
+    def _guardrail_multiplicity_position(connector, path_points, use_source_segment: bool):
+        """Clamp multiplicity to endpoint-adjacent first/last segment positions.
+
+        Guardrail rule:
+        - Source multiplicity: first segment, near source endpoint
+        - Target multiplicity: last segment, near target endpoint
+        """
+        if len(path_points) < 2:
+            x = connector.source_x if use_source_segment else connector.target_x
+            y = connector.source_y if use_source_segment else connector.target_y
+            return x + 8, y - 8, 'start'
+
+        if use_source_segment:
+            (x0, y0), (x1, y1) = path_points[0], path_points[1]
+            if abs(y1 - y0) < 1:
+                direction = 1 if x1 >= x0 else -1
+                x = x0 + direction * 10
+                y = y0 - 8
+                anchor = 'start' if direction > 0 else 'end'
+            else:
+                direction = 1 if y1 >= y0 else -1
+                x = x0 + 8
+                y = y0 + direction * 14
+                anchor = 'start'
+            return x, y, anchor
+
+        (x0, y0), (x1, y1) = path_points[-2], path_points[-1]
+        if abs(y1 - y0) < 1:
+            direction = 1 if x1 >= x0 else -1
+            x = x1 - direction * 10
+            y = y1 - 8
+            anchor = 'end' if direction > 0 else 'start'
+        else:
+            direction = 1 if y1 >= y0 else -1
+            x = x1 + 8
+            y = y1 - direction * 14
+            anchor = 'start'
+        return x, y, anchor
+
     
     for connector_idx, connector in enumerate(connectors):
         if connector.source_name not in boxes or connector.target_name not in boxes:
@@ -2551,24 +2609,9 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                     
                     if horizontal_seg is not None:
                         (hx1, hy1), (hx2, hy2) = horizontal_seg
-                        src_text_x = connector.source_x + 8
-                        src_text_y = connector.source_y - 8
-                        src_text_anchor = 'start'
-
-                        # Place source multiplicity very close to the source endpoint.
+                        # Place source multiplicity near source endpoint on first segment.
                         if connector.src_mult:
-                            if abs(first_seg[0][1] - first_seg[1][1]) < 1:
-                                direction = 1 if first_seg[1][0] >= first_seg[0][0] else -1
-                                text_x = connector.source_x + direction * 10
-                                text_y = connector.source_y - 8
-                                anchor = 'start' if direction > 0 else 'end'
-                            else:
-                                text_x = connector.source_x + 8
-                                text_y = connector.source_y + (hy1 - connector.source_y) * 0.3
-                                anchor = 'start'
-                            src_text_x = text_x
-                            src_text_y = text_y
-                            src_text_anchor = anchor
+                            text_x, text_y, anchor = _guardrail_multiplicity_position(connector, path_points, True)
                             text_x, text_y = _place_connector_text(connector, text_x, text_y)
                             parts.append(f'  <text x="{text_x}" y="{text_y}" '
                                          f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '
@@ -2592,31 +2635,23 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
                                          f'{_escape_xml(connector.label)}</text>')
 
-                        # Place target multiplicity close to the target endpoint.
+                        # Place target multiplicity near target endpoint on last segment.
                         if connector.tgt_mult:
-                            if abs(last_seg[0][1] - last_seg[1][1]) < 1:
-                                direction = 1 if last_seg[1][0] >= last_seg[0][0] else -1
-                                text_x = connector.target_x - direction * 10
-                                text_y = connector.target_y - 8 - lane_dy
-                                anchor = 'end' if direction > 0 else 'start'
-                            else:
-                                text_x = connector.target_x + 8
-                                text_y = hy1 + (connector.target_y - hy1) * 0.7 - lane_dy
-                                anchor = 'start'
+                            text_x, text_y, anchor = _guardrail_multiplicity_position(connector, path_points, False)
+                            text_y -= lane_dy
                             text_x, text_y = _place_connector_text(connector, text_x, text_y)
                             parts.append(f'  <text x="{text_x}" y="{text_y}" '
                                          f'font-family="{CONNECTOR_FONT_FAMILY}" font-size="11" '
                                          f'fill="#666" text-anchor="{anchor}">'
                                          f'{_escape_xml(connector.tgt_mult)}</text>')
                     else:
-                        # Fallback: simple perpendicular positioning for multi-segment without clear horizontal
+                        # Fallback: guardrail still forces endpoint-adjacent first/last segment placement
                         if connector.src_mult:
-                            mx = connector.source_x + (connector.target_x - connector.source_x) * 0.12
-                            my = connector.source_y + (connector.target_y - connector.source_y) * 0.12 + 12
+                            mx, my, manchor = _guardrail_multiplicity_position(connector, path_points, True)
                             text = f"{connector.src_mult}"
                             mx, my = _place_connector_text(connector, mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                         f'font-size="11" fill="#666" text-anchor="middle">'
+                                         f'font-size="11" fill="#666" text-anchor="{manchor}">'
                                          f'{_escape_xml(text)}</text>')
                         
                         if connector.label:
@@ -2628,12 +2663,11 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                          f'{_escape_xml(text)}</text>')
                         
                         if connector.tgt_mult:
-                            mx = connector.target_x + (connector.source_x - connector.target_x) * 0.20
-                            my = connector.target_y + (connector.source_y - connector.target_y) * 0.20 + 12
+                            mx, my, manchor = _guardrail_multiplicity_position(connector, path_points, False)
                             text = f"{connector.tgt_mult}"
                             mx, my = _place_connector_text(connector, mx, my)
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{CONNECTOR_FONT_FAMILY}" '
-                                         f'font-size="11" fill="#666" text-anchor="middle">'
+                                         f'font-size="11" fill="#666" text-anchor="{manchor}">'
                                          f'{_escape_xml(text)}</text>')
                 elif connector.label:
                     # Multi-segment with label only (no multiplicity)

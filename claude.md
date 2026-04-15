@@ -58,6 +58,14 @@ This is a Sequence Diagram modeling tool that:
 3. Server automatically reloads CSV files on each request (no restart needed for CSV changes)
 4. **Before every commit**: Run ALL tests with `cd Test; python run_all_tests_and_view.py` and verify exit code 0. Do not commit if tests fail.
 
+## Renderer Change Policy (Generic-First)
+
+- Treat renderer fixes as global behavior changes by default; avoid one-off logic tied to a single diagram.
+- Do not add diagram-id-based or scenario-name-based branching in renderer code unless the user explicitly requests a diagram-specific exception.
+- If an exception is unavoidable, document the reason in code comments and add regression coverage for:
+  - the exceptional diagram, and
+  - at least one non-exception diagram to confirm no collateral behavior change.
+
 ## Troubleshooting Agent Behavior
 
 If the agent is behaving unexpectedly (ignoring rules, not loading customizations, consuming too many tokens):

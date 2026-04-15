@@ -10,6 +10,12 @@ Follow `WORKFLOW.md` as the default operating workflow for all non-trivial tasks
 - For connector routing changes, always validate both `diagonal` and `orthogonal` modes in the same response cycle.
 - Treat `mixed` routing mode as optional and out of scope unless the user explicitly requests it.
 
+## Renderer Development Rule (Generic-First)
+- All renderer changes must be implemented as generic behavior that applies across diagrams.
+- Do not add diagram-specific renderer logic (e.g., checks keyed by diagram name or one-off visual exceptions) unless a specific diagram is proven to be uniquely affected.
+- Before any diagram-specific exception is introduced, validate at least one additional representative diagram and document why a generic rule cannot solve the issue safely.
+- If a diagram-specific exception is approved, keep it isolated, explicitly commented as an exception, and covered by regression tests for both the exception case and at least one non-exception diagram.
+
 ## Visual Acceptance Rules
 - For visual layout, routing, spacing, labeling, or readability tasks, prefer screenshots or pasted reference images in addition to text requirements.
 - When the acceptance criteria are primarily visual, request a current screenshot of the rendered output and any target/reference image early in the task.
