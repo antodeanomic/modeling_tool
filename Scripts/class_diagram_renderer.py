@@ -418,6 +418,59 @@ def _estimate_connector_text_items(connector, verbosity_level):
     return text_items
 
 
+def _extend_stubs_for_text(path_points, connector):
+    """Extend short first/last horizontal stub segments so multiplicity text fits.
+
+    When the first horizontal stub is too short for src_mult text, the stub is
+    extended outward (away from the source box) and the immediately adjacent
+    vertical segment's start x is updated to keep the path well-formed.  The
+    same logic applies symmetrically to the last horizontal stub and tgt_mult.
+
+    Segment directions are always preserved; only lengths change.  Does nothing
+    when the first/last segment is vertical.
+    """
+    MIN_PAD = 10  # clearance from each end of the stub to the text edge
+
+    if len(path_points) < 2:
+        return path_points
+    pts = list(path_points)
+
+    def _required(text):
+        return len(text) * CONNECTOR_CHAR_WIDTH + 2 * MIN_PAD
+
+    # --- First stub (source side, src_mult) ---
+    if connector.src_mult and len(pts) >= 2:
+        (x0, y0), (x1, y1) = pts[0], pts[1]
+        if abs(y1 - y0) < 1:          # horizontal first segment
+            current = abs(x1 - x0)
+            required = _required(connector.src_mult)
+            if 0 < current < required:
+                direction = 1 if x1 > x0 else -1
+                new_x1 = x0 + direction * required
+                old_x1 = x1
+                pts[1] = (new_x1, y1)
+                # Propagate into the next (vertical) segment if it shares old x.
+                if len(pts) >= 3 and abs(pts[2][0] - old_x1) < 1:
+                    pts[2] = (new_x1, pts[2][1])
+
+    # --- Last stub (target side, tgt_mult) ---
+    if connector.tgt_mult and len(pts) >= 2:
+        (xA, yA), (xB, yB) = pts[-2], pts[-1]
+        if abs(yB - yA) < 1:          # horizontal last segment
+            current = abs(xB - xA)
+            required = _required(connector.tgt_mult)
+            if 0 < current < required:
+                direction = 1 if xA < xB else -1  # A→B direction
+                new_xA = xB - direction * required
+                old_xA = xA
+                pts[-2] = (new_xA, yA)
+                # Propagate into the preceding (vertical) segment.
+                if len(pts) >= 3 and abs(pts[-3][0] - old_xA) < 1:
+                    pts[-3] = (new_xA, pts[-3][1])
+
+    return pts
+
+
 def _mark_text_cells(occupancy, text_item, connector_id):
     """Mark all grid cells occupied by a text bounding box."""
     width = max(len(text_item['text']) * CONNECTOR_CHAR_WIDTH, 8)
@@ -2398,6 +2451,50 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
             anchor = 'start'
         return x, y, anchor
 
+    def _vertical_segment_label_anchor(connector, path_points):
+        """Place labels on a meaningful vertical segment for orthogonal routes.
+
+        Generic rule:
+        - Prefer the longest interior vertical segment when available.
+        - Otherwise use the longest vertical segment.
+        - Bias text to the segment side facing the connector midpoint.
+        - Flip side when the preferred side would land inside/near a box.
+        """
+        if len(path_points) < 2:
+            return None
+
+        vertical_segments = []
+        for idx in range(len(path_points) - 1):
+            (x1, y1), (x2, y2) = path_points[idx], path_points[idx + 1]
+            if abs(x2 - x1) >= 1:
+                continue
+            length = abs(y2 - y1)
+            if length < 18:
+                continue
+            midpoint_y = (y1 + y2) / 2.0
+            is_interior = idx not in (0, len(path_points) - 2)
+            vertical_segments.append((is_interior, length, x1, midpoint_y))
+
+        if not vertical_segments:
+            return None
+
+        vertical_segments.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        _is_interior, _length, seg_x, seg_mid_y = vertical_segments[0]
+
+        connector_mid_x = (connector.source_x + connector.target_x) / 2.0
+        prefer_right = seg_x <= connector_mid_x
+
+        for place_right in (prefer_right, not prefer_right):
+            tx = seg_x + 8 if place_right else seg_x - 8
+            anchor = 'start' if place_right else 'end'
+            if not _point_in_or_near_box(tx, seg_mid_y, pad=8.0):
+                return tx, seg_mid_y, anchor
+
+        tx = seg_x + (8 if prefer_right else -8)
+        anchor = 'start' if prefer_right else 'end'
+        tx, ty = _nudge_text_outside_boxes(tx, seg_mid_y)
+        return tx, ty, anchor
+
     
     for connector_idx, connector in enumerate(connectors):
         if connector.source_name not in boxes or connector.target_name not in boxes:
@@ -2558,6 +2655,9 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
         else:
             # Multi-segment path (V-H-V orthogonal routing)
             if connector.segments:
+                # Extend first/last horizontal stubs so multiplicity text has room.
+                path_points = _extend_stubs_for_text(path_points, connector)
+
                 path_d = f"M {connector.source_x} {connector.source_y}"
                 for x, y in path_points[1:]:
                     path_d += f" L {x} {y}"
@@ -2574,8 +2674,9 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                 # Text placement for multi-segment paths
                 # Analyze segments to determine if V-H-V or other pattern
                 if verbosity_level == "High" and len(connector.segments) >= 1:
-                    path_points = [(connector.source_x, connector.source_y)] + list(connector.segments)
+                    # path_points already extended; just ensure target endpoint is present.
                     if path_points[-1] != (connector.target_x, connector.target_y):
+                        path_points = list(path_points)
                         path_points.append((connector.target_x, connector.target_y))
 
                     fanout_text = _fanout_text_positions(connector, path_points)
@@ -2618,17 +2719,18 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                          f'fill="#666" text-anchor="{anchor}">'
                                          f'{_escape_xml(connector.src_mult)}</text>')
 
-                        # Place connector label at the first bend point (where connector makes 90-degree turn).
+                        # Place connector label on a meaningful vertical segment when possible.
                         if connector.label:
-                            if len(path_points) >= 2:
-                                # Place label at the first bend point
+                            vertical_anchor = _vertical_segment_label_anchor(connector, path_points)
+                            if vertical_anchor is not None:
+                                lx, ly, anchor = vertical_anchor
+                            elif len(path_points) >= 2:
+                                # Fallback to first bend placement when no vertical segment is usable.
                                 bend_x, bend_y = path_points[1]
-                                # Offset slightly from bend point to avoid overlapping path
                                 lx = bend_x - 6
                                 ly = bend_y - 8
                                 anchor = 'end'
                             else:
-                                # Fallback to source label anchor if no bend
                                 lx, ly, anchor = _source_label_anchor(connector, path_points)
                             lx, ly = _place_connector_text(connector, lx, ly - lane_dy)
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '

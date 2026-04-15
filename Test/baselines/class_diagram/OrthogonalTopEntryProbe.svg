@@ -1,0 +1,384 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="784" height="504" data-diagram-type="class_diagram">
+  <rect width="784" height="504" fill="white"/>
+  <text x="392.0" y="28" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#333">Orthogonal-only top-entry probe</text>
+  <defs>
+    <!-- Open arrowhead (directed association) -->
+    <marker id="arrow-open" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#555" stroke-width="1.5"/>
+    </marker>
+    <!-- Closed triangle (generalization/realization) -->
+    <marker id="arrow-triangle" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="white" stroke="#555" stroke-width="1.2"/>
+    </marker>
+    <!-- Filled diamond (composition) -->
+    <marker id="diamond-filled" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#555" stroke="#555" stroke-width="1"/>
+    </marker>
+    <!-- Open diamond (aggregation) -->
+    <marker id="diamond-open" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#555" stroke-width="1"/>
+    </marker>
+    <marker id="arrow-open-right" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="0">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#555" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-down" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="90">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#555" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-left" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="180">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#555" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-up" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="270">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#555" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-triangle-right" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="10" markerHeight="10" orient="0">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="white" stroke="#555" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-triangle-down" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="10" markerHeight="10" orient="90">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="white" stroke="#555" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-triangle-left" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="10" markerHeight="10" orient="180">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="white" stroke="#555" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-triangle-up" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="10" markerHeight="10" orient="270">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="white" stroke="#555" stroke-width="1.2"/>
+    </marker>
+    <marker id="diamond-filled-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#555" stroke="#555" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#555" stroke="#555" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#555" stroke="#555" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#555" stroke="#555" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-open-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#555" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-open-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#555" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-open-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#555" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-open-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#555" stroke-width="1"/>
+    </marker>
+    <!-- Filled diamond - Color 0 -->
+    <marker id="diamond-filled-0" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#0057B8" stroke="#0057B8" stroke-width="1"/>
+    </marker>
+    <!-- Open diamond - Color 0 -->
+    <marker id="diamond-open-0" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <!-- Arrow open - Color 0 -->
+    <marker id="arrow-open-0" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-filled-0-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#0057B8" stroke="#0057B8" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-0-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#0057B8" stroke="#0057B8" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-0-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#0057B8" stroke="#0057B8" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-0-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#0057B8" stroke="#0057B8" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-open-0-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-0-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-0-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-0-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-0-right" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="0">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-0-down" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="90">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-0-left" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="180">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-0-up" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="270">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#0057B8" stroke-width="1.5"/>
+    </marker>
+    <!-- Filled diamond - Color 1 -->
+    <marker id="diamond-filled-1" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#B00020" stroke="#B00020" stroke-width="1"/>
+    </marker>
+    <!-- Open diamond - Color 1 -->
+    <marker id="diamond-open-1" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <!-- Arrow open - Color 1 -->
+    <marker id="arrow-open-1" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-filled-1-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#B00020" stroke="#B00020" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-1-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#B00020" stroke="#B00020" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-1-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#B00020" stroke="#B00020" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-1-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#B00020" stroke="#B00020" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-open-1-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-1-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-1-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-1-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-1-right" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="0">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-1-down" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="90">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-1-left" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="180">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-1-up" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="270">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#B00020" stroke-width="1.5"/>
+    </marker>
+    <!-- Filled diamond - Color 2 -->
+    <marker id="diamond-filled-2" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#006E1C" stroke="#006E1C" stroke-width="1"/>
+    </marker>
+    <!-- Open diamond - Color 2 -->
+    <marker id="diamond-open-2" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <!-- Arrow open - Color 2 -->
+    <marker id="arrow-open-2" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-filled-2-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#006E1C" stroke="#006E1C" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-2-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#006E1C" stroke="#006E1C" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-2-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#006E1C" stroke="#006E1C" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-2-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#006E1C" stroke="#006E1C" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-open-2-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-2-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-2-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-2-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-2-right" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="0">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-2-down" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="90">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-2-left" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="180">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-2-up" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="270">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#006E1C" stroke-width="1.5"/>
+    </marker>
+    <!-- Filled diamond - Color 3 -->
+    <marker id="diamond-filled-3" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#C45A00" stroke="#C45A00" stroke-width="1"/>
+    </marker>
+    <!-- Open diamond - Color 3 -->
+    <marker id="diamond-open-3" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <!-- Arrow open - Color 3 -->
+    <marker id="arrow-open-3" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-filled-3-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#C45A00" stroke="#C45A00" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-3-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#C45A00" stroke="#C45A00" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-3-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#C45A00" stroke="#C45A00" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-filled-3-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="#C45A00" stroke="#C45A00" stroke-width="1"/>
+    </marker>
+    <marker id="diamond-open-3-right" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="0">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-3-down" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="90">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-3-left" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="180">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <marker id="diamond-open-3-up" viewBox="0 0 12 8" refX="12" refY="4"
+            markerWidth="12" markerHeight="8" orient="270">
+      <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-3-right" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="0">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-3-down" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="90">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-3-left" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="180">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+    <marker id="arrow-open-3-up" viewBox="0 0 10 10" refX="10" refY="5"
+            markerWidth="8" markerHeight="8" orient="270">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#C45A00" stroke-width="1.5"/>
+    </marker>
+  </defs>
+  <g class="cls-connector" data-connector-id="Obj1-&gt;Obj2:0" data-source="Obj1" data-target="Obj2">
+  <path d="M 420.75 244 L 336.75 244 L 336.75 104" fill="none" stroke="#006E1C" stroke-width="1.5"
+ marker-end="url(#arrow-open-2-up)"
+/>
+  <text x="410.75" y="236" font-family="monospace" font-size="11" fill="#666" text-anchor="end">1</text>
+  <text x="344.75" y="174.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">reserve_right</text>
+  <text x="344.75" y="118" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  </g>
+  <g class="cls-connector" data-connector-id="Obj1-&gt;Obj3:1" data-source="Obj1" data-target="Obj3">
+  <path d="M 580.75 244 L 644.75 244 L 644.75 104" fill="none" stroke="#006E1C" stroke-width="1.5"
+ marker-end="url(#arrow-open-2-up)"
+/>
+  <text x="590.75" y="236" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="636.75" y="163.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="end">reserve_bottom</text>
+  <text x="652.75" y="122" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  </g>
+  <g class="cls-connector" data-connector-id="Obj4-&gt;Obj1:2" data-source="Obj4" data-target="Obj1">
+  <path d="M 256.75 444 L 206.75 444 L 206.75 154 L 440.75 154 L 440.75 184" fill="none" stroke="#C45A00" stroke-width="1.5"
+ stroke-dasharray="6,4"
+ marker-end="url(#arrow-open-3-down)"
+/>
+  <text x="246.75" y="436" font-family="monospace" font-size="11" fill="#666" text-anchor="end">0..1</text>
+  <text x="214.75" y="299.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">up_left_left_down_probe</text>
+  <text x="448.75" y="170" font-family="monospace" font-size="11" fill="#666" text-anchor="start">*</text>
+  </g>
+  <g class="cls-object" data-class-name="Obj2">
+  <rect x="256.75" y="64" width="120" height="40" fill="#E8F1FF" stroke="#0057B8" stroke-width="1.5" rx="2"/>
+  <text x="316.75" y="87" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Obj2</text>
+  </g>
+  <g class="cls-object" data-class-name="Obj1">
+  <rect x="420.75" y="184" width="160" height="160" fill="#EAF7EA" stroke="#006E1C" stroke-width="1.5" rx="2"/>
+  <text x="500.75" y="207" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Obj1</text>
+  </g>
+  <g class="cls-object" data-class-name="Obj4">
+  <rect x="256.75" y="424" width="120" height="40" fill="#FFF1E6" stroke="#C45A00" stroke-width="1.5" rx="2"/>
+  <text x="316.75" y="447" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Obj4</text>
+  </g>
+  <g class="cls-object" data-class-name="Obj3">
+  <rect x="624.75" y="64" width="120" height="40" fill="#FFE9EC" stroke="#B00020" stroke-width="1.5" rx="2"/>
+  <text x="684.75" y="87" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Obj3</text>
+  </g>
+  <text x="776" y="499" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="9" fill="#ccc">v:STAMP</text>
+</svg>

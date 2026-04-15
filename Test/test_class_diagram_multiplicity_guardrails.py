@@ -63,11 +63,26 @@ def _collect_connector_blocks(svg_text: str):
 
     root = ET.fromstring(svg_text)
     blocks = []
+    object_boxes: List[Tuple[float, float, float, float]] = []
+
     for node in root.iter():
         if _local_name(node.tag) != "g":
             continue
-        if node.attrib.get("class") != "cls-connector":
+
+        node_class = node.attrib.get("class")
+        if node_class == "cls-object":
+            for child in node:
+                if _local_name(child.tag) != "rect":
+                    continue
+                x = float(child.attrib.get("x", "0"))
+                y = float(child.attrib.get("y", "0"))
+                w = float(child.attrib.get("width", "0"))
+                h = float(child.attrib.get("height", "0"))
+                object_boxes.append((x, y, x + w, y + h))
+
+        if node_class != "cls-connector":
             continue
+
         connector_id = node.attrib.get("data-connector-id", "")
         source = node.attrib.get("data-source", "")
         target = node.attrib.get("data-target", "")
@@ -85,7 +100,8 @@ def _collect_connector_blocks(svg_text: str):
         if len(path_points) < 2:
             continue
         blocks.append((connector_id, source, target, path_points, texts))
-    return blocks
+
+    return blocks, object_boxes
 
 
 def _relationship_map(csv_path: Path, diagram_id: str) -> Dict[Tuple[str, str], Tuple[str, str]]:
@@ -102,12 +118,73 @@ def _assert(condition: bool, message: str):
         raise AssertionError(message)
 
 
+def _check_probe_label_positions(
+    blocks,
+    object_boxes: List[Tuple[float, float, float, float]],
+    diagram_id: str,
+) -> None:
+    if diagram_id != "OrthogonalTopEntryProbe":
+        return
+
+    expected = {("Obj1", "Obj3"), ("Obj4", "Obj1")}
+    checked = set()
+
+    for _cid, source, target, pts, texts in blocks:
+        key = (source, target)
+        if key not in expected:
+            continue
+
+        label_nodes = [t for t in texts if t.attrib.get("font-family") != "monospace" and (t.text or "").strip()]
+        _assert(label_nodes, f"FAIL [{diagram_id}] missing connector label for {source}->{target}")
+
+        label = label_nodes[0]
+        lx = float(label.attrib.get("x", "0"))
+        ly = float(label.attrib.get("y", "0"))
+
+        vertical_dists = []
+        horizontal_dists = []
+        for i in range(len(pts) - 1):
+            a = pts[i]
+            b = pts[i + 1]
+            d = _point_to_segment_distance(lx, ly, a, b)
+            if abs(a[0] - b[0]) < 1e-6:
+                vertical_dists.append(d)
+            elif abs(a[1] - b[1]) < 1e-6:
+                horizontal_dists.append(d)
+
+        _assert(vertical_dists, f"FAIL [{diagram_id}] no vertical segment found for {source}->{target}")
+        d_vert = min(vertical_dists)
+        d_horiz = min(horizontal_dists) if horizontal_dists else 1e9
+        _assert(
+            d_vert <= MAX_SEGMENT_DISTANCE,
+            f"FAIL [{diagram_id}] {source}->{target} label is not on/near vertical segment (d_vert={d_vert:.1f})",
+        )
+        _assert(
+            d_vert + 0.5 <= d_horiz,
+            f"FAIL [{diagram_id}] {source}->{target} label drifts toward horizontal segment (d_vert={d_vert:.1f}, d_horiz={d_horiz:.1f})",
+        )
+
+        for left, top, right, bottom in object_boxes:
+            inside = (left - 2.0) <= lx <= (right + 2.0) and (top - 2.0) <= ly <= (bottom + 2.0)
+            _assert(
+                not inside,
+                f"FAIL [{diagram_id}] {source}->{target} label intersects object box at ({lx:.1f},{ly:.1f})",
+            )
+
+        checked.add(key)
+
+    _assert(
+        checked == expected,
+        f"FAIL [{diagram_id}] expected probe label checks for {sorted(expected)}, got {sorted(checked)}",
+    )
+
+
 def _check_svg(csv_path: Path, diagram_id: str) -> None:
     model = parse_csv(str(csv_path))
     diagram = next(d for d in model.class_diagrams if d.diagram_id == diagram_id)
     svg_text = render_class_diagram_svg(model, diagram, verbosity_level="High")
 
-    blocks = _collect_connector_blocks(svg_text)
+    blocks, object_boxes = _collect_connector_blocks(svg_text)
     rels = _relationship_map(csv_path, diagram_id)
 
     checked_count = 0
@@ -155,6 +232,7 @@ def _check_svg(csv_path: Path, diagram_id: str) -> None:
                 )
 
     _assert(checked_count > 0, f"FAIL [{diagram_id}] no multiplicity texts were checked")
+    _check_probe_label_positions(blocks, object_boxes, diagram_id)
 
 
 def run_test() -> int:
