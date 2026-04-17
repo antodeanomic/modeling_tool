@@ -340,29 +340,29 @@
     </marker>
   </defs>
   <g class="cls-connector" data-connector-id="Obj1-&gt;Obj2:0" data-source="Obj1" data-target="Obj2">
-  <path d="M 420.75 244 L 336.75 244 L 336.75 104" fill="none" stroke="#006E1C" stroke-width="1.5"
+  <path d="M 420.75 264 L 316.75 264 L 316.75 104" fill="none" stroke="#006E1C" stroke-width="1.5"
  marker-end="url(#arrow-open-2-up)"
 />
-  <text x="410.75" y="236" font-family="monospace" font-size="11" fill="#666" text-anchor="end">1</text>
-  <text x="344.75" y="174.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">reserve_right</text>
-  <text x="344.75" y="118" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="410.75" y="256" font-family="monospace" font-size="11" fill="#666" text-anchor="end">1</text>
+  <text x="324.75" y="184.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">reserve_right</text>
+  <text x="324.75" y="118" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
   </g>
   <g class="cls-connector" data-connector-id="Obj1-&gt;Obj3:1" data-source="Obj1" data-target="Obj3">
-  <path d="M 580.75 244 L 644.75 244 L 644.75 104" fill="none" stroke="#006E1C" stroke-width="1.5"
+  <path d="M 580.75 264 L 684.75 264 L 684.75 104" fill="none" stroke="#006E1C" stroke-width="1.5"
  marker-end="url(#arrow-open-2-up)"
 />
-  <text x="590.75" y="236" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
-  <text x="636.75" y="163.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="end">reserve_bottom</text>
-  <text x="652.75" y="122" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="590.75" y="256" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="676.75" y="173.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="end">reserve_bottom</text>
+  <text x="692.75" y="122" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
   </g>
   <g class="cls-connector" data-connector-id="Obj4-&gt;Obj1:2" data-source="Obj4" data-target="Obj1">
-  <path d="M 256.75 444 L 206.75 444 L 206.75 154 L 440.75 154 L 440.75 184" fill="none" stroke="#C45A00" stroke-width="1.5"
+  <path d="M 256.75 444 L 206.75 444 L 206.75 154 L 500.75 154 L 500.75 184" fill="none" stroke="#C45A00" stroke-width="1.5"
  stroke-dasharray="6,4"
  marker-end="url(#arrow-open-3-down)"
 />
   <text x="246.75" y="436" font-family="monospace" font-size="11" fill="#666" text-anchor="end">0..1</text>
   <text x="214.75" y="299.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">up_left_left_down_probe</text>
-  <text x="448.75" y="170" font-family="monospace" font-size="11" fill="#666" text-anchor="start">*</text>
+  <text x="508.75" y="170" font-family="monospace" font-size="11" fill="#666" text-anchor="start">*</text>
   </g>
   <g class="cls-object" data-class-name="Obj2">
   <rect x="256.75" y="64" width="120" height="40" fill="#E8F1FF" stroke="#0057B8" stroke-width="1.5" rx="2"/>

@@ -38,6 +38,12 @@ SCENARIOS = [
         "baseline": BASELINE_DIR / "FanoutTop.svg",
     },
     {
+        "name": "SimpleFourBox",
+        "csv": REPO_ROOT / "Test" / "tests" / "test_spacing_minimal.csv",
+        "diagram_id": "SimpleFourBox",
+        "baseline": BASELINE_DIR / "SimpleFourBox.svg",
+    },
+    {
         "name": "OrthogonalTopEntryProbe",
         "csv": REPO_ROOT / "Process" / "01_System" / "40_Tests" / "20_Advanced" / "test_class_diagram_all_connector_combinations.csv",
         "diagram_id": "OrthogonalTopEntryProbe",

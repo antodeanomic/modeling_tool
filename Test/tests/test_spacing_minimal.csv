@@ -1,0 +1,16 @@
+Type;Name;Description
+# Minimal test case for class box spacing in orthogonal layout
+Class;ServiceA;First service
+    Function;+operationA();Operation A
+Class;ServiceB;Second service
+    Function;+operationB();Operation B
+Class;ServiceC;Third service  
+    Function;+operationC();Operation C
+Class;ServiceD;Fourth service
+    Function;+operationD();Operation D
+
+ClassDiagram;SimpleFourBox;Four-box simple spacing test
+    ServiceA;ServiceB;-->;1;1;depends_on;core
+    ServiceA;ServiceC;-->;1;1;uses;core
+    ServiceB;ServiceD;-->;1;1;calls;core
+    ServiceC;ServiceD;-->;1;1;relates;core

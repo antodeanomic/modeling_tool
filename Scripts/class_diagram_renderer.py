@@ -256,9 +256,16 @@ def _snap_height_to_grid(height: float) -> float:
 
 
 def _snap_width_to_grid(width: float) -> float:
-    """Snap box width to fixed-size object grid cells (20px per column)."""
+    """Snap box width to an even number of 20px cells.
+
+    This guarantees an odd number of boundary connection points (cells+1)
+    so each edge has a true midpoint slot.
+    """
     import math
-    return math.ceil(width / GRID_CELL_SIZE_PX) * GRID_CELL_SIZE_PX
+    cells = math.ceil(width / GRID_CELL_SIZE_PX)
+    if cells % 2 != 0:
+        cells += 1
+    return cells * GRID_CELL_SIZE_PX
 
 
 def _measure_text(text, font_size=FONT_SIZE):
@@ -421,10 +428,8 @@ def _estimate_connector_text_items(connector, verbosity_level):
 def _extend_stubs_for_text(path_points, connector):
     """Extend short first/last horizontal stub segments so multiplicity text fits.
 
-    When the first horizontal stub is too short for src_mult text, the stub is
-    extended outward (away from the source box) and the immediately adjacent
-    vertical segment's start x is updated to keep the path well-formed.  The
-    same logic applies symmetrically to the last horizontal stub and tgt_mult.
+    First stub is extended when source multiplicity would not fit; last stub is
+    extended symmetrically for target multiplicity.
 
     Segment directions are always preserved; only lengths change.  Does nothing
     when the first/last segment is vertical.
@@ -649,20 +654,79 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
         p.plan_connectors()
         return p
 
-    # Keep optimization bounded and only active for the core+security baseline view.
-    if layers_filter is None or set(layers_filter) != {'core', 'security'}:
+    def _score_collision_details(collision_details):
+        """Return weighted severity score for candidate selection.
+
+        We prioritize eliminating connector-through-object and text collisions,
+        while still accounting for connector-connector crossings.
+        """
+        score = 0
+        for _cell, tokens in collision_details:
+            has_text = any(t.startswith('text:') for t in tokens)
+            objects = [t.split(':', 1)[1] for t in tokens if t.startswith('object:')]
+            connectors = [t.split(':', 1)[1] for t in tokens if t.startswith('connector:')]
+
+            intrusion = False
+            if objects and connectors:
+                for conn in connectors:
+                    if '->' not in conn:
+                        continue
+                    src, tgt = conn.split('->', 1)
+                    if any(obj not in {src, tgt} for obj in objects):
+                        intrusion = True
+                        break
+
+            connector_crossing = len(set(connectors)) >= 2
+
+            if intrusion:
+                score += 9
+            elif has_text:
+                score += 6
+            elif connector_crossing:
+                score += 6
+            else:
+                score += 1
+        return score
+
+    def _stretch_boxes(test_boxes, x_scale: float, y_scale: float):
+        """Return a globally spread layout while preserving relative order."""
+        if not test_boxes:
+            return test_boxes
+
+        stretched = _clone_boxes(test_boxes)
+        min_x = min(b['x'] for b in stretched.values())
+        min_y = min(b['y'] for b in stretched.values())
+
+        for box in stretched.values():
+            nx = min_x + (box['x'] - min_x) * x_scale
+            ny = min_y + (box['y'] - min_y) * y_scale
+            box['x'] = round(nx / GRID_CELL_SIZE_PX) * GRID_CELL_SIZE_PX
+            box['y'] = round(ny / GRID_CELL_SIZE_PX) * GRID_CELL_SIZE_PX
+
+        return stretched
+
+    rel_count = len(filtered_diagram.relationships)
+    labeled_count = sum(1 for rel in filtered_diagram.relationships if rel.label or rel.src_mult or rel.tgt_mult)
+    dense_layout = rel_count >= 18 or labeled_count >= 10
+
+    # Keep optimization bounded by default, but allow it for dense full views
+    # where collision pressure is known to be high.
+    optimize_for_baseline = layers_filter is not None and set(layers_filter) == {'core', 'security'}
+    optimize_for_dense_full = layers_filter is None and dense_layout
+    if not (optimize_for_baseline or optimize_for_dense_full):
         base_planner = _build_planner(_clone_boxes(boxes), set())
         base_count, base_details = _evaluate_grid_cell_collisions(base_planner, boxes, verbosity_level, strict=False)
         return boxes, base_planner, base_count, base_details
 
     import time
     start_time = time.perf_counter()
-    time_budget_s = 0.35
+    time_budget_s = 1.20 if optimize_for_dense_full else 0.35
 
     best_boxes = _clone_boxes(boxes)
     forced_elbows = set()
     best_planner = _build_planner(best_boxes, forced_elbows)
     best_count, best_details = _evaluate_grid_cell_collisions(best_planner, best_boxes, verbosity_level, strict=False)
+    best_score = _score_collision_details(best_details)
 
     # Preserve existing baseline nudge behavior as one starting candidate.
     if 'OrderService' in best_boxes:
@@ -670,13 +734,15 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
         nudged_boxes['OrderService']['x'] += GRID_CELL_SIZE_PX
         nudged_planner = _build_planner(nudged_boxes, forced_elbows)
         nudged_count, nudged_details = _evaluate_grid_cell_collisions(nudged_planner, nudged_boxes, verbosity_level, strict=False)
-        if nudged_count < best_count:
+        nudged_score = _score_collision_details(nudged_details)
+        if (nudged_score < best_score) or (nudged_score == best_score and nudged_count < best_count):
             best_boxes = nudged_boxes
             best_planner = nudged_planner
             best_count = nudged_count
             best_details = nudged_details
+            best_score = nudged_score
 
-    max_passes = 2
+    max_passes = 4 if optimize_for_dense_full else 2
     for _ in range(max_passes):
         if time.perf_counter() - start_time > time_budget_s:
             break
@@ -684,10 +750,15 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
             break
 
         connector_hits, object_hits = _collect_collision_entities(best_details)
-        top_connectors = [k for k, _v in sorted(connector_hits.items(), key=lambda item: item[1], reverse=True)[:2]]
-        top_objects = [k for k, _v in sorted(object_hits.items(), key=lambda item: item[1], reverse=True)[:1]]
+        top_connectors = [k for k, _v in sorted(connector_hits.items(), key=lambda item: item[1], reverse=True)[:(4 if optimize_for_dense_full else 2)]]
+        top_objects = [k for k, _v in sorted(object_hits.items(), key=lambda item: item[1], reverse=True)[:(3 if optimize_for_dense_full else 1)]]
 
         candidates = []
+
+        if optimize_for_dense_full:
+            candidates.append((_stretch_boxes(best_boxes, 1.10, 1.05), set(forced_elbows)))
+            candidates.append((_stretch_boxes(best_boxes, 1.15, 1.10), set(forced_elbows)))
+            candidates.append((_stretch_boxes(best_boxes, 1.22, 1.15), set(forced_elbows)))
 
         if top_connectors:
             candidates.append((_clone_boxes(best_boxes), forced_elbows.union(set(top_connectors))))
@@ -695,7 +766,12 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
         for obj_name in top_objects:
             if obj_name not in best_boxes:
                 continue
-            for dx, dy in [(1, 0), (0, 1)]:
+            if optimize_for_dense_full:
+                move_steps = [(-2, 0), (-1, 0), (1, 0), (2, 0), (0, -2), (0, -1), (0, 1), (0, 2)]
+            else:
+                move_steps = [(1, 0), (0, 1)]
+
+            for dx, dy in move_steps:
                 moved = _clone_boxes(best_boxes)
                 moved[obj_name]['x'] += dx * GRID_CELL_SIZE_PX
                 moved[obj_name]['y'] += dy * GRID_CELL_SIZE_PX
@@ -705,6 +781,7 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
 
         improved = False
         trial_best = best_count
+        trial_score = best_score
         trial_boxes = best_boxes
         trial_planner = best_planner
         trial_details = best_details
@@ -717,8 +794,10 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
             candidate_count, candidate_details = _evaluate_grid_cell_collisions(
                 candidate_planner, candidate_boxes, verbosity_level, strict=False
             )
-            if candidate_count < trial_best:
+            candidate_score = _score_collision_details(candidate_details)
+            if (candidate_score < trial_score) or (candidate_score == trial_score and candidate_count < trial_best):
                 improved = True
+                trial_score = candidate_score
                 trial_best = candidate_count
                 trial_boxes = candidate_boxes
                 trial_planner = candidate_planner
@@ -729,6 +808,7 @@ def _optimize_layout_for_grid_collisions(filtered_diagram, boxes, effective_rout
             break
 
         best_count = trial_best
+        best_score = trial_score
         best_boxes = trial_boxes
         best_planner = trial_planner
         best_details = trial_details
@@ -1175,6 +1255,43 @@ def _expand_boxes_for_connector_capacity(diagram, boxes):
     return boxes
 
 
+def _expand_boxes_for_dense_layout(diagram, boxes, pressure_scale: float):
+    """Expand boxes for dense orthogonal diagrams to reduce routing contention.
+
+    Dense diagrams with many labels and high fan-out need larger boxes so edge
+    slots and nearby text do not collapse into the same grid cells.
+    """
+    if not boxes or pressure_scale <= 1.0:
+        return boxes
+
+    conn_count = {}
+    max_label_chars = {}
+    for rel in diagram.relationships:
+        conn_count[rel.source] = conn_count.get(rel.source, 0) + 1
+        conn_count[rel.target] = conn_count.get(rel.target, 0) + 1
+        lbl_chars = len(rel.label or "")
+        max_label_chars[rel.source] = max(max_label_chars.get(rel.source, 0), lbl_chars)
+        max_label_chars[rel.target] = max(max_label_chars.get(rel.target, 0), lbl_chars)
+
+    for cls_name, box in boxes.items():
+        degree = conn_count.get(cls_name, 0)
+        if degree <= 2:
+            continue
+
+        label_chars = max_label_chars.get(cls_name, 0)
+        degree_boost = max(0.0, (degree - 2) * GRID_CELL_SIZE_PX * 0.55)
+        label_boost = min(220.0, label_chars * CONNECTOR_CHAR_WIDTH * 0.70)
+        width_boost = (degree_boost + label_boost) * (pressure_scale - 1.0)
+        height_boost = (degree_boost * 0.8) * (pressure_scale - 1.0)
+
+        target_width = box['width'] + width_boost
+        target_height = box['height'] + height_boost
+        box['width'] = _snap_width_to_grid(target_width)
+        box['height'] = _snap_height_to_grid(target_height)
+
+    return boxes
+
+
 def _build_spanning_forest(diagram, levels):
     """Build a spanning forest for tree-centered layout.
 
@@ -1284,7 +1401,9 @@ def _apply_source_cluster_alignment(positions, diagram, levels, spacing_x):
 
 
 def _aligned_tree_layout(class_names, boxes, levels, parent_children,
-                         claimed_children, base_sx, spacing_y, diagram):
+                         claimed_children, base_sx, spacing_y, diagram,
+                         apply_cluster_alignment=True,
+                         apply_post_center_deoverlap=False):
     """Top-left anchored tree layout with iterative spacing refinement.
 
     Algorithm
@@ -1418,8 +1537,9 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
                     'class_def':  boxes[cls]['class_def'],
                     'element_type': boxes[cls]['element_type'],
                 }
-                if x == cur_x:
-                    cur_x += boxes[cls]['width'] + sx
+                # Always advance the cursor for subsequent orphans, whether centered or not.
+                # Centering is a positioning override, not a skip.
+                cur_x += boxes[cls]['width'] + sx
 
         # Post-placement centering: if a placed node at level > 0 has connections
         # to multiple nodes at a shallower level, center it under all of them.
@@ -1450,6 +1570,25 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
                 min_ax = min(p['x'] for p in related)
                 max_ax = max(p['x'] + p['width'] for p in related)
                 out[cls]['x'] = (min_ax + max_ax) / 2.0 - boxes[cls]['width'] / 2.0
+
+        if apply_post_center_deoverlap:
+            # Optional same-level de-overlap pass after centering adjustments.
+            # Centering can converge multiple nodes onto identical X positions.
+            min_gap = max(sx * 0.25, 30)
+            by_level = {}
+            for cls, pos in out.items():
+                by_level.setdefault(levels.get(cls, 0), []).append((cls, pos))
+            for _, lnodes in by_level.items():
+                lnodes.sort(key=lambda t: t[1]['x'])
+                if not lnodes:
+                    continue
+                prev_right = lnodes[0][1]['x'] + lnodes[0][1]['width']
+                for i in range(1, len(lnodes)):
+                    _, node = lnodes[i]
+                    min_x = prev_right + min_gap
+                    if node['x'] < min_x:
+                        node['x'] = min_x
+                    prev_right = node['x'] + node['width']
 
         return out
 
@@ -1502,11 +1641,17 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
         if extra_needed < 5:
             break  # converged
 
+        # Prevent runaway expansion in very dense graphs; a moderate increase
+        # per pass preserves readability without exploding canvas width.
+        max_extra = max(base_sx * 0.60, 60)
+        extra_needed = min(extra_needed, max_extra)
+
         current_sx += extra_needed
         positions = do_layout(current_sx)
 
-    # Apply source-cluster alignment for filtered views (post-processing)
-    positions = _apply_source_cluster_alignment(positions, diagram, levels, current_sx)
+    # Optional source-cluster alignment post-pass.
+    if apply_cluster_alignment:
+        positions = _apply_source_cluster_alignment(positions, diagram, levels, current_sx)
 
     return positions
 
@@ -1551,7 +1696,9 @@ def _layout_classes_tree_based(diagram, model, verbosity="High"):
 
     return _aligned_tree_layout(
         class_names, boxes, levels, parent_children, claimed_children,
-        spacing_x, spacing_y, diagram
+        spacing_x, spacing_y, diagram,
+        apply_cluster_alignment=True,
+        apply_post_center_deoverlap=False
     )
 
 
@@ -1583,6 +1730,28 @@ def _layout_classes_orthogonal(diagram, model, verbosity="High"):
     has_domain_layer = any(rel.layer == 'domain' for rel in diagram.relationships)
     spacing_y = CLASS_SPACING_Y + (80 if has_domain_layer else 30)
 
+    # Dense orthogonal diagrams need wider box buffers and wider routing lanes
+    # to avoid connector-through-box and text collision hotspots.
+    rel_count = len(diagram.relationships)
+    labeled_count = sum(1 for rel in diagram.relationships if rel.label or rel.src_mult or rel.tgt_mult)
+    source_out = {}
+    for rel in diagram.relationships:
+        source_out[rel.source] = source_out.get(rel.source, 0) + 1
+    fanout_peak = max(source_out.values(), default=0)
+
+    dense_layout = rel_count >= 18 or (len(class_names) >= 12 and labeled_count >= 10)
+    if dense_layout:
+        pressure_scale = 1.0 + min(
+            0.75,
+            0.18
+            + (max(0, rel_count - 18) * 0.012)
+            + (max(0, labeled_count - 10) * 0.010)
+            + (max(0, fanout_peak - 3) * 0.045),
+        )
+        spacing_x = int(math.ceil(spacing_x * pressure_scale))
+        spacing_y = int(math.ceil(spacing_y * (1.0 + (pressure_scale - 1.0) * 0.70)))
+        boxes = _expand_boxes_for_dense_layout(diagram, boxes, pressure_scale)
+
     # FANOUT SPACING: when one node at level 1 connects to N level-0 nodes that
     # are all in one row, the outermost targets can be many hundreds of pixels
     # to the side of the hub.  If the vertical gap is smaller than that horizontal
@@ -1603,7 +1772,9 @@ def _layout_classes_orthogonal(diagram, model, verbosity="High"):
 
     return _aligned_tree_layout(
         class_names, boxes, levels, parent_children, claimed_children,
-        spacing_x, spacing_y, diagram
+        spacing_x, spacing_y, diagram,
+        apply_cluster_alignment=not dense_layout,
+        apply_post_center_deoverlap=dense_layout
     )
 
 
@@ -1721,7 +1892,16 @@ def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="diag
     boxes = _layout_classes_orthogonal(diagram, model, verbosity)
     if boxes:
         max_x = max(b['x'] + b['width'] for b in boxes.values())
-        if max_x <= CLASS_DIAGRAM_MAX_CANVAS_WIDTH:
+
+        rel_count = len(diagram.relationships)
+        labeled_count = sum(1 for rel in diagram.relationships if rel.label or rel.src_mult or rel.tgt_mult)
+        dense_layout = rel_count >= 18 or (len(boxes) >= 12 and labeled_count >= 10)
+
+        # Dense orthogonal diagrams need a wider canvas budget to keep
+        # right-angle tracks readable and reduce collision pressure.
+        max_canvas_width = CLASS_DIAGRAM_MAX_CANVAS_WIDTH * 2 if dense_layout else CLASS_DIAGRAM_MAX_CANVAS_WIDTH
+
+        if max_x <= max_canvas_width:
             return boxes
         # Tree result too wide: re-layout as wrapped grid
         return _layout_classes(diagram, model, verbosity)
@@ -1894,7 +2074,6 @@ def _layout_classes(diagram, model, verbosity="High"):
     if diagram.diagram_id == "OrthogonalArrowTypeTwoSegmentCombos":
         return _layout_two_segment_probe_pairs(diagram, boxes)
 
-    
     # Simple grid layout: arrange in rows using a canvas-width-aware column cap.
     n = len(class_names)
 
@@ -2383,6 +2562,7 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
             mult_x = connector.source_x + direction * 16
             label_x = first_pt[0] - direction * 18
             mult_y = connector.source_y - 8
+            first_stub_len = abs(dx)
             second_dy = 0.0
             if len(path_points) >= 3:
                 second_dy = path_points[2][1] - path_points[1][1]
@@ -2398,7 +2578,19 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                 # Single multiplicity fallback: keep it near the source endpoint.
                 positions['mult'] = (mult_x, mult_y, 'middle', connector.tgt_mult)
                 positions['consume_tgt_mult'] = True
-            positions['label'] = (label_x, label_y, 'middle', connector.label)
+
+            # Guardrail: if label cannot fit on the first horizontal stub,
+            # move it to a vertical segment instead of letting it overlap objects.
+            label_required = len(connector.label or "") * CONNECTOR_CHAR_WIDTH + 20
+            if connector.label and first_stub_len < label_required:
+                vertical_anchor = _vertical_segment_label_anchor(connector, path_points)
+                if vertical_anchor is not None:
+                    vx, vy, vanchor = vertical_anchor
+                    positions['label'] = (vx, vy, vanchor, connector.label)
+                else:
+                    positions['label'] = (label_x, label_y, 'middle', connector.label)
+            else:
+                positions['label'] = (label_x, label_y, 'middle', connector.label)
         return positions
 
     def _point_in_or_near_box(x: float, y: float, pad: float = 10.0) -> bool:

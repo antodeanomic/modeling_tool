@@ -53,6 +53,7 @@ def run_all_tests():
         'test_fanout.py',
         'test_class_diagram_routing_guardrails.py',
         'test_class_diagram_multiplicity_guardrails.py',
+        'test_class_diagram_midpoint_simplicity.py',
         'test_class_diagram_svg_golden.py',
     ]
     
