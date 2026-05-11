@@ -188,10 +188,125 @@
         .menu-button:active {
             background-color: #d0d0d0;
         }
-        
+
         .container {
             display: flex;
             height: calc(100vh - 50px);
+        }
+
+        .csv-editor-pane {
+            width: 34%;
+            min-width: 260px;
+            max-width: 70%;
+            display: flex;
+            flex-direction: column;
+            background: #f8fafc;
+            border-right: 1px solid #d5dbe3;
+            transition: width 0.1s;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .container.editor-hidden .csv-editor-pane {
+            display: none;
+        }
+
+        .csv-resizer {
+            width: 6px;
+            cursor: col-resize;
+            background: linear-gradient(to right, #d7dce3, #eef2f7);
+        }
+
+        .container.editor-hidden .csv-resizer {
+            display: none;
+        }
+
+        .csv-editor-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #e0e6ee;
+            background: #f1f5f9;
+        }
+
+        .csv-editor-title {
+            color: #334155;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.45px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .csv-editor-save {
+            border: 1px solid #b6c3d3;
+            border-radius: 4px;
+            padding: 5px 10px;
+            background: #fff;
+            color: #1f2937;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .csv-editor-nav-toolbar {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 4px;
+            padding: 8px;
+            display: flex;
+            gap: 6px;
+            z-index: 100;
+            max-width: calc(100% - 20px);
+        }
+
+        .csv-editor-save:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .csv-editor-status {
+            min-height: 24px;
+            padding: 4px 10px;
+            border-bottom: 1px solid #e0e6ee;
+            color: #334155;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            background: #f8fafc;
+        }
+
+        .csv-editor-status.unsaved {
+            color: #b45309;
+            background: #fff7ed;
+        }
+
+        .csv-editor-status.error {
+            color: #b91c1c;
+            background: #fef2f2;
+        }
+
+        .csv-editor-textarea {
+            flex: 1;
+            width: 100%;
+            border: none;
+            outline: none;
+            resize: none;
+            padding: 10px;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #1f2937;
+            background: #ffffff;
+            overflow: auto;
+            white-space: pre;
+            word-wrap: normal;
         }
         
         .diagram-area {
@@ -725,6 +840,15 @@
     </div>
     
     <div class="container" id="container">
+        <div class="csv-editor-pane" id="csvEditorPane">
+            <div class="csv-editor-toolbar">
+                <div class="csv-editor-title" id="csvEditorTitle">CSV Editor</div>
+                <button class="csv-editor-save" id="csvSaveButton" disabled>Save (Ctrl+S)</button>
+            </div>
+            <div class="csv-editor-status" id="csvEditorStatus">Saved</div>
+            <textarea class="csv-editor-textarea" id="csvEditorTextarea" spellcheck="false"></textarea>
+        </div>
+        <div class="csv-resizer" id="csvResizer" title="Drag to resize"></div>
         <div class="diagram-area" id="diagramArea">
             <div class="diagram-container" id="diagramContainer"></div>
             <div class="zoom-indicator" id="zoomIndicator" style="display:none;">100%</div>
@@ -766,6 +890,10 @@
                     <input type="checkbox" id="showTestDiagramsToggle">
                     <label for="showTestDiagramsToggle">Show Test Diagrams</label>
                 </div>
+                <div class="checkbox-option">
+                    <input type="checkbox" id="showEditorToggle" checked>
+                    <label for="showEditorToggle">Show CSV Editor</label>
+                </div>
             </div>
         </div>
         
@@ -805,7 +933,15 @@
             isLoading: false,
             applyFitOnLoad: false,  // set when a new diagram is selected; cleared after first load
             navHistory: [],  // back-navigation history stack
-            navFuture: []    // forward-navigation history stack
+            navFuture: [],   // forward-navigation history stack
+            editorVisible: true,
+            editorPaneWidth: 0,
+            editorCsv: '',
+            editorOriginalText: '',
+            editorDirty: false,
+            editorSaving: false,
+            editorStatus: 'Saved',
+            editorZoomLevel: 1.0
         };
 
         const VIEWER_STATE_KEY = 'diagram_viewer_state_v1';
@@ -832,7 +968,10 @@
                     verbosity: state.verbosity,
                     routing: state.routing,
                     selectedLanes: Array.isArray(state.selectedLanes) ? [...state.selectedLanes] : [],
-                    showTestDiagrams: state.showTestDiagrams
+                    showTestDiagrams: state.showTestDiagrams,
+                    editorVisible: state.editorVisible,
+                    editorPaneWidth: state.editorPaneWidth,
+                    editorZoomLevel: state.editorZoomLevel
                 };
                 localStorage.setItem(VIEWER_STATE_KEY, JSON.stringify(payload));
             } catch (_err) {
@@ -1091,7 +1230,10 @@
             return { diagram, selectedLanes: [...state.selectedLanes] };
         }
 
-        function navigateToDiagram(diagram) {
+        async function navigateToDiagram(diagram) {
+            if (!canSwitchDiagram(diagram)) {
+                return;
+            }
             closeClassLinkMenu();
             const current = _getCurrentEntry();
             if (current) state.navHistory.push(current);
@@ -1101,35 +1243,47 @@
             updateMenuVisibility();
             updateLaneCheckboxes();
             savePersistedViewerState();
-            loadDiagram();
+            await loadDiagram();
         }
 
-        function navigateBack() {
+        async function navigateBack() {
             if (!state.navHistory.length) return;
+            const prev = state.navHistory.pop();
+            if (!canSwitchDiagram(prev.diagram)) {
+                state.navHistory.push(prev);
+                return;
+            }
             const current = _getCurrentEntry();
             if (current) state.navFuture.unshift(current);
-            const prev = state.navHistory.pop();
             applyDiagramSelection(prev.diagram, prev.selectedLanes);
             updateMenuVisibility();
             updateLaneCheckboxes();
             savePersistedViewerState();
-            loadDiagram();
+            await loadDiagram();
         }
 
-        function navigateForward() {
+        async function navigateForward() {
             if (!state.navFuture.length) return;
+            const next = state.navFuture.shift();
+            if (!canSwitchDiagram(next.diagram)) {
+                state.navFuture.unshift(next);
+                return;
+            }
             const current = _getCurrentEntry();
             if (current) state.navHistory.push(current);
-            const next = state.navFuture.shift();
             applyDiagramSelection(next.diagram, next.selectedLanes);
             updateMenuVisibility();
             updateLaneCheckboxes();
             savePersistedViewerState();
-            loadDiagram();
+            await loadDiagram();
         }
 
-        function navigateToHistoryIndex(index) {
+        async function navigateToHistoryIndex(index) {
             if (index < 0 || index >= state.navHistory.length) return;
+            const entry = state.navHistory[index];
+            if (!canSwitchDiagram(entry.diagram)) {
+                return;
+            }
             const current = _getCurrentEntry();
             // Entries after the target become the beginning of the future stack.
             const displaced = state.navHistory.slice(index + 1);
@@ -1138,14 +1292,13 @@
                 ...(current ? [current] : []),
                 ...state.navFuture
             ];
-            const entry = state.navHistory[index];
             state.navHistory = state.navHistory.slice(0, index);
             state.navFuture = newFuture;
             applyDiagramSelection(entry.diagram, entry.selectedLanes);
             updateMenuVisibility();
             updateLaneCheckboxes();
             savePersistedViewerState();
-            loadDiagram();
+            await loadDiagram();
         }
 
         function updateNavHistory() {
@@ -1299,6 +1452,15 @@
             if (typeof persisted.showTestDiagrams === 'boolean') {
                 state.showTestDiagrams = persisted.showTestDiagrams;
             }
+            if (typeof persisted.editorVisible === 'boolean') {
+                state.editorVisible = persisted.editorVisible;
+            }
+            if (typeof persisted.editorPaneWidth === 'number' && persisted.editorPaneWidth > 0) {
+                state.editorPaneWidth = persisted.editorPaneWidth;
+            }
+            if (typeof persisted.editorZoomLevel === 'number' && persisted.editorZoomLevel > 0) {
+                state.editorZoomLevel = persisted.editorZoomLevel;
+            }
 
             const targetId = persisted.diagramType === 'class_diagram'
                 ? persisted.classDiagramId
@@ -1325,6 +1487,14 @@
         const paletteInput = document.getElementById('paletteInput');
         const paletteDropdown = document.getElementById('paletteDropdown');
         const paletteWrapper = document.getElementById('paletteWrapper');
+        const container = document.getElementById('container');
+        const showEditorToggle = document.getElementById('showEditorToggle');
+        const csvEditorPane = document.getElementById('csvEditorPane');
+        const csvResizer = document.getElementById('csvResizer');
+        const csvEditorTitle = document.getElementById('csvEditorTitle');
+        const csvSaveButton = document.getElementById('csvSaveButton');
+        const csvEditorStatus = document.getElementById('csvEditorStatus');
+        const csvEditorTextarea = document.getElementById('csvEditorTextarea');
         const menuButton = document.getElementById('menuButton');
         const menu = document.getElementById('menu');
         const diagramArea = document.getElementById('diagramArea');
@@ -1334,6 +1504,7 @@
         const forwardButton = document.getElementById('forwardButton');
         const fitButton = document.getElementById('fitButton');
         const resetButton = document.getElementById('resetButton');
+
         const panInfo = document.getElementById('panInfo');
         const breadcrumbInfo = document.getElementById('breadcrumbInfo');
         const verbosityOptions = document.getElementById('verbosityOptions');
@@ -1342,6 +1513,226 @@
         const layersList = document.getElementById('layersList');
         const detailsPane = document.getElementById('detailsPane');
         const detailsPaneClose = document.getElementById('detailsPaneClose');
+
+        function isEditorTextInputFocused() {
+            const active = document.activeElement;
+            if (!active) {
+                return false;
+            }
+
+            if (active === csvEditorTextarea) {
+                return true;
+            }
+
+            if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') {
+                return true;
+            }
+
+            return !!active.isContentEditable;
+        }
+
+        function updateEditorTitle() {
+            if (state.csv) {
+                csvEditorTitle.textContent = `CSV Editor: ${state.csv}`;
+            } else {
+                csvEditorTitle.textContent = 'CSV Editor';
+            }
+        }
+
+        function applyEditorPaneWidth() {
+            if (state.editorPaneWidth > 0) {
+                csvEditorPane.style.width = `${state.editorPaneWidth}px`;
+            } else {
+                csvEditorPane.style.width = '34%';
+            }
+        }
+
+        function updateEditorSaveButtonState() {
+            csvSaveButton.disabled = !state.csv || !state.editorDirty || state.editorSaving;
+        }
+
+        function clampEditorZoomLevel(zoomLevel) {
+            return Math.max(0.5, Math.min(3.0, zoomLevel));
+        }
+
+        function applyEditorZoom() {
+            const baseFontSizePx = 13;
+            const zoomLevel = clampEditorZoomLevel(state.editorZoomLevel || 1.0);
+            state.editorZoomLevel = zoomLevel;
+            const fontSize = baseFontSizePx * zoomLevel;
+            csvEditorTextarea.style.fontSize = `${fontSize}px`;
+            csvEditorTextarea.style.lineHeight = `${Math.round(fontSize * 1.4)}px`;
+        }
+
+        function setEditorZoomLevel(zoomLevel) {
+            state.editorZoomLevel = clampEditorZoomLevel(zoomLevel);
+            applyEditorZoom();
+            savePersistedViewerState();
+        }
+
+        function zoomEditorByStep(step) {
+            setEditorZoomLevel((state.editorZoomLevel || 1.0) + step);
+        }
+
+        function fitEditorZoom() {
+            const baseFontSizePx = 13;
+            const text = csvEditorTextarea.value || '';
+            const lines = text.split(/\r?\n/);
+            let longestLine = '';
+            for (const line of lines) {
+                if (line.length > longestLine.length) {
+                    longestLine = line;
+                }
+            }
+
+            if (!longestLine) {
+                setEditorZoomLevel(1.0);
+                return;
+            }
+
+            const measureCanvas = document.createElement('canvas');
+            const measureContext = measureCanvas.getContext('2d');
+            if (!measureContext) {
+                setEditorZoomLevel(1.0);
+                return;
+            }
+            measureContext.font = `${baseFontSizePx}px Consolas, Courier New, monospace`;
+            const longestLineWidthAtBase = Math.max(1, measureContext.measureText(longestLine).width);
+
+            const availableWidth = Math.max(140, csvEditorTextarea.clientWidth - 24);
+            const targetZoom = availableWidth / longestLineWidthAtBase;
+            setEditorZoomLevel(targetZoom);
+        }
+
+        function resetEditorZoom() {
+            setEditorZoomLevel(1.0);
+        }
+
+        function setEditorStatus(message, statusClass = '') {
+            state.editorStatus = message;
+            csvEditorStatus.textContent = message;
+            csvEditorStatus.classList.remove('unsaved', 'error');
+            if (statusClass) {
+                csvEditorStatus.classList.add(statusClass);
+            }
+        }
+
+        function applyEditorVisibility() {
+            container.classList.toggle('editor-hidden', !state.editorVisible);
+            if (showEditorToggle) {
+                showEditorToggle.checked = !!state.editorVisible;
+            }
+            updateEditorSaveButtonState();
+        }
+
+        async function loadCsvEditorText(forceReload = false) {
+            if (!state.csv) {
+                state.editorCsv = '';
+                state.editorOriginalText = '';
+                state.editorDirty = false;
+                csvEditorTextarea.value = '';
+                updateEditorTitle();
+                setEditorStatus('Saved');
+                updateEditorSaveButtonState();
+                return;
+            }
+
+            if (!forceReload && state.editorCsv === state.csv) {
+                updateEditorTitle();
+                return;
+            }
+
+            updateEditorTitle();
+            setEditorStatus('Loading...', '');
+            updateEditorSaveButtonState();
+
+            const response = await fetch(`/api/csv_text?csv=${encodeURIComponent(state.csv)}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to load CSV text');
+            }
+
+            const text = await response.text();
+            state.editorCsv = state.csv;
+            state.editorOriginalText = text;
+            state.editorDirty = false;
+            csvEditorTextarea.value = text;
+            setEditorStatus('Saved');
+            updateEditorSaveButtonState();
+            fitEditorZoom();  // Fit text to editor width by default
+        }
+
+        async function saveCsvEditorText() {
+            if (!state.csv || state.editorSaving || !state.editorDirty) {
+                return;
+            }
+
+            state.editorSaving = true;
+            updateEditorSaveButtonState();
+            setEditorStatus('Saving...', '');
+            const previousDiagramMarkup = diagramContainer ? diagramContainer.innerHTML : '';
+
+            try {
+                const payload = {
+                    csv: state.csv,
+                    content: csvEditorTextarea.value
+                };
+
+                const response = await fetch('/api/csv_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Save failed');
+                }
+
+                state.editorOriginalText = csvEditorTextarea.value;
+                state.editorDirty = false;
+                updateEditorSaveButtonState();
+                await loadDiagram();
+                const currentDiagramMarkup = diagramContainer ? diagramContainer.innerHTML : '';
+                if (previousDiagramMarkup && currentDiagramMarkup && previousDiagramMarkup === currentDiagramMarkup) {
+                    setEditorStatus('Saved (selected diagram unchanged)');
+                } else {
+                    setEditorStatus('Saved');
+                }
+            } catch (error) {
+                setEditorStatus(`Error: ${error.message}`, 'error');
+                updateEditorSaveButtonState();
+            } finally {
+                state.editorSaving = false;
+                updateEditorSaveButtonState();
+            }
+        }
+
+        function canSwitchDiagram(targetDiagram) {
+            if (!targetDiagram) {
+                return true;
+            }
+
+            const currentKey = getCurrentDiagramKey();
+            const targetKey = getDiagramKeyFor(targetDiagram);
+            if (!currentKey || !targetKey || currentKey === targetKey) {
+                return true;
+            }
+
+            if (state.editorDirty) {
+                const confirmed = window.confirm('You have unsaved changes. Discard and switch diagram?');
+                if (confirmed) {
+                    csvEditorTextarea.value = state.editorOriginalText;
+                    state.editorDirty = false;
+                    setEditorStatus('Saved');
+                    updateEditorSaveButtonState();
+                }
+                return confirmed;
+            }
+            return true;
+        }
         
         // Copy to clipboard functionality
         function showToast(message, duration = 2000) {
@@ -1424,7 +1815,24 @@
                 if (earlyPersisted && typeof earlyPersisted.showTestDiagrams === 'boolean') {
                     state.showTestDiagrams = earlyPersisted.showTestDiagrams;
                 }
+                if (earlyPersisted && typeof earlyPersisted.editorVisible === 'boolean') {
+                    state.editorVisible = earlyPersisted.editorVisible;
+                }
+                if (earlyPersisted && typeof earlyPersisted.editorPaneWidth === 'number' && earlyPersisted.editorPaneWidth > 0) {
+                    state.editorPaneWidth = earlyPersisted.editorPaneWidth;
+                }
+                if (earlyPersisted && typeof earlyPersisted.editorZoomLevel === 'number' && earlyPersisted.editorZoomLevel > 0) {
+                    state.editorZoomLevel = earlyPersisted.editorZoomLevel;
+                }
                 showTestDiagramsToggle.checked = state.showTestDiagrams;
+                if (showEditorToggle) {
+                    showEditorToggle.checked = state.editorVisible;
+                }
+                applyEditorPaneWidth();
+                applyEditorVisibility();
+                updateEditorTitle();
+                setEditorStatus('Saved');
+                applyEditorZoom();
                 
                 // Check URL parameters for diagram override
                 const urlParams = new URLSearchParams(window.location.search);
@@ -1732,7 +2140,10 @@
                 .replace(/>/g, '&gt;');
         }
         
-        function selectPaletteItem(diagram) {
+        async function selectPaletteItem(diagram) {
+            if (!canSwitchDiagram(diagram)) {
+                return;
+            }
             paletteDropdown.classList.remove('open');
             paletteInput.blur();
             state.navHistory = [];
@@ -1743,7 +2154,7 @@
             updateMenuVisibility();
             updateLaneCheckboxes();
             savePersistedViewerState();
-            loadDiagram();
+            await loadDiagram();
         }
         
         
@@ -1839,6 +2250,67 @@
             menu.classList.toggle('active');
         });
         showTestDiagramsToggle.addEventListener('change', onShowTestDiagramsChange);
+        showEditorToggle.addEventListener('change', () => {
+            state.editorVisible = showEditorToggle.checked;
+            applyEditorVisibility();
+            savePersistedViewerState();
+            requestAnimationFrame(() => fitToView());
+        });
+        fitButton.addEventListener('click', fitToView);
+        resetButton.addEventListener('click', resetPanAndZoom);
+        csvSaveButton.addEventListener('click', saveCsvEditorText);
+        csvEditorTextarea.addEventListener('input', () => {
+            const isDirty = csvEditorTextarea.value !== state.editorOriginalText;
+            state.editorDirty = isDirty;
+            if (isDirty) {
+                setEditorStatus('Unsaved changes', 'unsaved');
+            } else {
+                setEditorStatus('Saved');
+            }
+            updateEditorSaveButtonState();
+        });
+
+        let editorResizeStartX = 0;
+        let editorResizeStartWidth = 0;
+        let isEditorResizing = false;
+
+        csvResizer.addEventListener('mousedown', (event) => {
+            if (!state.editorVisible) {
+                return;
+            }
+            isEditorResizing = true;
+            editorResizeStartX = event.clientX;
+            editorResizeStartWidth = csvEditorPane.getBoundingClientRect().width;
+            event.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (event) => {
+            if (!isEditorResizing) {
+                return;
+            }
+            const delta = event.clientX - editorResizeStartX;
+            const minWidth = 260;
+            const maxWidth = Math.max(minWidth, Math.floor(window.innerWidth * 0.7));
+            const nextWidth = Math.max(minWidth, Math.min(maxWidth, Math.floor(editorResizeStartWidth + delta)));
+            state.editorPaneWidth = nextWidth;
+            csvEditorPane.style.width = `${nextWidth}px`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!isEditorResizing) {
+                return;
+            }
+            isEditorResizing = false;
+            savePersistedViewerState();
+            requestAnimationFrame(() => fitToView());
+        });
+
+        // Match diagram zoom behavior: mouse wheel zoom inside editor pane.
+        csvEditorTextarea.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            zoomEditorByStep(delta);
+        }, { passive: false });
         
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#menu') && !e.target.closest('#menuButton')) {
@@ -1875,6 +2347,22 @@
         
         // Add keyboard shortcuts for zoom
         document.addEventListener('keydown', (e) => {
+            if (isEditorTextInputFocused()) {
+                // When typing/editing text, keep key behavior local to the editor.
+                if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                    e.preventDefault();
+                    saveCsvEditorText();
+                    return;
+                }
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                saveCsvEditorText();
+                return;
+            }
+
             // Ctrl+Plus or Ctrl+Up to zoom in
             if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=' || e.code === 'Equal')) {
                 e.preventDefault();
@@ -2031,11 +2519,49 @@
             diagramArea.scrollLeft = 0;
         }
         
+        // Track which pane the cursor is over
+        csvEditorPane.addEventListener('mouseover', () => {
+            state.activePane = 'editor';
+        });
+
+        csvEditorPane.addEventListener('mouseleave', () => {
+            state.activePane = 'diagram';
+        });
+
+        diagramArea.addEventListener('mouseover', () => {
+            state.activePane = 'diagram';
+        });
+
+        diagramArea.addEventListener('mouseleave', () => {
+            // If leaving diagram area, default to diagram (unless over editor)
+            if (!csvEditorPane.matches(':hover')) {
+                state.activePane = 'diagram';
+            }
+        });
+
+        // Track which pane the cursor is over
+        csvEditorPane.addEventListener('mouseover', () => {
+            state.activePane = 'editor';
+        });
+
+        csvEditorPane.addEventListener('mouseleave', () => {
+            state.activePane = 'diagram';
+        });
+
+        diagramArea.addEventListener('mouseover', () => {
+            state.activePane = 'diagram';
+        });
+
+        diagramArea.addEventListener('mouseleave', () => {
+            // If leaving diagram area, default to diagram (unless over editor)
+            if (!csvEditorPane.matches(':hover')) {
+                state.activePane = 'diagram';
+            }
+        });
+
         // Button click handlers
         backButton.addEventListener('click', navigateBack);
         forwardButton.addEventListener('click', navigateForward);
-        fitButton.addEventListener('click', fitToView);
-        resetButton.addEventListener('click', resetPanAndZoom);
         detailsPaneClose.addEventListener('click', closeDetailsPane);
         
         function resetDiagram() {
@@ -2049,6 +2575,13 @@
             state.csv = '';
             state.allLanes = [];
             state.selectedLanes = [];
+            state.editorCsv = '';
+            state.editorOriginalText = '';
+            state.editorDirty = false;
+            csvEditorTextarea.value = '';
+            updateEditorTitle();
+            setEditorStatus('Saved');
+            updateEditorSaveButtonState();
             savePersistedViewerState();
             diagramContainer.innerHTML = '<div style="color: #999; font-size: 16px;">Select a diagram from the palette above</div>';
             populatePalette();
@@ -2109,6 +2642,13 @@
             state.csv = '';
             state.allLanes = [];
             state.selectedLanes = [];
+            state.editorCsv = '';
+            state.editorOriginalText = '';
+            state.editorDirty = false;
+            csvEditorTextarea.value = '';
+            updateEditorTitle();
+            setEditorStatus('Saved');
+            updateEditorSaveButtonState();
             updateLaneCheckboxes();
             updateNavHistory();
             diagramContainer.innerHTML = '<div style="color: #999; font-size: 16px;">Select a diagram from the palette above</div>';
@@ -2606,6 +3146,13 @@
                 
                 // Load class metadata for details pane
                 await loadClassMetadata();
+
+                // Load source CSV text for the editor pane after successful render.
+                try {
+                    await loadCsvEditorText();
+                } catch (editorError) {
+                    setEditorStatus(`Error: ${editorError.message}`, 'error');
+                }
                 
                 updateNavHistory();
 

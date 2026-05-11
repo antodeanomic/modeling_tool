@@ -50,6 +50,7 @@ def run_all_tests():
         'test_class_metadata_traceability.py',
         'test_class_diagram_title_and_endpoints.py',
         'test_class_diagram_connector_routing.py',
+        'test_csv_editor_api.py',
         'test_fanout.py',
         'test_class_diagram_routing_guardrails.py',
         'test_class_diagram_multiplicity_guardrails.py',

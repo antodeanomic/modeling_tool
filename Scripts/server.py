@@ -5,6 +5,7 @@ import json
 import csv
 import sys
 import os
+import tempfile
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -188,6 +189,58 @@ def resolve_csv_key(csv_name):
 
     return None
 
+
+def resolve_csv_registry_key(csv_id):
+    """Resolve a CSV id strictly from the known registry keys."""
+    if not csv_id:
+        return None
+
+    normalized = str(csv_id).replace('\\', '/').strip()
+    if not normalized or normalized.startswith('/'):
+        return None
+    if '..' in normalized:
+        return None
+
+    if normalized in CSV_FILES:
+        return normalized
+    return None
+
+
+def read_csv_text(csv_id):
+    """Read CSV source text from a known CSV id."""
+    registry_key = resolve_csv_registry_key(csv_id)
+    if not registry_key:
+        raise ValueError("Unknown csv id")
+
+    csv_path = CSV_FILES[registry_key]
+    with open(csv_path, 'r', encoding='utf-8') as handle:
+        return handle.read()
+
+
+def write_csv_text(csv_id, content):
+    """Validate and atomically write CSV source text for a known CSV id."""
+    registry_key = resolve_csv_registry_key(csv_id)
+    if not registry_key:
+        raise ValueError("Unknown csv id")
+
+    csv_path = CSV_FILES[registry_key]
+    csv_dir = os.path.dirname(csv_path)
+    fd, temp_path = tempfile.mkstemp(prefix='csv_edit_', suffix='.tmp', dir=csv_dir, text=True)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            handle.write(content)
+
+        # Validate by parsing the staged content before replacing the real file.
+        parse_csv(temp_path)
+        os.replace(temp_path, csv_path)
+    except Exception:
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except OSError:
+            pass
+        raise
+
 try:
     CSV_FILES = find_csv_files()
     print(f"[OK] Found {len(CSV_FILES)} CSV file(s): {sorted(CSV_FILES.keys())}")
@@ -338,6 +391,8 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.handle_all_diagrams_request(parsed_path.query)
         elif parsed_path.path == '/api/csvs':
             self.handle_csvs_request()
+        elif parsed_path.path == '/api/csv_text':
+            self.handle_csv_text_read_request(parsed_path.query)
         elif parsed_path.path == '/api/lanes':
             self.handle_lanes_request()
         elif parsed_path.path == '/api/class_metadata':
@@ -388,6 +443,19 @@ class DiagramHandler(SimpleHTTPRequestHandler):
         else:
             # Serve static files
             super().do_GET()
+
+    def do_POST(self):
+        """Handle POST requests."""
+        parsed_path = urlparse(self.path)
+
+        if parsed_path.path == '/api/csv_text':
+            self.handle_csv_text_write_request()
+            return
+
+        self.send_response(404)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({'ok': False, 'error': 'Not found'}).encode('utf-8'))
     
     def handle_diagram_request(self, query_string):
         """Generate and return an SVG diagram (sequence or class diagram)."""
@@ -706,6 +774,98 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+
+    def handle_csv_text_read_request(self, query_string):
+        """Return raw CSV text for a known CSV id."""
+        params = parse_qs(query_string, keep_blank_values=True)
+        csv_id = params.get('csv', [''])[0]
+
+        if not resolve_csv_registry_key(csv_id):
+            self.send_response(400)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+            self.end_headers()
+            self.wfile.write(b'Unknown csv id')
+            return
+
+        try:
+            text = read_csv_text(csv_id)
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+            self.end_headers()
+            self.wfile.write(text.encode('utf-8'))
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.end_headers()
+            self.wfile.write(f'Read failure: {str(e)}'.encode('utf-8'))
+
+    def handle_csv_text_write_request(self):
+        """Validate and persist CSV text for a known CSV id."""
+        try:
+            content_length = int(self.headers.get('Content-Length', '0'))
+        except ValueError:
+            content_length = 0
+
+        if content_length <= 0:
+            self.send_response(400)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'ok': False, 'error': 'Request body is required'}).encode('utf-8'))
+            return
+
+        try:
+            raw = self.rfile.read(content_length)
+            payload = json.loads(raw.decode('utf-8'))
+        except Exception:
+            self.send_response(400)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'ok': False, 'error': 'Invalid JSON payload'}).encode('utf-8'))
+            return
+
+        csv_id = payload.get('csv')
+        content = payload.get('content')
+
+        if not isinstance(csv_id, str) or not resolve_csv_registry_key(csv_id):
+            self.send_response(400)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'ok': False, 'error': 'Unknown csv id'}).encode('utf-8'))
+            return
+
+        if not isinstance(content, str):
+            self.send_response(400)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'ok': False, 'error': 'content must be a string'}).encode('utf-8'))
+            return
+
+        try:
+            write_csv_text(csv_id, content)
+        except Exception as e:
+            self.send_response(400)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+            self.end_headers()
+            self.wfile.write(json.dumps({'ok': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        self.end_headers()
+        self.wfile.write(json.dumps({'ok': True}).encode('utf-8'))
     
     def handle_class_metadata_request(self):
         """Return class metadata from the model for a specific class diagram."""
