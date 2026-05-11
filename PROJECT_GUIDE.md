@@ -351,8 +351,9 @@ Check `claude.md` for current interaction rules.
 
 ### 4. Start the Development Server
 ```bash
-# Run refresh.bat to start server at http://localhost:8000
-# View diagrams in MS Edge
+# Run refresh.bat to reset environment (cleanup only)
+# Start server manually: .venv\Scripts\python.exe Scripts\server.py 8000
+# View diagrams in VS Code browser at http://localhost:8000
 # Check server logs: check server_output.log
 ```
 
@@ -457,10 +458,12 @@ This tool becomes the **interface** between human architects and AI developers:
 ## Development Workflow
 
 ### Daily Startup
-1. Start server: `refresh.bat` (or run Refresh Server task)
-2. Open `http://localhost:8000` in MS Edge
-3. Check `Test/tests/` for rendered SVG files
-4. Review `server_output.log` for any errors
+1. Refresh environment: `refresh.bat` (or run Refresh Environment task)
+2. Preferred: run Ensure Server Ready (Start If Needed) task
+3. Alternative manual start: `.venv\Scripts\python.exe Scripts\server.py 8000` (or run Start Server (Manual) task)
+4. Open `http://localhost:8000` in VS Code browser
+5. Check `Test/tests/` for rendered SVG files
+6. Review `server_output.log` for any errors
 
 ### Making Changes
 1. Modify code (Python files in `Scripts/`)

@@ -12,14 +12,16 @@ This file focuses on specific rules and constraints. The guide covers the broade
 
 ## Execution Rules
 
-- **After every chat message**: Execute `refresh.bat` to restart the development server and ensure all changes are reflected in the running application.
+- **After every chat message**: Execute `refresh.bat` to reset the local development environment.
   - Command: `.\refresh.bat`
   - This will:
     - Stop any existing Python server processes
     - Clear Python cache
-    - Start the server on port 8000
-    - Open the browser to http://localhost:8000
-    - Log all output to `server_output.log`
+    - **Not** start the server
+    - **Not** open any browser
+  - Start server manually when needed:
+    - `.\.venv\Scripts\python.exe Scripts\server.py 8000`
+    - Open VS Code browser to `http://localhost:8000`
 
 ## CSV File Rules
 
@@ -49,14 +51,17 @@ This is a Sequence Diagram modeling tool that:
 - `Scripts/server.py` - HTTP web server (SimpleHTTPRequestHandler)
 - `Scripts/parser.py` - CSV parser for model definitions
 - `Scripts/svg_renderer.py` - SVG rendering engine
-- `refresh.bat` - Server restart and refresh script
+- `refresh.bat` - Environment cleanup/reset script (no launch)
+- `start_server.bat` - Manual server start helper (no browser launch)
 
 ## Development Workflow
 
 1. Make changes to code or CSV test files
-2. Run `refresh.bat` to see changes reflected immediately
-3. Server automatically reloads CSV files on each request (no restart needed for CSV changes)
-4. **Before every commit**: Run ALL tests with `cd Test; python run_all_tests_and_view.py` and verify exit code 0. Do not commit if tests fail.
+2. Run `refresh.bat` to reset the environment (cleanup only)
+3. Start server manually when needed: `.\.venv\Scripts\python.exe Scripts\server.py 8000`
+4. Open VS Code browser to `http://localhost:8000`
+5. Server automatically reloads CSV files on each request (no restart needed for CSV changes)
+6. **Before every commit**: Run ALL tests with `cd Test; python run_all_tests_and_view.py` and verify exit code 0. Do not commit if tests fail.
 
 ## Renderer Change Policy (Generic-First)
 

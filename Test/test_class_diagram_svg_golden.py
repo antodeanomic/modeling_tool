@@ -38,6 +38,12 @@ SCENARIOS = [
         "baseline": BASELINE_DIR / "FanoutTop.svg",
     },
     {
+        "name": "FanoutBottom",
+        "csv": REPO_ROOT / "Test" / "tests" / "fanout.csv",
+        "diagram_id": "FanoutBottom",
+        "baseline": BASELINE_DIR / "FanoutBottom.svg",
+    },
+    {
         "name": "SimpleFourBox",
         "csv": REPO_ROOT / "Test" / "tests" / "test_spacing_minimal.csv",
         "diagram_id": "SimpleFourBox",

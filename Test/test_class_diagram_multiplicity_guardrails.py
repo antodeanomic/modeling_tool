@@ -22,10 +22,12 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from parser import parse_csv
-from class_diagram_renderer import render_class_diagram_svg
+from class_diagram_renderer import _layout_classes_orthogonal, render_class_diagram_svg
 
 MAX_ENDPOINT_DISTANCE = 40.0
 MAX_SEGMENT_DISTANCE = 14.0
+TEXT_CHAR_WIDTH = 7.0
+TEXT_HEIGHT = 12.0
 
 
 def _parse_path_points(path_d: str) -> List[Tuple[float, float]]:
@@ -118,6 +120,63 @@ def _assert(condition: bool, message: str):
         raise AssertionError(message)
 
 
+def _text_bbox(text: str, x: float, y: float, anchor: str) -> Tuple[float, float, float, float]:
+    width = max(6.0, len(text) * TEXT_CHAR_WIDTH)
+    if anchor == "end":
+        left = x - width
+        right = x
+    elif anchor == "middle":
+        left = x - width / 2.0
+        right = x + width / 2.0
+    else:
+        left = x
+        right = x + width
+    top = y - (TEXT_HEIGHT - 2.0)
+    bottom = y + 2.0
+    return left, top, right, bottom
+
+
+def _rects_intersect(
+    a: Tuple[float, float, float, float],
+    b: Tuple[float, float, float, float],
+    pad: float = 0.0,
+) -> bool:
+    al, at, ar, ab = a
+    bl, bt, br, bb = b
+    return not (
+        (ar + pad) <= (bl - pad)
+        or (br + pad) <= (al - pad)
+        or (ab + pad) <= (bt - pad)
+        or (bb + pad) <= (at - pad)
+    )
+
+
+def _segment_intersects_rect(
+    a: Tuple[float, float],
+    b: Tuple[float, float],
+    rect: Tuple[float, float, float, float],
+) -> bool:
+    left, top, right, bottom = rect
+    x1, y1 = a
+    x2, y2 = b
+
+    if abs(y2 - y1) < 1e-6:
+        y = y1
+        if not (top <= y <= bottom):
+            return False
+        seg_left, seg_right = sorted((x1, x2))
+        return min(seg_right, right) - max(seg_left, left) > 0.5
+
+    if abs(x2 - x1) < 1e-6:
+        x = x1
+        if not (left <= x <= right):
+            return False
+        seg_top, seg_bottom = sorted((y1, y2))
+        return min(seg_bottom, bottom) - max(seg_top, top) > 0.5
+
+    return False
+
+
 def _check_probe_label_positions(
     blocks,
     object_boxes: List[Tuple[float, float, float, float]],
@@ -126,7 +185,7 @@ def _check_probe_label_positions(
     if diagram_id != "OrthogonalTopEntryProbe":
         return
 
-    expected = {("Obj1", "Obj3"), ("Obj4", "Obj1")}
+    expected = {("Obj1", "Obj2"), ("Obj1", "Obj3"), ("Obj4", "Obj1")}
     checked = set()
 
     for _cid, source, target, pts, texts in blocks:
@@ -140,6 +199,8 @@ def _check_probe_label_positions(
         label = label_nodes[0]
         lx = float(label.attrib.get("x", "0"))
         ly = float(label.attrib.get("y", "0"))
+        label_text = (label.text or "").strip()
+        label_anchor = label.attrib.get("text-anchor", "start")
 
         vertical_dists = []
         horizontal_dists = []
@@ -171,11 +232,69 @@ def _check_probe_label_positions(
                 f"FAIL [{diagram_id}] {source}->{target} label intersects object box at ({lx:.1f},{ly:.1f})",
             )
 
+        label_rect = _text_bbox(label_text, lx, ly, label_anchor)
+        for _ocid, other_source, other_target, other_pts, _other_texts in blocks:
+            if (other_source, other_target) == (source, target):
+                continue
+            for i in range(len(other_pts) - 1):
+                intersects = _segment_intersects_rect(other_pts[i], other_pts[i + 1], label_rect)
+                _assert(
+                    not intersects,
+                    (
+                        f"FAIL [{diagram_id}] {source}->{target} label intersects connector "
+                        f"{other_source}->{other_target}"
+                    ),
+                )
+
         checked.add(key)
 
     _assert(
         checked == expected,
         f"FAIL [{diagram_id}] expected probe label checks for {sorted(expected)}, got {sorted(checked)}",
+    )
+
+
+def _check_probe_fanout_separation(blocks, diagram_id: str) -> None:
+    if diagram_id != "OrthogonalTopEntryProbe":
+        return
+
+    source_xs = {}
+    for _cid, source, target, pts, _texts in blocks:
+        if source != "Obj1" or target not in {"Obj2", "Obj3"}:
+            continue
+        _assert(pts, f"FAIL [{diagram_id}] missing path points for {source}->{target}")
+        source_xs[(source, target)] = pts[0][0]
+
+    expected = {("Obj1", "Obj2"), ("Obj1", "Obj3")}
+    _assert(
+        set(source_xs.keys()) == expected,
+        f"FAIL [{diagram_id}] expected fanout connectors {sorted(expected)}, got {sorted(source_xs.keys())}",
+    )
+    _assert(
+        abs(source_xs[("Obj1", "Obj2")] - source_xs[("Obj1", "Obj3")]) >= 1.0,
+        (
+            f"FAIL [{diagram_id}] Obj1 fanout connectors must not share the same visible source port; "
+            f"got x={source_xs[('Obj1', 'Obj2')]:.1f} and x={source_xs[('Obj1', 'Obj3')]:.1f}"
+        ),
+    )
+
+
+def _check_probe_layout_alignment(csv_path: Path, diagram_id: str) -> None:
+    if diagram_id != "OrthogonalTopEntryProbe":
+        return
+
+    model = parse_csv(str(csv_path))
+    diagram = next(d for d in model.class_diagrams if d.diagram_id == diagram_id)
+    boxes = _layout_classes_orthogonal(diagram, model, verbosity="High")
+
+    obj1 = boxes.get("Obj1")
+    obj4 = boxes.get("Obj4")
+    _assert(obj1 is not None and obj4 is not None, f"FAIL [{diagram_id}] missing Obj1/Obj4 layout boxes")
+    obj1_cx = obj1["x"] + obj1["width"] / 2.0
+    obj4_cx = obj4["x"] + obj4["width"] / 2.0
+    _assert(
+        abs(obj1_cx - obj4_cx) <= 1.0,
+        f"FAIL [{diagram_id}] Obj4 should align to Obj1 by center axis, got cx={obj4_cx:.1f} vs {obj1_cx:.1f}",
     )
 
 
@@ -225,22 +344,33 @@ def _check_svg(csv_path: Path, diagram_id: str) -> None:
                 f"FAIL [{diagram_id}] {source}->{target} multiplicity '{txt}' is not endpoint-adjacent (ds={ds:.1f}, dt={dt:.1f})",
             )
 
-            if diagram_id == "FanoutTop" and source == "HubTop" and (not rel_src_mult) and rel_tgt_mult:
+            text_anchor = t.attrib.get("text-anchor", "start")
+            text_rect = _text_bbox(txt, x, y, text_anchor)
+            for left, top, right, bottom in object_boxes:
+                box_rect = (left, top, right, bottom)
                 _assert(
-                    ds < dt,
-                    f"FAIL [FanoutTop] {source}->{target} single multiplicity '{txt}' must stay near source endpoint (ds={ds:.1f}, dt={dt:.1f})",
+                    not _rects_intersect(text_rect, box_rect, pad=1.0),
+                    (
+                        f"FAIL [{diagram_id}] {source}->{target} multiplicity '{txt}' overlaps object box "
+                        f"(text={text_rect}, box={box_rect})"
+                    ),
                 )
+
 
     _assert(checked_count > 0, f"FAIL [{diagram_id}] no multiplicity texts were checked")
     _check_probe_label_positions(blocks, object_boxes, diagram_id)
+    _check_probe_fanout_separation(blocks, diagram_id)
 
 
 def run_test() -> int:
-    _check_svg(REPO_ROOT / "Test" / "tests" / "fanout.csv", "FanoutTop")
-    _check_svg(
-        REPO_ROOT / "Process" / "01_System" / "40_Tests" / "20_Advanced" / "test_class_diagram_all_connector_combinations.csv",
-        "OrthogonalTopEntryProbe",
-    )
+    fanout_csv = REPO_ROOT / "Test" / "tests" / "fanout.csv"
+    probe_csv = REPO_ROOT / "Process" / "01_System" / "40_Tests" / "20_Advanced" / "test_class_diagram_all_connector_combinations.csv"
+
+    _check_svg(fanout_csv, "FanoutTop")
+    _check_svg(fanout_csv, "FanoutBottom")
+    _check_svg(probe_csv, "OrthogonalTopEntryProbe")
+    _check_svg(probe_csv, "OrthogonalArrowTypeAndRoutes")
+    _check_probe_layout_alignment(probe_csv, "OrthogonalTopEntryProbe")
     print("OK: multiplicity guardrail checks passed (first/last segment + endpoint adjacency)")
     return 0
 

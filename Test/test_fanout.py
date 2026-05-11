@@ -1050,6 +1050,51 @@ def _validate_csv_top_render_text_positions(context):
                 )
 
 
+def _validate_csv_top_hub_multiplicity_presence(context):
+    model = parse_csv(os.path.join(REPO_ROOT, "Test", "tests", "fanout.csv"))
+    diagram = next(d for d in model.class_diagrams if d.diagram_id == "FanoutTop")
+    svg = render_class_diagram_svg(model, diagram, verbosity_level="High")
+    root = ET.fromstring(svg)
+    ns = {'svg': 'http://www.w3.org/2000/svg'}
+
+    for group in root.findall('.//svg:g[@class="cls-connector"]', ns):
+        source_name = group.get('data-source')
+        target_name = group.get('data-target')
+        if source_name != "HubTop":
+            continue
+
+        path = group.find('svg:path', ns)
+        _assert(path is not None, f"FAIL [{context}] {target_name}: missing connector path")
+        d_attr = path.get('d', '')
+        numbers = [float(v) for v in re.findall(r'-?\d+(?:\.\d+)?', d_attr)]
+        pts = list(zip(numbers[0::2], numbers[1::2]))
+        _assert(len(pts) >= 2, f"FAIL [{context}] {target_name}: missing path points")
+
+        source_x, source_y = pts[0]
+        first_end_y = pts[1][1]
+        y_low = min(source_y, first_end_y)
+        y_high = max(source_y, first_end_y)
+
+        # For direct vertical top connectors, the first vertical run is the full route.
+        if len(pts) >= 3 and abs(pts[2][0] - pts[1][0]) <= 1e-6:
+            y_low = min(source_y, pts[-1][1])
+            y_high = max(source_y, pts[-1][1])
+
+        source_side_mult = []
+        for text_elem in group.findall('svg:text', ns):
+            if text_elem.get('font-family') != 'monospace':
+                continue
+            tx = float(text_elem.get('x', '0'))
+            ty = float(text_elem.get('y', '0'))
+            if abs(tx - source_x) <= 60 and y_low <= ty <= y_high:
+                source_side_mult.append((tx, ty, (text_elem.text or '').strip()))
+
+        _assert(
+            source_side_mult,
+            f"FAIL [{context}] {target_name}: missing Hub-side multiplicity on first segment",
+        )
+
+
 def _validate_even_fanout_has_no_direct(planner, context):
     connector_map = _get_connector_map(planner)
     targets = ["L_far", "L_mid", "L_near", "R_near", "R_mid", "R_far"]
@@ -1277,6 +1322,11 @@ def run_test() -> int:
             "csv top fanout render text",
             lambda: None,
             lambda _p: _validate_csv_top_render_text_positions("csv top fanout render text"),
+        ),
+        (
+            "csv top hub multiplicity presence",
+            lambda: None,
+            lambda _p: _validate_csv_top_hub_multiplicity_presence("csv top hub multiplicity presence"),
         ),
         (
             "csv top no fanout crossings",

@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="375" height="504" data-render-version="20260511-170235" data-diagram-type="class_diagram">
-  <rect width="375" height="504" fill="white"/>
-  <text x="187.5" y="28" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#333">Orthogonal-only top-entry probe</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="412" height="624" data-diagram-type="class_diagram">
+  <rect width="412" height="624" fill="white"/>
+  <text x="206.0" y="28" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#333">Four-box simple spacing test</text>
   <defs>
     <!-- Open arrowhead (directed association) -->
     <marker id="arrow-open" viewBox="0 0 10 10" refX="10" refY="5"
@@ -339,46 +339,61 @@
       <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#C45A00" stroke-width="1.5"/>
     </marker>
   </defs>
-  <g class="cls-connector" data-connector-id="Obj1-&gt;Obj2:0" data-source="Obj1" data-target="Obj2">
-  <path d="M 92.0 184.0 L 92.0 84.0 L 92.0 104.0" fill="none" stroke="#006E1C" stroke-width="1.5"
- marker-end="url(#arrow-open-2-down)"
+  <g class="cls-connector" data-connector-id="ServiceA-&gt;ServiceB:0" data-source="ServiceA" data-target="ServiceB">
+  <path d="M 92.0 464.0 L 92.0 364.0 L 92 384.0" fill="none" stroke="#C45A00" stroke-width="1.5"
+ marker-end="url(#arrow-open-3-down)"
 />
-  <text x="82.0" y="148.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="end">reserve_right</text>
-  <text x="100.0" y="118.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
-  <text x="102.0" y="180.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="82.0" y="428.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="end">depends_on</text>
+  <text x="100" y="398.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="102.0" y="460.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
   </g>
-  <g class="cls-connector" data-connector-id="Obj1-&gt;Obj3:1" data-source="Obj1" data-target="Obj3">
-  <path d="M 132.0 184.0 L 132.0 124.0 L 272.0 124.0 L 272.0 104.0" fill="none" stroke="#006E1C" stroke-width="1.5"
- marker-end="url(#arrow-open-2-up)"
-/>
-  <text x="142.0" y="136.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">reserve_bottom</text>
-  <text x="280.0" y="118.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
-  <text x="142.0" y="180.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
-  </g>
-  <g class="cls-connector" data-connector-id="Obj4-&gt;Obj1:2" data-source="Obj4" data-target="Obj1">
-  <path d="M 92.0 424.0 L 92.0 344.0" fill="none" stroke="#C45A00" stroke-width="1.5"
- stroke-dasharray="6,4"
+  <g class="cls-connector" data-connector-id="ServiceA-&gt;ServiceC:1" data-source="ServiceA" data-target="ServiceC">
+  <path d="M 132.0 464.0 L 132.0 404.0 L 292 404.0 L 292 384.0" fill="none" stroke="#C45A00" stroke-width="1.5"
  marker-end="url(#arrow-open-3-up)"
 />
-  <text x="100.0" y="420.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">0..1</text>
-  <text x="100.0" y="384.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">up_left_left_down_probe</text>
-  <text x="100.0" y="358.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">*</text>
+  <text x="142.0" y="416.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">uses</text>
+  <text x="300" y="398.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="142.0" y="460.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
   </g>
-  <g class="cls-object" data-class-name="Obj2">
-  <rect x="32.0" y="64.0" width="120" height="40" fill="#E8F1FF" stroke="#0057B8" stroke-width="1.5" rx="2"/>
-  <text x="92.0" y="87.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Obj2</text>
+  <g class="cls-connector" data-connector-id="ServiceB-&gt;ServiceD:2" data-source="ServiceB" data-target="ServiceD">
+  <path d="M 92 264.0 L 92 184.0" fill="none" stroke="#B00020" stroke-width="1.5"
+ marker-end="url(#arrow-open-1-up)"
+/>
+  <text x="100" y="260.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="100" y="224.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">calls</text>
+  <text x="100" y="198.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
   </g>
-  <g class="cls-object" data-class-name="Obj1">
-  <rect x="12.0" y="184.0" width="160" height="160" fill="#EAF7EA" stroke="#006E1C" stroke-width="1.5" rx="2"/>
-  <text x="92.0" y="207.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Obj1</text>
+  <g class="cls-connector" data-connector-id="ServiceC-&gt;ServiceD:3" data-source="ServiceC" data-target="ServiceD">
+  <path d="M 292 264.0 L 292 124.0 L 172 124.0" fill="none" stroke="#006E1C" stroke-width="1.5"
+ marker-end="url(#arrow-open-2-left)"
+/>
+  <text x="300" y="260.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="284" y="194.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="end">relates</text>
+  <text x="188" y="116.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
   </g>
-  <g class="cls-object" data-class-name="Obj4">
-  <rect x="32.0" y="424.0" width="120" height="40" fill="#FFF1E6" stroke="#C45A00" stroke-width="1.5" rx="2"/>
-  <text x="92.0" y="447.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Obj4</text>
+  <g class="cls-object" data-class-name="ServiceD">
+  <rect x="12" y="64.0" width="160" height="120" fill="#E8F1FF" stroke="#0057B8" stroke-width="1.5" rx="2"/>
+  <text x="92.0" y="87.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">ServiceD</text>
+  <line x1="12" y1="97.0" x2="172" y2="97.0" stroke="#0057B8" stroke-width="1"/>
+  <text x="26" y="116.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#555"># operationD()</text>
   </g>
-  <g class="cls-object" data-class-name="Obj3">
-  <rect x="212.0" y="64.0" width="120" height="40" fill="#FFE9EC" stroke="#B00020" stroke-width="1.5" rx="2"/>
-  <text x="272.0" y="87.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Obj3</text>
+  <g class="cls-object" data-class-name="ServiceB">
+  <rect x="12" y="264.0" width="160" height="120" fill="#FFE9EC" stroke="#B00020" stroke-width="1.5" rx="2"/>
+  <text x="92.0" y="287.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">ServiceB</text>
+  <line x1="12" y1="297.0" x2="172" y2="297.0" stroke="#B00020" stroke-width="1"/>
+  <text x="26" y="316.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#555"># operationB()</text>
   </g>
-  <text x="367" y="499" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="9" fill="#ccc">v:20260511-170235</text>
+  <g class="cls-object" data-class-name="ServiceA">
+  <rect x="12.0" y="464.0" width="160" height="120" fill="#FFF1E6" stroke="#C45A00" stroke-width="1.5" rx="2"/>
+  <text x="92.0" y="487.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">ServiceA</text>
+  <line x1="12.0" y1="497.0" x2="172.0" y2="497.0" stroke="#C45A00" stroke-width="1"/>
+  <text x="26.0" y="516.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#555"># operationA()</text>
+  </g>
+  <g class="cls-object" data-class-name="ServiceC">
+  <rect x="212" y="264.0" width="160" height="120" fill="#EAF7EA" stroke="#006E1C" stroke-width="1.5" rx="2"/>
+  <text x="292.0" y="287.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">ServiceC</text>
+  <line x1="212" y1="297.0" x2="372" y2="297.0" stroke="#006E1C" stroke-width="1"/>
+  <text x="226" y="316.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#555"># operationC()</text>
+  </g>
+  <text x="404" y="619" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="9" fill="#ccc">v:STAMP</text>
 </svg>

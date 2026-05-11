@@ -1,7 +1,7 @@
-# refresh.ps1 - Kill Python, clear cache, and restart server
+# refresh.ps1 - Kill Python and clear cache (no server start)
 # Usage: .\refresh.ps1
 
-Write-Host "`n=== REFRESH SCRIPT ===" -ForegroundColor Cyan
+Write-Host "`n=== ENVIRONMENT REFRESH SCRIPT ===" -ForegroundColor Cyan
 Write-Host "Killing Python processes..." -ForegroundColor Yellow
 
 Get-Process python* -ErrorAction SilentlyContinue |
@@ -24,9 +24,10 @@ Remove-Item -Path Scripts/__pycache__ -Recurse -Force -ErrorAction SilentlyConti
 
 Write-Host "[OK] Cache cleared" -ForegroundColor Green
 
-Write-Host "`nStarting server on port 8000..." -ForegroundColor Yellow
-Write-Host "Server starting (press Ctrl+C to stop)" -ForegroundColor Cyan
+Write-Host "`nRefresh complete" -ForegroundColor Cyan
+Write-Host "[OK] No server was started" -ForegroundColor Green
+Write-Host "[OK] No browser was opened" -ForegroundColor Green
 Write-Host ""
-
-Set-Location Scripts
-python server.py 8000
+Write-Host "Next step (manual):" -ForegroundColor Yellow
+Write-Host "  .\.venv\Scripts\python.exe Scripts\server.py 8000"
+Write-Host "  Open VS Code browser at: http://localhost:8000"
