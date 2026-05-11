@@ -2432,17 +2432,17 @@ def _render_arrow_marker_defs(box_colors=None):
             # Colored filled diamond
             markers += f'''    <!-- Filled diamond - Color {color_idx} -->
     <marker id="diamond-filled-{color_idx}" viewBox="0 0 12 8" refX="12" refY="4"
-            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+                markerWidth="12" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="{stroke_color}" stroke="{stroke_color}" stroke-width="1"/>
     </marker>
     <!-- Open diamond - Color {color_idx} -->
     <marker id="diamond-open-{color_idx}" viewBox="0 0 12 8" refX="12" refY="4"
-            markerWidth="12" markerHeight="8" orient="auto-start-reverse">
+                markerWidth="12" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 4 L 6 0 L 12 4 L 6 8 Z" fill="white" stroke="{stroke_color}" stroke-width="1.5"/>
     </marker>
     <!-- Arrow open - Color {color_idx} -->
     <marker id="arrow-open-{color_idx}" viewBox="0 0 10 10" refX="10" refY="5"
-            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="{stroke_color}" stroke-width="1.5"/>
     </marker>
 '''
