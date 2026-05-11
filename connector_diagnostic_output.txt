@@ -1,0 +1,22 @@
+Diagram: DataModelRelationships
+Routing: orthogonal
+
+SVG Stats:
+  Direct lines: 15
+  Multi-segment paths (estimated): 227
+
+Found 3 'contains' labels
+
+Connector 1 near 'contains' label:
+  Type: MULTI-SEGMENT PATH
+  Segments: 1
+
+Connector 2 near 'contains' label:
+  Type: MULTI-SEGMENT PATH
+  Segments: 3
+
+Connector 3 near 'contains' label:
+  Type: MULTI-SEGMENT PATH
+  Segments: 3
+
+[DONE] Diagnostic complete

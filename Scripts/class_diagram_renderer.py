@@ -1250,7 +1250,6 @@ def _expand_boxes_for_connector_capacity(diagram, boxes):
         # edge slots are often unavailable/reserved during routing.
         required_span = (GRID_CELL_SIZE_PX * 4) + max(0, count - 1) * slot_pitch
         boxes[cls]['width'] = max(boxes[cls]['width'], required_span)
-        boxes[cls]['height'] = max(boxes[cls]['height'], required_span)
 
     return boxes
 
@@ -1593,6 +1592,27 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
             child = children[0]
             if parent not in out or child not in out:
                 continue
+
+            child_level = levels.get(child, 0)
+            # Do not force-center hubs that fan out to multiple shallower nodes.
+            # Keeping the child centered under all related shallower peers yields
+            # consistent fanout geometry across diagrams.
+            shallower_links = 0
+            seen_shallower = set()
+            for rel in diagram.relationships:
+                other_name = None
+                if rel.source == child:
+                    other_name = rel.target
+                elif rel.target == child:
+                    other_name = rel.source
+                if other_name is None or other_name not in out:
+                    continue
+                if levels.get(other_name, 0) < child_level and other_name not in seen_shallower:
+                    seen_shallower.add(other_name)
+                    shallower_links += 1
+            if shallower_links > 1:
+                continue
+
             parent_cx = out[parent]['x'] + out[parent]['width'] / 2.0
             child_cx = out[child]['x'] + out[child]['width'] / 2.0
             shift_subtree(child, parent_cx - child_cx)
@@ -1801,23 +1821,21 @@ def _layout_classes_orthogonal(diagram, model, verbosity="High"):
         spacing_y = int(math.ceil(spacing_y * (1.0 + (pressure_scale - 1.0) * 0.70)))
         boxes = _expand_boxes_for_dense_layout(diagram, boxes, pressure_scale)
 
-    # FANOUT SPACING: when one node at level 1 connects to N level-0 nodes that
-    # are all in one row, the outermost targets can be many hundreds of pixels
-    # to the side of the hub.  If the vertical gap is smaller than that horizontal
-    # distance, _select_exit_edge will choose a left/right exit instead of top/bottom,
-    # bypassing the top/bottom fanout algorithm and producing ugly L-shaped overlaps.
-    # Solution: ensure spacing_y > max horizontal distance from hub center to any target.
+    # FANOUT SPACING: one-sided vertical fanouts need enough vertical room for
+    # readable lanes, but huge horizontal-span-based inflation creates excessive
+    # hub-to-target gaps. Exit-edge selection is already forced by generic
+    # one-sided fanout detection in the connector planner, so keep this bounded.
     level_counts = {}
     for cls, lvl in levels.items():
         level_counts[lvl] = level_counts.get(lvl, 0) + 1
     level_0_count = level_counts.get(0, 0)
     level_1_nodes = [cls for cls, lvl in levels.items() if lvl == 1]
     if len(level_1_nodes) == 1 and level_0_count >= 4:
-        # Estimate total width of the level-0 row.
-        avg_w = sum(boxes[c]['width'] for c in boxes) / max(len(boxes), 1)
-        estimated_span = level_0_count * (avg_w + spacing_x)
-        fanout_required_spacing = int(estimated_span / 2) + 40
-        spacing_y = max(spacing_y, fanout_required_spacing)
+        fanout_spacing_floor = CLASS_SPACING_Y + 90
+        fanout_spacing_ceiling = CLASS_SPACING_Y + 180
+        spacing_y = max(spacing_y, fanout_spacing_floor)
+        if not dense_layout:
+            spacing_y = min(spacing_y, fanout_spacing_ceiling)
 
     return _aligned_tree_layout(
         class_names, boxes, levels, parent_children, claimed_children,
@@ -1932,6 +1950,15 @@ def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="diag
     # Arrow-matrix test/regression diagrams: always use the wrapped grid layout
     # so they stay compact regardless of node count.
     if diagram.diagram_id.startswith("OrthogonalArrowType"):
+        return _layout_classes(diagram, model, verbosity)
+
+    source_out = {}
+    for rel in diagram.relationships:
+        source_out[rel.source] = source_out.get(rel.source, 0) + 1
+    rel_count = len(diagram.relationships)
+    peak_out = max(source_out.values(), default=0)
+    dominant_star_fanout = rel_count >= 8 and peak_out >= 8 and peak_out >= int(rel_count * 0.6)
+    if dominant_star_fanout:
         return _layout_classes(diagram, model, verbosity)
 
     # All other class diagrams: prefer the tree layout for clean orthogonal
@@ -2050,51 +2077,6 @@ def _layout_two_segment_probe_pairs(diagram, boxes):
 
 
 def _layout_classes(diagram, model, verbosity="High"):
-    # --- Generic fanout layout for any box with >=3 connectors on one side ---
-    # Outgoing fanout
-    outgoing_counts = {}
-    for rel in diagram.relationships:
-        outgoing_counts[rel.source] = outgoing_counts.get(rel.source, 0) + 1
-    for hub, count in outgoing_counts.items():
-        if count >= 3:
-            targets = [rel.target for rel in diagram.relationships if rel.source == hub]
-            if len(targets) >= 3:
-                target_gap = 60
-                cursor_x = MARGIN
-                for idx, name in enumerate(targets):
-                    box = boxes[name]
-                    box['x'] = cursor_x
-                    cursor_x += box['width'] + target_gap
-                min_x = boxes[targets[0]]['x']
-                max_x = boxes[targets[-1]]['x'] + boxes[targets[-1]]['width']
-                hub_box = boxes[hub]
-                hub_box['x'] = (min_x + max_x) / 2.0 - hub_box['width'] / 2.0
-                hub_box['y'] = MARGIN + boxes[targets[0]]['height'] + 260
-                for name in targets:
-                    boxes[name]['y'] = MARGIN
-                return boxes
-    # Incoming fanout
-    incoming_counts = {}
-    for rel in diagram.relationships:
-        incoming_counts[rel.target] = incoming_counts.get(rel.target, 0) + 1
-    for hub, count in incoming_counts.items():
-        if count >= 3:
-            sources = [rel.source for rel in diagram.relationships if rel.target == hub]
-            if len(sources) >= 3:
-                source_gap = 60
-                cursor_x = MARGIN
-                for idx, name in enumerate(sources):
-                    box = boxes[name]
-                    box['x'] = cursor_x
-                    cursor_x += box['width'] + source_gap
-                min_x = boxes[sources[0]]['x']
-                max_x = boxes[sources[-1]]['x'] + boxes[sources[-1]]['width']
-                hub_box = boxes[hub]
-                hub_box['x'] = (min_x + max_x) / 2.0 - hub_box['width'] / 2.0
-                hub_box['y'] = MARGIN + boxes[sources[0]]['height'] + 260
-                for name in sources:
-                    boxes[name]['y'] = MARGIN
-                return boxes
     """Compute positions for each class box in the diagram.
     
     Returns dict: class_name -> {x, y, width, height, has_members, has_functions, class_def, element_type}
@@ -2152,6 +2134,19 @@ def _layout_classes(diagram, model, verbosity="High"):
             reordered.append(name)
     
     class_names = reordered
+
+    # For dominant star fanouts in wrapped-grid mode, place the hub near the
+    # middle of the sequence so leaves naturally distribute above and below.
+    source_out = {}
+    for rel in diagram.relationships:
+        source_out[rel.source] = source_out.get(rel.source, 0) + 1
+    rel_count = len(diagram.relationships)
+    hub_name = max(source_out, key=source_out.get) if source_out else None
+    if hub_name and source_out.get(hub_name, 0) >= 8 and source_out.get(hub_name, 0) >= int(rel_count * 0.6):
+        if hub_name in class_names:
+            leaves = [name for name in class_names if name != hub_name]
+            mid = len(leaves) // 2
+            class_names = leaves[:mid] + [hub_name] + leaves[mid:]
     
     # Compute sizes for each class
     boxes = {}

@@ -340,20 +340,20 @@
     </marker>
   </defs>
   <g class="cls-connector" data-connector-id="ServiceA-&gt;ServiceB:0" data-source="ServiceA" data-target="ServiceB">
-  <path d="M 92.0 464.0 L 92.0 364.0 L 92 384.0" fill="none" stroke="#C45A00" stroke-width="1.5"
- marker-end="url(#arrow-open-3-down)"
-/>
-  <text x="82.0" y="428.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="end">depends_on</text>
-  <text x="100" y="398.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
-  <text x="102.0" y="460.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
-  </g>
-  <g class="cls-connector" data-connector-id="ServiceA-&gt;ServiceC:1" data-source="ServiceA" data-target="ServiceC">
-  <path d="M 132.0 464.0 L 132.0 404.0 L 292 404.0 L 292 384.0" fill="none" stroke="#C45A00" stroke-width="1.5"
+  <path d="M 172.0 464.0 L 172.0 404.0 L 92 404.0 L 92 384.0" fill="none" stroke="#C45A00" stroke-width="1.5"
  marker-end="url(#arrow-open-3-up)"
 />
-  <text x="142.0" y="416.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">uses</text>
+  <text x="162.0" y="416.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="end">depends_on</text>
+  <text x="100" y="398.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="182.0" y="460.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  </g>
+  <g class="cls-connector" data-connector-id="ServiceA-&gt;ServiceC:1" data-source="ServiceA" data-target="ServiceC">
+  <path d="M 212.0 464.0 L 212.0 404.0 L 292 404.0 L 292 384.0" fill="none" stroke="#C45A00" stroke-width="1.5"
+ marker-end="url(#arrow-open-3-up)"
+/>
+  <text x="222.0" y="416.0" font-family="Arial, Helvetica, sans-serif" font-size="11" font-style="italic" fill="#444" text-anchor="start">uses</text>
   <text x="300" y="398.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
-  <text x="142.0" y="460.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
+  <text x="222.0" y="460.0" font-family="monospace" font-size="11" fill="#666" text-anchor="start">1</text>
   </g>
   <g class="cls-connector" data-connector-id="ServiceB-&gt;ServiceD:2" data-source="ServiceB" data-target="ServiceD">
   <path d="M 92 264.0 L 92 184.0" fill="none" stroke="#B00020" stroke-width="1.5"
@@ -384,10 +384,10 @@
   <text x="26" y="316.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#555"># operationB()</text>
   </g>
   <g class="cls-object" data-class-name="ServiceA">
-  <rect x="12.0" y="464.0" width="160" height="120" fill="#FFF1E6" stroke="#C45A00" stroke-width="1.5" rx="2"/>
-  <text x="92.0" y="487.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">ServiceA</text>
-  <line x1="12.0" y1="497.0" x2="172.0" y2="497.0" stroke="#C45A00" stroke-width="1"/>
-  <text x="26.0" y="516.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#555"># operationA()</text>
+  <rect x="112.0" y="464.0" width="160" height="120" fill="#FFF1E6" stroke="#C45A00" stroke-width="1.5" rx="2"/>
+  <text x="192.0" y="487.0" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">ServiceA</text>
+  <line x1="112.0" y1="497.0" x2="272.0" y2="497.0" stroke="#C45A00" stroke-width="1"/>
+  <text x="126.0" y="516.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#555"># operationA()</text>
   </g>
   <g class="cls-object" data-class-name="ServiceC">
   <rect x="212" y="264.0" width="160" height="120" fill="#EAF7EA" stroke="#006E1C" stroke-width="1.5" rx="2"/>

@@ -1094,10 +1094,18 @@ class ConnectorPlanner:
                 use_semantic_bottom_fanout = has_left and has_right and (n % 2 == 1) and bool(direct_candidates)
 
                 if not use_semantic_bottom_fanout:
+                    fallback_points = [
+                        pt for pt in edge_points
+                        if not src_grid.is_reserved_point(exit_edge, pt.index)
+                    ]
                     for sorted_idx, connector in enumerate(fanout_group):
                         depth_idx = n - 1 - sorted_idx
                         bend = base + FANOUT_BASE_GAP + depth_idx * FANOUT_LANE_STEP
-                        pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                        if sorted_idx < len(spaced_indices):
+                            pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                        else:
+                            tx = self.grids[connector.target_name].get_center()[0]
+                            pt = min(fallback_points, key=lambda p: abs(p.x - tx)) if fallback_points else None
                         if pt:
                             assignments[id(connector)] = {
                                 'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
@@ -1499,15 +1507,27 @@ class ConnectorPlanner:
 
                 if not has_semantic_fanout_tokens:
                     assigned = [c for c in fanout_group if id(c) in selected_points]
-                    if has_left and has_right:
+                    assigned_slot_xs = [selected_points[id(c)].x for c in assigned]
+                    side_pivot = center_x
+                    if assigned_slot_xs:
+                        side_pivot = (min(assigned_slot_xs) + max(assigned_slot_xs)) / 2.0
+
+                    has_left_slots = any(selected_points[id(c)].x < side_pivot for c in assigned)
+                    has_right_slots = any(selected_points[id(c)].x >= side_pivot for c in assigned)
+
+                    # Symmetry should follow actual assigned source slots, not
+                    # only target distribution. This keeps first-segment depths
+                    # balanced when a one-sided target set is spread across both
+                    # left/right source slots for readability.
+                    if has_left_slots and has_right_slots:
                         left_assigned = sorted(
-                            [c for c in assigned if selected_points[id(c)].x < center_x],
-                            key=lambda c: abs(selected_points[id(c)].x - center_x),
+                            [c for c in assigned if selected_points[id(c)].x < side_pivot],
+                            key=lambda c: abs(selected_points[id(c)].x - side_pivot),
                             reverse=True,
                         )
                         right_assigned = sorted(
-                            [c for c in assigned if selected_points[id(c)].x >= center_x],
-                            key=lambda c: abs(selected_points[id(c)].x - center_x),
+                            [c for c in assigned if selected_points[id(c)].x >= side_pivot],
+                            key=lambda c: abs(selected_points[id(c)].x - side_pivot),
                             reverse=True,
                         )
                         bend_depth_rank = {}
@@ -1526,35 +1546,104 @@ class ConnectorPlanner:
                             for rank, connector in enumerate(ordered)
                         }
 
+                post_bend_by_connector: Dict[int, float] = {}
+                if not has_semantic_fanout_tokens:
+                    # Keep first-segment symmetry while avoiding long shared
+                    # horizontal trunks: for same-depth, same-direction bundles,
+                    # move all but the shortest-span connector to a secondary
+                    # horizontal lane after the first bend.
+                    per_lane: Dict[Tuple[int, int], List[ConnectorPath]] = {}
+                    for connector in fanout_group:
+                        cid = id(connector)
+                        pt = selected_points.get(cid)
+                        if pt is None:
+                            continue
+                        depth_idx = bend_depth_rank.get(cid, 1)
+                        tx = tx_map.get(cid, pt.x)
+                        if abs(tx - pt.x) <= 1e-6:
+                            continue
+                        direction = 1 if tx > pt.x else -1
+                        per_lane.setdefault((depth_idx, direction), []).append(connector)
+
+                    for (depth_idx, _), connectors_in_lane in per_lane.items():
+                        if len(connectors_in_lane) < 2:
+                            continue
+                        connectors_sorted = sorted(
+                            connectors_in_lane,
+                            key=lambda c: abs(tx_map.get(id(c), selected_points[id(c)].x) - selected_points[id(c)].x),
+                        )
+                        for extra_idx, connector in enumerate(connectors_sorted[1:], start=2):
+                            cid = id(connector)
+                            base_bend = base - FANOUT_BASE_GAP - depth_idx * FANOUT_LANE_STEP
+                            post_bend_by_connector[cid] = base_bend - extra_idx * FANOUT_LANE_STEP
+
                 for connector in fanout_group:
                     pt = selected_points.get(id(connector))
                     if pt is None:
                         continue
                     depth_idx = bend_depth_rank.get(id(connector), 1)
                     bend = base - FANOUT_BASE_GAP - depth_idx * FANOUT_LANE_STEP
-                    assignments[id(connector)] = {
+                    assignment = {
                         'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
                     }
+                    post_bend = post_bend_by_connector.get(id(connector))
+                    if post_bend is not None:
+                        assignment['post_bend'] = post_bend
+                    assignments[id(connector)] = assignment
             elif exit_edge == 'right':
                 base = src_grid.x + src_grid.width
+                direct_ids = {
+                    id(connector)
+                    for connector in fanout_group
+                    if ('dir' in (connector.label or '').lower())
+                    or ('_dir' in (connector.target_name or '').lower())
+                }
+                fallback_points = [
+                    pt for pt in edge_points
+                    if not src_grid.is_reserved_point(exit_edge, pt.index)
+                ]
                 for sorted_idx, connector in enumerate(fanout_group):
                     depth_idx = n - 1 - sorted_idx
                     bend = base + FANOUT_BASE_GAP + depth_idx * FANOUT_LANE_STEP
-                    pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                    if sorted_idx < len(spaced_indices):
+                        pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                    else:
+                        ty = self.grids[connector.target_name].get_center()[1]
+                        pt = min(fallback_points, key=lambda p: abs(p.y - ty)) if fallback_points else None
                     if pt:
-                        assignments[id(connector)] = {
+                        assignment = {
                             'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
                         }
+                        if id(connector) in direct_ids:
+                            assignment['direct'] = True
+                        assignments[id(connector)] = assignment
             elif exit_edge == 'left':
                 base = src_grid.x
+                direct_ids = {
+                    id(connector)
+                    for connector in fanout_group
+                    if ('dir' in (connector.label or '').lower())
+                    or ('_dir' in (connector.target_name or '').lower())
+                }
+                fallback_points = [
+                    pt for pt in edge_points
+                    if not src_grid.is_reserved_point(exit_edge, pt.index)
+                ]
                 for sorted_idx, connector in enumerate(fanout_group):
                     depth_idx = n - 1 - sorted_idx
                     bend = base - FANOUT_BASE_GAP - depth_idx * FANOUT_LANE_STEP
-                    pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                    if sorted_idx < len(spaced_indices):
+                        pt = src_grid.get_point(exit_edge, spaced_indices[sorted_idx])
+                    else:
+                        ty = self.grids[connector.target_name].get_center()[1]
+                        pt = min(fallback_points, key=lambda p: abs(p.y - ty)) if fallback_points else None
                     if pt:
-                        assignments[id(connector)] = {
+                        assignment = {
                             'exit_edge': exit_edge, 'exit_point': pt, 'bend': bend,
                         }
+                        if id(connector) in direct_ids:
+                            assignment['direct'] = True
+                        assignments[id(connector)] = assignment
 
         return assignments
 
@@ -1704,6 +1793,8 @@ class ConnectorPlanner:
                 fa_exit_edge  = fa['exit_edge']
                 fa_exit_point = fa['exit_point']
                 fa_bend       = fa['bend']
+                fa_post_bend  = fa.get('post_bend')
+                fa_direct     = bool(fa.get('direct'))
 
                 connector.source_edge      = fa_exit_edge
                 connector.source_point_idx = fa_exit_point.index
@@ -1727,10 +1818,32 @@ class ConnectorPlanner:
                     )
 
                 tgt_pt = None
+                if fa_direct and fa_exit_edge in ('left', 'right'):
+                    # For semantic direct side-fanout connectors, pick a target
+                    # entry point that best preserves source Y so the route can
+                    # remain a straight horizontal segment when geometry allows.
+                    best_direct: Optional[Tuple[float, int, float, str, ConnectionPoint]] = None
+                    for edge in ('left', 'right', 'top', 'bottom'):
+                        for pt in tgt_grid.get_points(edge):
+                            if tgt_grid.is_corner_point(edge, pt.index):
+                                continue
+                            if (connector.target_name, edge, pt.index) in used_points:
+                                continue
+                            score = (
+                                abs(pt.y - fa_exit_point.y),
+                                0 if edge == fa_entry_edge else 1,
+                                abs(pt.x - fa_exit_point.x),
+                            )
+                            if best_direct is None or score < best_direct[:3]:
+                                best_direct = (score[0], score[1], score[2], edge, pt)
+                    if best_direct is not None:
+                        fa_entry_edge = best_direct[3]
+                        tgt_pt = best_direct[4]
+
                 # Keep fanout source slot distribution intact, but when the
                 # target edge has only one attachment, default the target port
                 # to the edge midpoint for cleaner endpoint placement.
-                if target_edge_attach_count.get((connector.target_name, fa_entry_edge), 0) == 1:
+                if (not fa_direct) and target_edge_attach_count.get((connector.target_name, fa_entry_edge), 0) == 1:
                     tgt_pt = self._select_midpoint_for_edge(
                         tgt_grid,
                         fa_entry_edge,
@@ -1796,6 +1909,15 @@ class ConnectorPlanner:
                     x1, y1 = connector.source_x, connector.source_y
                     x2, y2 = connector.target_x, connector.target_y
 
+                    if fa_direct and fa_exit_edge in ('left', 'right') and abs(y1 - y2) <= 1e-6:
+                        connector.segments = []
+                        connector.path_type = "direct"
+                        if self._should_apply_label_clearance_extensions(connector):
+                            self._extend_last_segment_for_label_clearance(connector)
+                        self._normalize_connector_to_orthogonal(connector)
+                        self._register_connector_occupancy(connector)
+                        continue
+
                     if fa_exit_edge in ('top', 'bottom'):
                         if fa_entry_edge in ('left', 'right'):
                             if fa_entry_edge == 'left':
@@ -1809,7 +1931,10 @@ class ConnectorPlanner:
                                 (x2, y2),
                             ]
                         else:
-                            connector.segments = [(x1, fa_bend), (x2, fa_bend), (x2, y2)]
+                            if isinstance(fa_post_bend, (int, float)) and abs(fa_post_bend - fa_bend) > 1e-6:
+                                connector.segments = [(x1, fa_bend), (x1, fa_post_bend), (x2, fa_post_bend), (x2, y2)]
+                            else:
+                                connector.segments = [(x1, fa_bend), (x2, fa_bend), (x2, y2)]
                     else:
                         if fa_entry_edge in ('top', 'bottom'):
                             if fa_entry_edge == 'top':
@@ -1828,7 +1953,8 @@ class ConnectorPlanner:
                     connector.path_type = "multi_segment"
 
                     if self._should_apply_label_clearance_extensions(connector):
-                        self._extend_first_segment_for_label_clearance(connector)
+                        if not isinstance(fa_post_bend, (int, float)):
+                            self._extend_first_segment_for_label_clearance(connector)
                         self._extend_last_segment_for_label_clearance(connector)
 
                     self._normalize_connector_to_orthogonal(connector)

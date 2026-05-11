@@ -32,6 +32,12 @@ BASELINE_DIR = REPO_ROOT / "Test" / "baselines" / "class_diagram"
 
 SCENARIOS = [
     {
+        "name": "ParserToModel",
+        "csv": REPO_ROOT / "Process" / "02_Architecture" / "30_Classes" / "20_CoreComponents" / "class_diagrams.csv",
+        "diagram_id": "ParserToModel",
+        "baseline": BASELINE_DIR / "ParserToModel.svg",
+    },
+    {
         "name": "FanoutTop",
         "csv": REPO_ROOT / "Test" / "tests" / "fanout.csv",
         "diagram_id": "FanoutTop",

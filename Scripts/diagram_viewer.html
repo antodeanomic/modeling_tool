@@ -2122,7 +2122,7 @@
 
             try {
                 const url = `/api/class_metadata?csv=${encodeURIComponent(state.csv)}&diagram_id=${encodeURIComponent(state.classDiagramId)}`;
-                const response = await fetch(url);
+                const response = await fetchWithTimeout(url, getMetadataLoadTimeoutMs());
                 
                 if (!response.ok) {
                     console.warn('Failed to load class metadata');
@@ -2135,6 +2135,42 @@
             } catch (error) {
                 console.warn('Error loading class metadata:', error);
                 state.classMetadata = {};
+            }
+        }
+
+        function getDiagramLoadTimeoutMs() {
+            const csv = (state.csv || '').toLowerCase();
+            const diagramId = (state.classDiagramId || '').toLowerCase();
+            const routing = (state.routing || '').toLowerCase();
+
+            // Default budget for normal diagrams.
+            let timeoutMs = 45000;
+
+            // Heavy test/advanced diagrams and stress probes can take longer.
+            const likelyLargeCsv = csv.includes('/40_tests/') || csv.includes('/20_advanced/') || csv.includes('/test/tests/');
+            const likelyStressDiagram = diagramId.includes('stress') || diagramId.includes('dense');
+            const orthogonalClassDiagram = state.diagramType === 'class_diagram' && routing === 'orthogonal';
+
+            if (likelyLargeCsv || likelyStressDiagram || orthogonalClassDiagram) {
+                timeoutMs = 120000;
+            }
+
+            return timeoutMs;
+        }
+
+        function getMetadataLoadTimeoutMs() {
+            // Metadata should be lighter than full SVG rendering, but keep
+            // enough budget for large CSV parsing.
+            return 30000;
+        }
+
+        async function fetchWithTimeout(url, timeoutMs) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                return await fetch(url, { signal: controller.signal });
+            } finally {
+                clearTimeout(timer);
             }
         }
 
@@ -2539,7 +2575,8 @@
                     url = `/api/diagram?csv=${encodeURIComponent(state.csv)}&type=sequence&sequence=${encodeURIComponent(state.sequence)}&verbosity=${encodeURIComponent(state.verbosity)}&lanes=${encodeURIComponent(lanesParam)}`;
                 }
                 
-                const response = await fetch(url);
+                const timeoutMs = getDiagramLoadTimeoutMs();
+                const response = await fetchWithTimeout(url, timeoutMs);
                 
                 if (!response.ok) {
                     const error = await response.json();
@@ -2575,7 +2612,11 @@
                 // Persist successfully loaded state snapshot.
                 savePersistedViewerState();
             } catch (error) {
-                diagramContainer.innerHTML = `<div class="error">Error loading diagram: ${error.message}</div>`;
+                if (error && error.name === 'AbortError') {
+                    diagramContainer.innerHTML = `<div class="error">Error loading diagram: request timed out while waiting for the server response.</div>`;
+                } else {
+                    diagramContainer.innerHTML = `<div class="error">Error loading diagram: ${error.message}</div>`;
+                }
             } finally {
                 state.isLoading = false;
             }
