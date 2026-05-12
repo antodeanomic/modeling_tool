@@ -38,9 +38,3 @@ ClassDiagram;CalculatorDiagonalArchitecture;Calculator architecture with diagona
     User;Display;-->;1;1;updates
     User;Keypad;-->;1;1;reads
     Keypad;Display;..>;;;notifies
-
-Sequence;SoftReq0001;Initialization;This sequence initializes the system;parent=CalculatorDiagonalArchitecture
-    User;Keypad;ReadKey;8;@Info;Valid key pressed
-    Keypad;Display;Update;42;8
-    User;@Warning;Button held too long
-    User;Display;Update;Done;42;@Info;Display updated successfully

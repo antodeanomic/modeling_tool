@@ -292,6 +292,37 @@
             background: #fef2f2;
         }
 
+        .csv-editor-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .csv-editor-highlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            overflow: auto;
+            padding: 10px;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            color: transparent;
+            background: transparent;
+            white-space: pre;
+            word-wrap: normal;
+            z-index: 1;
+            display: none;
+        }
+
+        .csv-editor-highlight span {
+            position: relative;
+        }
+
         .csv-editor-textarea {
             flex: 1;
             width: 100%;
@@ -303,10 +334,27 @@
             font-size: 13px;
             line-height: 1.4;
             color: #1f2937;
-            background: #ffffff;
+            background: transparent;
             overflow: auto;
             white-space: pre;
             word-wrap: normal;
+            position: relative;
+            z-index: 2;
+        }
+
+        .csv-row-highlight {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 1.4em;
+            pointer-events: none;
+            background: rgba(37, 99, 235, 0.15);
+            border-left: 2px solid rgba(37, 99, 235, 0.6);
+            box-sizing: border-box;
+            z-index: 1.5;
+            display: none;
+            transition: top 0.05s ease-out;
         }
         
         .diagram-area {
@@ -846,7 +894,11 @@
                 <button class="csv-editor-save" id="csvSaveButton" disabled>Save (Ctrl+S)</button>
             </div>
             <div class="csv-editor-status" id="csvEditorStatus">Saved</div>
-            <textarea class="csv-editor-textarea" id="csvEditorTextarea" spellcheck="false"></textarea>
+            <div class="csv-editor-wrapper">
+                <div class="csv-editor-highlight" id="csvEditorHighlight"></div>
+                <div class="csv-row-highlight" id="csvRowHighlight"></div>
+                <textarea class="csv-editor-textarea" id="csvEditorTextarea" spellcheck="false"></textarea>
+            </div>
         </div>
         <div class="csv-resizer" id="csvResizer" title="Drag to resize"></div>
         <div class="diagram-area" id="diagramArea">
@@ -1625,6 +1677,223 @@
             updateEditorSaveButtonState();
         }
 
+        function highlightCsvSyntax(text) {
+            if (!text) {
+                document.getElementById('csvEditorHighlight').innerHTML = '';
+                return;
+            }
+
+            const lines = text.split('\n');
+            const colored = lines.map((line, lineIdx) => {
+                if (!line.trim()) return '';
+                
+                // Color map for columns
+                const typeColor = '#9333ea';  // Purple
+                const nameColor = '#2563eb';  // Blue
+                const descColor = '#6b7280';  // Gray
+                const decorColor = '#f97316'; // Orange
+                const connColor = '#10b981';  // Green
+                
+                // Check for decorators
+                if (line.includes('@Info') || line.includes('@Warning') || line.includes('@Error')) {
+                    return line.split(/([@]\w+)/g).map(part => {
+                        if (part.startsWith('@')) {
+                            return `<span style="color: ${decorColor}; font-weight: bold;">${part}</span>`;
+                        }
+                        return part;
+                    }).join('');
+                }
+
+                // Split by semicolon but preserve the delimiter
+                const parts = line.split(/(;)/);
+                let columnIdx = 0;
+                
+                return parts.map((part, i) => {
+                    if (part === ';') return part;
+                    if (!part) return '';
+                    
+                    // Determine color based on column
+                    let color = descColor;
+                    if (columnIdx === 0) {
+                        color = typeColor;  // Type column
+                    } else if (columnIdx === 1) {
+                        color = nameColor;  // Name column
+                    } else if (part.includes('-->') || part.includes('..>') || part.includes('◆--') || part.includes('◇--') || part.includes('--') || part.includes('--->')) {
+                        color = connColor;  // Connectors
+                    }
+                    
+                    columnIdx++;
+                    return `<span style="color: ${color};">${part}</span>`;
+                }).join('') + '\n';
+            }).join('');
+
+            document.getElementById('csvEditorHighlight').innerHTML = colored;
+        }
+
+        function syncHighlightScroll() {
+            const highlight = document.getElementById('csvEditorHighlight');
+            highlight.scrollTop = csvEditorTextarea.scrollTop;
+            highlight.scrollLeft = csvEditorTextarea.scrollLeft;
+        }
+
+        function extractElementNameFromCsvLine(line) {
+            // CSV format: Type;Name;Description;...
+            // Extract the Name (second column)
+            const parts = line.split(';');
+            if (parts.length >= 2) {
+                return parts[1].trim();  // Name is second column
+            }
+            return null;
+        }
+
+        function isElementDefinitionLine(line) {
+            // Check if this line is an element definition (Class, Function, State, etc.)
+            // vs a connector line (Source;Target;Arrow)
+            const parts = line.split(';');
+            if (parts.length < 2) return false;
+            
+            const firstCol = parts[0].trim();
+            
+            // Element definition types (NOT ClassDiagram/SequenceDiagram which are diagram markers)
+            const elementTypes = ['Class', 'Function', 'State', 'StateMachine', 'Param', 'ReturnVal', 'MemberVar', 'Include'];
+            
+            return elementTypes.includes(firstCol);
+        }
+
+        function isConnectorLine(line) {
+            // Check if line is a connector (Source;Target;Arrow;...)
+            const parts = line.split(';');
+            if (parts.length < 3) return false;
+            
+            const thirdCol = parts[2].trim();
+            const arrows = ['-->', '..>', '◆--', '◇--', '--', '--->', '◆--.', '◇--.'];
+            
+            return arrows.some(arrow => thirdCol.startsWith(arrow));
+        }
+
+        function extractConnectorInfo(line) {
+            // For connector lines, extract source and target
+            const parts = line.split(';');
+            if (parts.length >= 2) {
+                return {
+                    source: parts[0].trim(),
+                    target: parts[1].trim(),
+                    line: line
+                };
+            }
+            return null;
+        }
+
+        function highlightDiagramElement(elementName, elementType = 'all') {
+            if (!elementName) return;
+            
+            // Remove previous highlight
+            document.querySelectorAll('text[data-highlighted="true"]').forEach(el => {
+                el.removeAttribute('data-highlighted');
+                el.style.filter = '';
+            });
+
+            // Find and highlight matching element in diagram
+            const allTextElements = diagramContainer.querySelectorAll('text');
+            for (const textEl of allTextElements) {
+                if (textEl.textContent.trim() === elementName) {
+                    textEl.setAttribute('data-highlighted', 'true');
+                    textEl.style.filter = 'drop-shadow(0 0 3px rgba(37, 99, 235, 0.8))';
+                    break;
+                }
+            }
+        }
+
+        function clearDiagramHighlight() {
+            document.querySelectorAll('text[data-highlighted="true"]').forEach(el => {
+                el.removeAttribute('data-highlighted');
+                el.style.filter = '';
+            });
+        }
+
+        function setupDiagramHoverCsvCrosslinking() {
+            // Add hover listeners to all text elements in the diagram (class/interface/state names, connector labels)
+            const textElements = diagramContainer.querySelectorAll('text');
+            textElements.forEach(textEl => {
+                textEl.addEventListener('mouseover', (e) => {
+                    const elementName = textEl.textContent.trim();
+                    if (!elementName || elementName === '') return;
+                    
+                    highlightCsvRow(elementName);
+                });
+
+                textEl.addEventListener('mouseout', () => {
+                    clearCsvRowHighlight();
+                });
+            });
+        }
+
+        function highlightCsvRow(elementName) {
+            if (!elementName) return;
+            
+            // Remove previous highlight
+            const prevHighlight = document.getElementById('csvRowHighlight');
+            if (prevHighlight) {
+                prevHighlight.innerHTML = '';
+            }
+
+            // Find and highlight matching row in CSV
+            const text = csvEditorTextarea.value;
+            const lines = text.split('\n');
+            let targetLineIndex = -1;
+            
+            // First, try to find an element definition line (Class;Name;... or Function;Name;... etc)
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (isElementDefinitionLine(line)) {
+                    const name = extractElementNameFromCsvLine(line);
+                    if (name === elementName) {
+                        targetLineIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            // If not found as element definition, try as connector (source or target)
+            if (targetLineIndex === -1) {
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (isConnectorLine(line)) {
+                        const connector = extractConnectorInfo(line);
+                        if (connector && (connector.source === elementName || connector.target === elementName)) {
+                            targetLineIndex = i;
+                            break;  // Prefer first match
+                        }
+                    }
+                }
+            }
+            
+            if (targetLineIndex >= 0) {
+                // Calculate line position and highlight
+                const lineHeight = parseInt(window.getComputedStyle(csvEditorTextarea).lineHeight);
+                const lineTop = targetLineIndex * lineHeight;
+                
+                // Scroll CSV row into view
+                csvEditorTextarea.scrollTop = Math.max(0, lineTop - csvEditorTextarea.clientHeight / 2);
+                syncHighlightScroll();
+                
+                // Highlight in a dedicated overlay
+                const highlightOverlay = document.getElementById('csvRowHighlight');
+                if (highlightOverlay) {
+                    highlightOverlay.style.top = lineTop + 'px';
+                    highlightOverlay.style.height = lineHeight + 'px';
+                    highlightOverlay.style.display = 'block';
+                }
+            }
+        }
+
+        function clearCsvRowHighlight() {
+            const highlightOverlay = document.getElementById('csvRowHighlight');
+            if (highlightOverlay) {
+                highlightOverlay.style.display = 'none';
+            }
+        }
+
         async function loadCsvEditorText(forceReload = false) {
             if (!state.csv) {
                 state.editorCsv = '';
@@ -1634,6 +1903,7 @@
                 updateEditorTitle();
                 setEditorStatus('Saved');
                 updateEditorSaveButtonState();
+                highlightCsvSyntax('');
                 return;
             }
 
@@ -1660,6 +1930,7 @@
             setEditorStatus('Saved');
             updateEditorSaveButtonState();
             fitEditorZoom();  // Fit text to editor width by default
+            highlightCsvSyntax(text);  // Apply syntax highlighting
         }
 
         async function saveCsvEditorText() {
@@ -2268,6 +2539,57 @@
                 setEditorStatus('Saved');
             }
             updateEditorSaveButtonState();
+            highlightCsvSyntax(csvEditorTextarea.value);  // Update syntax highlighting
+        });
+
+        csvEditorTextarea.addEventListener('scroll', syncHighlightScroll);
+
+        // Hover cross-linking: CSV row highlight diagram element
+        csvEditorTextarea.addEventListener('mousemove', (e) => {
+            const textarea = csvEditorTextarea;
+            const rect = textarea.getBoundingClientRect();
+            const padding = 10;  // textarea padding
+            const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight);
+            
+            // Calculate which line is being hovered based on mouse Y position
+            const y = e.clientY - rect.top + textarea.scrollTop - padding;
+            const lineNumber = Math.floor(y / lineHeight);
+            
+            const lines = textarea.value.split('\n');
+            if (lineNumber >= 0 && lineNumber < lines.length) {
+                const currentLine = lines[lineNumber];
+                
+                // Skip empty lines and comment lines
+                if (!currentLine.trim() || currentLine.trim().startsWith('#')) {
+                    clearDiagramHighlight();
+                    return;
+                }
+                
+                // If it's an element definition line (Class;Name;...), highlight the element
+                if (isElementDefinitionLine(currentLine)) {
+                    const elementName = extractElementNameFromCsvLine(currentLine);
+                    highlightDiagramElement(elementName);
+                } 
+                // If it's a connector line (Source;Target;Arrow;...), highlight BOTH endpoints
+                else if (isConnectorLine(currentLine)) {
+                    const connector = extractConnectorInfo(currentLine);
+                    if (connector) {
+                        // Highlight both source AND target elements
+                        highlightDiagramElement(connector.source);
+                        // For connectors, also highlight target (if different from source)
+                        if (connector.target !== connector.source) {
+                            highlightDiagramElement(connector.target, 'append');
+                        }
+                    }
+                } 
+                else {
+                    clearDiagramHighlight();
+                }
+            }
+        });
+
+        csvEditorTextarea.addEventListener('mouseleave', () => {
+            clearDiagramHighlight();
         });
 
         let editorResizeStartX = 0;
@@ -3143,6 +3465,9 @@
                 // Wire class-diagram object hover highlighting for connectors/text.
                 setupClassDiagramHoverHighlight();
                 setupClassDiagramLinks();
+                
+                // Wire diagram→CSV cross-linking on hover
+                setupDiagramHoverCsvCrosslinking();
                 
                 // Load class metadata for details pane
                 await loadClassMetadata();

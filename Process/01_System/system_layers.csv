@@ -1,0 +1,12 @@
+# DiagramType: Class Diagram
+# Purpose: Architectural layers of the system
+# Layers: UI, API, Processing, Storage
+# Status: Layered architecture view
+
+Type;Name;Description
+ClassDiagram;SystemLayers;Architectural layers of the system
+    User;UILayer;-->;1;1;interacts with;UI
+    UILayer;APISLayer;-->;1;1;calls;API
+    APISLayer;ProcessingLayer;-->;1;1;delegates to;Processing
+    ProcessingLayer;StorageLayer;-->;1;1;accesses;Storage
+    StorageLayer;FileSystem;-->;1;1;backed by;Storage

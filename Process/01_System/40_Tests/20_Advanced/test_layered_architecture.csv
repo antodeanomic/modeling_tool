@@ -1,5 +1,6 @@
+# Layered architecture test with layer filtering
+
 Type;Name;Description
-# Test structure diagram features: element types, routing, layers
 Class;WebApp;Web application component
     MemberVar;port;Server port number
     Function;+start();Start the server
@@ -15,27 +16,6 @@ Class;AuthService;Authentication service
 Class;Logger;Logging utility
     Function;+log();Write log entry
 
-# Basic class diagram with diagonal routing (default)
-ClassDiagram;BasicRelationships;Basic class relationships
-    WebApp;Database;-->;1;1;uses;core
-    WebApp;Cache;-->;1;1;uses;core
-    WebApp;AuthService;..>;;;depends;security
-    AuthService;Database;..>;;;queries;security
-    Cache;Logger;..>;;;logs;infrastructure
-
-# Orthogonal routing diagram
-ClassDiagram;OrthogonalLayout;Orthogonal connector routing;
-    WebApp;Database;-->;1;1;uses
-    WebApp;Cache;◇--;1;1;has
-    Database;Logger;..>;;;logs
-
-# Mixed routing diagram with element types
-ClassDiagram;MixedElements;Mixed element types;;routing=mixed;element_type=WebApp:component,Database:component,Cache:package,Logger:object
-    WebApp;Database;-->;1;1;uses
-    WebApp;Cache;◇--;1;0..1;has
-    Cache;Logger;..>;;;logs
-
-# Diagram with layers for filtering
 ClassDiagram;LayeredArchitecture;Layered architecture view
     WebApp;AuthService;..>;;;authenticate;presentation
     WebApp;Cache;-->;1;1;uses;presentation

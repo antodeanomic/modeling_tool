@@ -1,0 +1,8 @@
+Type;Name;Description
+Include;data_model.csv;Import all model dataclasses
+Include;csv_parser.csv;Import parser functions
+ClassDiagram;ParserToModel;Parser produces Model from CSV files
+    CsvParser;Model;-->;1;1;produces
+    CsvParser;ClassDef;-->;1;0.*;parses
+    CsvParser;SequenceDef;-->;1;0.*;parses
+    CsvParser;ClassDiagramDef;-->;1;0.*;parses
