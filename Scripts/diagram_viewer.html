@@ -316,7 +316,7 @@
             white-space: pre;
             word-wrap: normal;
             z-index: 1;
-            display: none;
+            display: block;
         }
 
         .csv-editor-highlight span {
@@ -333,13 +333,19 @@
             font-family: Consolas, "Courier New", monospace;
             font-size: 13px;
             line-height: 1.4;
-            color: #1f2937;
+            color: transparent;
             background: transparent;
             overflow: auto;
             white-space: pre;
             word-wrap: normal;
             position: relative;
             z-index: 2;
+            caret-color: #1f2937;
+        }
+
+        .csv-editor-textarea::selection {
+            background: rgba(37, 99, 235, 0.25);
+            color: transparent;
         }
 
         .csv-row-highlight {
@@ -350,9 +356,9 @@
             height: 1.4em;
             pointer-events: none;
             background: rgba(37, 99, 235, 0.15);
-            border-left: 2px solid rgba(37, 99, 235, 0.6);
+            border-left: 2px solid rgba(37, 99, 235, 0.55);
             box-sizing: border-box;
-            z-index: 1.5;
+            z-index: 0;
             display: none;
             transition: top 0.05s ease-out;
         }
@@ -891,7 +897,10 @@
         <div class="csv-editor-pane" id="csvEditorPane">
             <div class="csv-editor-toolbar">
                 <div class="csv-editor-title" id="csvEditorTitle">CSV Editor</div>
-                <button class="csv-editor-save" id="csvSaveButton" disabled>Save (Ctrl+S)</button>
+                <div style="display: flex; gap: 6px;">
+                    <button class="csv-editor-save" id="csvFormatButton" title="Toggle between condensed and columnar format">Format</button>
+                    <button class="csv-editor-save" id="csvSaveButton" disabled>Save (Ctrl+S)</button>
+                </div>
             </div>
             <div class="csv-editor-status" id="csvEditorStatus">Saved</div>
             <div class="csv-editor-wrapper">
@@ -1544,6 +1553,7 @@
         const csvEditorPane = document.getElementById('csvEditorPane');
         const csvResizer = document.getElementById('csvResizer');
         const csvEditorTitle = document.getElementById('csvEditorTitle');
+        const csvFormatButton = document.getElementById('csvFormatButton');
         const csvSaveButton = document.getElementById('csvSaveButton');
         const csvEditorStatus = document.getElementById('csvEditorStatus');
         const csvEditorTextarea = document.getElementById('csvEditorTextarea');
@@ -1612,8 +1622,15 @@
             const zoomLevel = clampEditorZoomLevel(state.editorZoomLevel || 1.0);
             state.editorZoomLevel = zoomLevel;
             const fontSize = baseFontSizePx * zoomLevel;
+            const lineHeightPx = Math.round(fontSize * 1.4);
             csvEditorTextarea.style.fontSize = `${fontSize}px`;
-            csvEditorTextarea.style.lineHeight = `${Math.round(fontSize * 1.4)}px`;
+            csvEditorTextarea.style.lineHeight = `${lineHeightPx}px`;
+            // Keep syntax highlight layer in sync so colored text stays perfectly aligned
+            const highlightEl = document.getElementById('csvEditorHighlight');
+            if (highlightEl) {
+                highlightEl.style.fontSize = `${fontSize}px`;
+                highlightEl.style.lineHeight = `${lineHeightPx}px`;
+            }
         }
 
         function setEditorZoomLevel(zoomLevel) {
@@ -1678,14 +1695,16 @@
         }
 
         function highlightCsvSyntax(text) {
+            const highlightElement = document.getElementById('csvEditorHighlight');
             if (!text) {
-                document.getElementById('csvEditorHighlight').innerHTML = '';
+                highlightElement.innerHTML = '';
                 return;
             }
 
             const lines = text.split('\n');
             const colored = lines.map((line, lineIdx) => {
-                if (!line.trim()) return '';
+                // Preserve empty lines so highlight div row positions match textarea exactly
+                if (!line.trim()) return '\n';
                 
                 // Color map for columns
                 const typeColor = '#9333ea';  // Purple
@@ -1693,6 +1712,13 @@
                 const descColor = '#6b7280';  // Gray
                 const decorColor = '#f97316'; // Orange
                 const connColor = '#10b981';  // Green
+                const commentColor = '#16a34a'; // Green for comments
+                const keywordColor = '#dc2626'; // Red for diagram marker keywords
+                
+                // Check for comment lines (# prefix)
+                if (line.trimStart().startsWith('#')) {
+                    return `<span style="color: ${commentColor};">${line}</span>\n`;
+                }
                 
                 // Check for decorators
                 if (line.includes('@Info') || line.includes('@Warning') || line.includes('@Error')) {
@@ -1705,17 +1731,24 @@
                 }
 
                 // Split by semicolon but preserve the delimiter
+                const sepColor = '#94a3b8';  // Light separator color for semicolons
                 const parts = line.split(/(;)/);
                 let columnIdx = 0;
                 
                 return parts.map((part, i) => {
-                    if (part === ';') return part;
+                    if (part === ';') return `<span style="color: ${sepColor};">${part}</span>`;
                     if (!part) return '';
                     
+                    const trimmedPart = part.trim();
                     // Determine color based on column
                     let color = descColor;
+                    let fontWeight = 'normal';
                     if (columnIdx === 0) {
                         color = typeColor;  // Type column
+                        if (trimmedPart === 'ClassDiagram' || trimmedPart === 'SequenceDiagram') {
+                            color = keywordColor;
+                            fontWeight = '700';
+                        }
                     } else if (columnIdx === 1) {
                         color = nameColor;  // Name column
                     } else if (part.includes('-->') || part.includes('..>') || part.includes('◆--') || part.includes('◇--') || part.includes('--') || part.includes('--->')) {
@@ -1723,11 +1756,12 @@
                     }
                     
                     columnIdx++;
-                    return `<span style="color: ${color};">${part}</span>`;
+                    return `<span style="color: ${color}; font-weight: ${fontWeight};">${part}</span>`;
                 }).join('') + '\n';
             }).join('');
 
-            document.getElementById('csvEditorHighlight').innerHTML = colored;
+            highlightElement.innerHTML = colored;
+            highlightElement.style.display = 'block';
         }
 
         function syncHighlightScroll() {
@@ -1815,6 +1849,14 @@
             // Add hover listeners to all text elements in the diagram (class/interface/state names, connector labels)
             const textElements = diagramContainer.querySelectorAll('text');
             textElements.forEach(textEl => {
+                if (state.diagramType === 'class_diagram') {
+                    const inClassObject = !!textEl.closest('g.cls-object[data-class-name]');
+                    const inClassConnector = !!textEl.closest('g.cls-connector[data-source][data-target]');
+                    if (inClassObject || inClassConnector) {
+                        return;
+                    }
+                }
+
                 textEl.addEventListener('mouseover', (e) => {
                     const elementName = textEl.textContent.trim();
                     if (!elementName || elementName === '') return;
@@ -1841,7 +1883,7 @@
             const text = csvEditorTextarea.value;
             const lines = text.split('\n');
             let targetLineIndex = -1;
-            
+
             // First, try to find an element definition line (Class;Name;... or Function;Name;... etc)
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -1853,7 +1895,7 @@
                     }
                 }
             }
-            
+
             // If not found as element definition, try as connector (source or target)
             if (targetLineIndex === -1) {
                 for (let i = 0; i < lines.length; i++) {
@@ -1867,23 +1909,66 @@
                     }
                 }
             }
-            
+
             if (targetLineIndex >= 0) {
-                // Calculate line position and highlight
-                const lineHeight = parseInt(window.getComputedStyle(csvEditorTextarea).lineHeight);
-                const lineTop = targetLineIndex * lineHeight;
-                
-                // Scroll CSV row into view
-                csvEditorTextarea.scrollTop = Math.max(0, lineTop - csvEditorTextarea.clientHeight / 2);
-                syncHighlightScroll();
-                
-                // Highlight in a dedicated overlay
-                const highlightOverlay = document.getElementById('csvRowHighlight');
-                if (highlightOverlay) {
-                    highlightOverlay.style.top = lineTop + 'px';
-                    highlightOverlay.style.height = lineHeight + 'px';
-                    highlightOverlay.style.display = 'block';
+                highlightCsvLineByIndex(targetLineIndex);
+            }
+        }
+
+        function findConnectorLineIndex(source, target) {
+            if (!source || !target) {
+                return -1;
+            }
+
+            const lines = csvEditorTextarea.value.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (!isConnectorLine(line)) {
+                    continue;
                 }
+                const connector = extractConnectorInfo(line);
+                if (!connector) {
+                    continue;
+                }
+                if (connector.source === source && connector.target === target) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        function highlightCsvLineByIndex(targetLineIndex) {
+            if (targetLineIndex < 0) {
+                clearCsvRowHighlight();
+                return;
+            }
+
+            const lines = csvEditorTextarea.value.split('\n');
+            if (targetLineIndex >= lines.length) {
+                clearCsvRowHighlight();
+                return;
+            }
+
+            const lineText = lines[targetLineIndex] || '';
+            const lineHeight = parseInt(window.getComputedStyle(csvEditorTextarea).lineHeight, 10) || 18;
+            const textareaStyle = window.getComputedStyle(csvEditorTextarea);
+            const paddingTop = parseInt(textareaStyle.paddingTop, 10) || 0;
+            const paddingLeft = parseInt(textareaStyle.paddingLeft, 10) || 0;
+            const lineTopInContent = paddingTop + (targetLineIndex * lineHeight);
+
+            // Scroll CSV row into view centered.
+            csvEditorTextarea.scrollTop = Math.max(0, lineTopInContent - csvEditorTextarea.clientHeight / 2);
+            syncHighlightScroll();
+
+            // Background stripe only — colored text is already shown by the syntax highlight layer.
+            const highlightOverlay = document.getElementById('csvRowHighlight');
+            if (highlightOverlay) {
+                const lineTopInViewport = lineTopInContent - csvEditorTextarea.scrollTop;
+                highlightOverlay.style.top = lineTopInViewport + 'px';
+                highlightOverlay.style.left = '0';
+                highlightOverlay.style.height = lineHeight + 'px';
+                highlightOverlay.innerHTML = '';
+                highlightOverlay.style.display = 'block';
             }
         }
 
@@ -1891,7 +1976,66 @@
             const highlightOverlay = document.getElementById('csvRowHighlight');
             if (highlightOverlay) {
                 highlightOverlay.style.display = 'none';
+                highlightOverlay.innerHTML = '';
             }
+        }
+
+        function highlightCsvConnectorRow(source, target) {
+            const lineIndex = findConnectorLineIndex(source, target);
+            if (lineIndex >= 0) {
+                highlightCsvLineByIndex(lineIndex);
+            } else {
+                clearCsvRowHighlight();
+            }
+        }
+
+        function clearClassDiagramHoverVisuals(svg) {
+            const connectorGroups = Array.from(svg.querySelectorAll('g.cls-connector[data-source][data-target]'));
+            const objectGroups = Array.from(svg.querySelectorAll('g.cls-object[data-class-name]'));
+
+            connectorGroups.forEach(conn => {
+                conn.classList.remove('is-active', 'is-faded');
+            });
+            objectGroups.forEach(obj => {
+                obj.classList.remove('is-hover-target');
+            });
+        }
+
+        function applyClassHoverVisuals(svg, className) {
+            const connectorGroups = Array.from(svg.querySelectorAll('g.cls-connector[data-source][data-target]'));
+            const objectGroups = Array.from(svg.querySelectorAll('g.cls-object[data-class-name]'));
+
+            connectorGroups.forEach(conn => {
+                const source = conn.getAttribute('data-source');
+                const target = conn.getAttribute('data-target');
+                const isMatch = source === className || target === className;
+                conn.classList.toggle('is-active', isMatch);
+                conn.classList.toggle('is-faded', !isMatch);
+            });
+
+            objectGroups.forEach(obj => {
+                const isTarget = obj.getAttribute('data-class-name') === className;
+                obj.classList.toggle('is-hover-target', isTarget);
+            });
+        }
+
+        function applyConnectorHoverVisuals(svg, hoveredConnector) {
+            const connectorGroups = Array.from(svg.querySelectorAll('g.cls-connector[data-source][data-target]'));
+            const objectGroups = Array.from(svg.querySelectorAll('g.cls-object[data-class-name]'));
+            const source = hoveredConnector.getAttribute('data-source');
+            const target = hoveredConnector.getAttribute('data-target');
+
+            connectorGroups.forEach(conn => {
+                const isActive = conn === hoveredConnector;
+                conn.classList.toggle('is-active', isActive);
+                conn.classList.toggle('is-faded', !isActive);
+            });
+
+            objectGroups.forEach(obj => {
+                const className = obj.getAttribute('data-class-name');
+                const isConnected = className === source || className === target;
+                obj.classList.toggle('is-hover-target', isConnected);
+            });
         }
 
         async function loadCsvEditorText(forceReload = false) {
@@ -1931,6 +2075,159 @@
             updateEditorSaveButtonState();
             fitEditorZoom();  // Fit text to editor width by default
             highlightCsvSyntax(text);  // Apply syntax highlighting
+        }
+
+        function isColumnarFormat(csvText) {
+            // Detect visual column-padding format: spaces deliberately placed around semicolons.
+            // Leading structural indentation (e.g. "    User;...") must NOT be treated as columnar.
+            const lines = csvText.split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
+            if (lines.length === 0) return false;
+
+            // Look for space-padded field separators: " ; " (space-semicolon-space)
+            return lines.some(line => / ; /.test(line));
+        }
+
+        function condenseCsv(csvText) {
+            // Convert from columnar to condensed format - remove extra spaces
+            return csvText.split('\n').map(line => {
+                // For comment lines, keep as-is
+                if (line.trimStart().startsWith('#')) {
+                    return line;
+                }
+                const match = line.match(/^(\s*)(.*)$/);
+                const leading = match ? match[1] : '';
+                const content = match ? match[2] : line;
+
+                if (!content.trim()) {
+                    return '';
+                }
+                // Drop extraneous header rows
+                if (isTypeNameDescriptionHeader(content.trim())) {
+                    return null;
+                }
+                // Split by semicolon, trim each field, rejoin while preserving indentation prefix
+                return leading + content.split(';').map(f => f.trim()).join(';');
+            }).filter(l => l !== null).join('\n');
+        }
+
+        function isTypeNameDescriptionHeader(line) {
+            const fields = line.split(';').map(f => f.trim().toLowerCase());
+            return fields.length === 3 &&
+                fields[0] === 'type' &&
+                fields[1] === 'name' &&
+                fields[2] === 'description';
+        }
+
+        function getFieldCount(line) {
+            return line.trimStart().split(';').length;
+        }
+
+        function toCondensedLine(line) {
+            const match = line.match(/^(\s*)(.*)$/);
+            const leading = match ? match[1] : '';
+            const content = match ? match[2] : line;
+            return leading + content.split(';').map(f => f.trim()).join(';');
+        }
+
+        function formatCsvColumnar(csvText) {
+            // Convert from condensed to columnar format with aligned columns
+            // Respects hierarchy: each group (header + rows) formatted independently
+            const lines = csvText.split('\n');
+            const result = [];
+            let i = 0;
+            
+            while (i < lines.length) {
+                const line = lines[i];
+                
+                // Pass through comments and empty lines
+                if (line.trim().startsWith('#') || !line.trim()) {
+                    result.push(line);
+                    i++;
+                    continue;
+                }
+                
+                // Drop extraneous header rows
+                if (isTypeNameDescriptionHeader(line.trim())) {
+                    i++;
+                    continue;
+                }
+
+                // Group contiguous rows with the same field count so connector arrow columns
+                // are never padded based on longer description rows from a different row shape.
+                const group = [line];
+                const fieldCount = getFieldCount(line);
+                i++;
+
+                while (i < lines.length) {
+                    const nextLine = lines[i];
+                    const nextTrimmed = nextLine.trim();
+                    if (nextTrimmed.startsWith('#') || !nextTrimmed) {
+                        break;
+                    }
+                    if (isTypeNameDescriptionHeader(nextTrimmed)) {
+                        i++; // skip header mid-block
+                        continue;
+                    }
+                    if (getFieldCount(nextLine) !== fieldCount) {
+                        break;
+                    }
+                    group.push(nextLine);
+                    i++;
+                }
+
+                // Keep single-row items in condensed format.
+                if (group.length === 1) {
+                    result.push(toCondensedLine(group[0]));
+                } else {
+                    result.push(...formatGroupWithIndentation(group));
+                }
+            }
+            
+            return result.join('\n');
+        }
+        
+        function formatGroupWithIndentation(groupLines) {
+            // Calculate column widths using trimmed field content.
+            // Leading structural indentation (e.g. 4 spaces on connector rows) is preserved as-is.
+            const columnWidths = [];
+            const parsedLines = [];
+
+            groupLines.forEach(line => {
+                const match = line.match(/^(\s*)(.*)$/);
+                const leading = match ? match[1] : '';
+                const content = match ? match[2] : line;
+                const fields = content.split(';').map(f => f.trim());
+                parsedLines.push({ leading, fields });
+
+                fields.forEach((field, idx) => {
+                    if (!columnWidths[idx]) columnWidths[idx] = 0;
+                    columnWidths[idx] = Math.max(columnWidths[idx], field.length);
+                });
+            });
+
+            return parsedLines.map(({ leading, fields }) => {
+                const formatted = fields.map((field, fieldIdx) => {
+                    if (fieldIdx === fields.length - 1) return field;
+                    return field.padEnd(columnWidths[fieldIdx] || 0);
+                }).join(' ; ');
+                return leading + formatted;
+            });
+        }
+
+        function toggleCsvFormat() {
+            const currentText = csvEditorTextarea.value;
+            const isColumnar = isColumnarFormat(currentText);
+            const newText = isColumnar
+                ? condenseCsv(currentText)
+                : formatCsvColumnar(currentText);
+            const changed = newText !== currentText;
+            
+            csvEditorTextarea.value = newText;
+            csvEditorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            highlightCsvSyntax(newText);
+            if (!changed) {
+                setEditorStatus('Already formatted');
+            }
         }
 
         async function saveCsvEditorText() {
@@ -2529,6 +2826,7 @@
         });
         fitButton.addEventListener('click', fitToView);
         resetButton.addEventListener('click', resetPanAndZoom);
+        csvFormatButton.addEventListener('click', toggleCsvFormat);
         csvSaveButton.addEventListener('click', saveCsvEditorText);
         csvEditorTextarea.addEventListener('input', () => {
             const isDirty = csvEditorTextarea.value !== state.editorOriginalText;
@@ -2808,17 +3106,18 @@
             const paneIsOpen =
                 container.classList.contains('details-open') &&
                 detailsPane.style.display !== 'none';
-            const paneWidth = paneIsOpen ? detailsPane.getBoundingClientRect().width : 0;
-            const visibleViewportWidth = window.innerWidth - paneWidth;
-            const usableWidth = Math.min(diagramArea.clientWidth, visibleViewportWidth);
-            const areaWidth = usableWidth - 40;
+            
+            // Calculate usable width: window - details pane (if open)
+            // The diagram area width is what remains after CSV editor takes its space
+            const detailsPaneWidth = paneIsOpen ? 0.20 * window.innerWidth : 0;
+            const areaWidth = diagramArea.clientWidth - 40;
             const areaHeight = diagramArea.clientHeight - 40;
             
             const zoomX = areaWidth / parseFloat(svgWidth);
             const zoomY = areaHeight / parseFloat(svgHeight);
             
             state.zoomLevel = Math.min(zoomX, zoomY, 3.0);
-            state.panX = paneIsOpen ? -(paneWidth / 2) : 0;
+            state.panX = 0;
             state.panY = 0;
             
             updateZoom();
@@ -3315,39 +3614,66 @@
                 return;
             }
 
-            const clearHighlight = () => {
-                connectorGroups.forEach(conn => {
-                    conn.classList.remove('is-active', 'is-faded');
-                });
-                objectGroups.forEach(obj => {
-                    obj.classList.remove('is-hover-target');
-                });
-            };
+            // Track current hovered element to avoid blinking on boundary crossings.
+            // Only clear highlights when entering a different element.
+            let currentHoveredElement = null;
 
-            const applyHighlight = (className) => {
-                connectorGroups.forEach(conn => {
-                    const source = conn.getAttribute('data-source');
-                    const target = conn.getAttribute('data-target');
-                    const isMatch = source === className || target === className;
-                    conn.classList.toggle('is-active', isMatch);
-                    conn.classList.toggle('is-faded', !isMatch);
-                });
-
-                objectGroups.forEach(obj => {
-                    const isTarget = obj.getAttribute('data-class-name') === className;
-                    obj.classList.toggle('is-hover-target', isTarget);
-                });
+            const clearHighlightIfDifferent = (newElement) => {
+                if (currentHoveredElement !== newElement) {
+                    clearClassDiagramHoverVisuals(svg);
+                    clearCsvRowHighlight();
+                }
             };
 
             objectGroups.forEach(obj => {
                 obj.addEventListener('mouseenter', () => {
-                    const className = obj.getAttribute('data-class-name');
-                    if (className) {
-                        applyHighlight(className);
+                    if (currentHoveredElement !== obj) {
+                        clearHighlightIfDifferent(obj);
+                        currentHoveredElement = obj;
+                        const className = obj.getAttribute('data-class-name');
+                        if (className) {
+                            applyClassHoverVisuals(svg, className);
+                            clearCsvRowHighlight();
+                        }
                     }
                 });
                 obj.addEventListener('mouseleave', () => {
-                    clearHighlight();
+                    if (currentHoveredElement === obj) {
+                        currentHoveredElement = null;
+                    }
+                });
+            });
+
+            connectorGroups.forEach(conn => {
+                // Add invisible wide-stroke hit areas so narrow connectors are easier to hover.
+                // stroke-opacity="0" is used (not stroke="transparent") so browsers register
+                // the stroke as a valid pointer-events hit area.
+                conn.querySelectorAll('path').forEach(visPath => {
+                    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    hit.setAttribute('d', visPath.getAttribute('d'));
+                    hit.setAttribute('fill', 'none');
+                    hit.setAttribute('stroke', 'black');
+                    hit.setAttribute('stroke-width', '12');
+                    hit.setAttribute('stroke-opacity', '0');
+                    hit.setAttribute('pointer-events', 'stroke');
+                    conn.appendChild(hit);
+                });
+
+                conn.addEventListener('mouseenter', () => {
+                    if (currentHoveredElement !== conn) {
+                        clearHighlightIfDifferent(conn);
+                        currentHoveredElement = conn;
+                        applyConnectorHoverVisuals(svg, conn);
+                        highlightCsvConnectorRow(
+                            conn.getAttribute('data-source'),
+                            conn.getAttribute('data-target')
+                        );
+                    }
+                });
+                conn.addEventListener('mouseleave', () => {
+                    if (currentHoveredElement === conn) {
+                        currentHoveredElement = null;
+                    }
                 });
             });
         }

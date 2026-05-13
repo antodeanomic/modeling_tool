@@ -740,7 +740,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
             sequences = [{'id': s.seq_id, 'name': s.seq_id} for s in model.sequences]
             
             # Get all class diagrams
-            class_diagrams = [{'id': d.diagram_id, 'name': d.description or d.diagram_id, 'layers': d.get_layers(), 'routing': d.routing} for d in model.class_diagrams]
+            class_diagrams = [{'id': d.diagram_id, 'name': d.diagram_id, 'layers': d.get_layers(), 'routing': d.routing} for d in model.class_diagrams]
             
             print(f"[lanes] CSV '{csv_name}': {len(sequences)} sequence(s), {len(class_diagrams)} class diagram(s)")
             
