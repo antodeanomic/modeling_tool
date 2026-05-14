@@ -1,24 +1,23 @@
 # Test structure diagram features: element types, routing, layers
 
-Type;Name;Description
-Class;WebApp;Web application component
-    MemberVar;port;Server port number
-    Function;+start();Start the server
-Class;Database;Database service
-    MemberVar;connection_string;DB connection
-    Function;+query();Execute a query
-Class;Cache;In-memory cache
-    MemberVar;max_size;Maximum cache size
-    Function;+get();Get cached item
-    Function;+set();Set cached item
-Class;AuthService;Authentication service
-    Function;+authenticate();Verify user credentials
-Class;Logger;Logging utility
-    Function;+log();Write log entry
+Class ; WebApp      ; Web application component
+    MemberVar ; port              ; Server port number
+    Function ; +start()        ; Start the server
+Class ; Database    ; Database service
+    MemberVar ; connection_string ; DB connection
+    Function ; +query()        ; Execute a query
+Class ; Cache       ; In-memory cache
+    MemberVar ; max_size          ; Maximum cache size
+    Function ; +get()          ; Get cached item
+    Function ; +set()          ; Set cached item
+Class ; AuthService ; Authentication service
+    Function ; +authenticate() ; Verify user credentials
+Class ; Logger      ; Logging utility
+    Function ; +log()          ; Write log entry
 
-ClassDiagram;BasicRelationships;Basic class relationships
-    WebApp;Database;-->;1;1;uses;core
-    WebApp;Cache;-->;1;1;uses;core
-    WebApp;AuthService;..>;;;depends;security
-    AuthService;Database;..>;;;queries;security
-    Cache;Logger;..>;;;logs;infrastructure
+ClassDiagram ; BasicRelationships ; Basic class relationships
+    WebApp ; Database    ; --> ; 1 ; 1 ; uses    ; core
+    WebApp ; Cache       ; --> ; 1 ; 1 ; uses    ; core
+    WebApp ; AuthService ; ..> ;   ;   ; depends ; security
+    AuthService ; Database ; ..> ;  ;  ; queries ; security
+    Cache ; Logger ; ..> ;  ;  ; logs ; infrastructure

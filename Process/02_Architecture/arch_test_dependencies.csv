@@ -1,8 +1,7 @@
-Type;Name;Description
-Include;test_framework.csv;Import test framework
-Include;csv_parser.csv;Import parser functions
-Include;svg_renderer.csv;Import renderer functions
-ClassDiagram;TestDependencies;Test framework uses parser and renderer
-    TestRunner;CsvParser;..>;;;uses
-    TestRunner;SvgRenderer;..>;;;uses
-    TestSuiteRunner;TestRunner;..>;;;orchestrates
+Include ; test_framework.csv ; Import test framework
+Include ; csv_parser.csv     ; Import parser functions
+Include ; svg_renderer.csv   ; Import renderer functions
+ClassDiagram ; TestDependencies ; Test framework uses parser and renderer
+    TestRunner ; CsvParser   ; ..> ;  ;  ; uses
+    TestRunner ; SvgRenderer ; ..> ;  ;  ; uses
+    TestSuiteRunner ; TestRunner ; ..> ;  ;  ; orchestrates

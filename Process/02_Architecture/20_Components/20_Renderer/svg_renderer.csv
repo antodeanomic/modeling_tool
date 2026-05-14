@@ -1,88 +1,87 @@
-Type;Name;Description
-Class;SvgRenderer;SVG rendering engine — module-level functions and constants in svg_renderer.py
-    MemberVar;FONT_SIZE;Font size for all text labels (12)
-    MemberVar;MONOSPACE_CHAR_WIDTH;Width of each character in monospaced font at 12px (7.2)
-    MemberVar;MESSAGE_SPACING;1 character space before message and after note (7.2)
-    MemberVar;LABEL_NOTE_GAP;No gap between closing paren and note box (0)
-    MemberVar;ROW_HEIGHT;Spacing for consecutive message rows (24)
-    MemberVar;ROW_SPACING;Extra spacing between rows (6)
-    MemberVar;LANE_WIDTH;Spacing between participant lifelines (90)
-    MemberVar;PARTICIPANT_BOX_WIDTH;Default participant box width (140)
-    MemberVar;PARTICIPANT_BOX_HEIGHT;Default participant box height (40)
-    MemberVar;STATE_BOX_PADDING;Padding around state box text (6)
-    MemberVar;STATE_TEXT_SIZE;Font size for state box text (13)
-    MemberVar;NOTE_BOX_CHARS;Note boxes are 2 characters wide
-    MemberVar;NOTE_BOX_WIDTH;2 chars times MONOSPACE_CHAR_WIDTH (14.4)
-    MemberVar;NOTE_BOX_HEIGHT;Height of note box (13)
-    MemberVar;NOTE_FOLD_SIZE;Size of the folded corner on note boxes (2)
-    MemberVar;NOTE_SPACING_OFFSET;Spacing offset for notes (0)
-    MemberVar;PARTICIPANT_FONT_SIZE;Font size for participant names (14)
-    MemberVar;PARTICIPANT_PADDING_WIDTH;Horizontal padding inside participant box (7)
-    MemberVar;PARTICIPANT_PADDING_HEIGHT;Vertical padding inside participant box (12)
-    MemberVar;MIN_PARTICIPANT_WIDTH;Minimum width for participant box (80)
-    MemberVar;MIN_PARTICIPANT_HEIGHT;Minimum height for participant box (40)
-    MemberVar;MIN_GAP_BETWEEN_BOXES;Minimum gap between participant boxes (14)
-    MemberVar;MIN_ARROW_LENGTH;Minimum 2.5 character arrow space (17)
-    MemberVar;NOTE_COLORS;Dict mapping note types (Info/Warning/Error/Success) to fill/stroke/icon
-    MemberVar;CODE_BACKGROUND_COLOR;Light grey background for code segments (#E8E8E8)
-    MemberVar;CODE_TEXT_COLOR;Dark text for code segments (#333333)
-    Function;+extract_code_segments;Parse text and extract backtick-enclosed code segments
-        Param;text;Text to parse for backtick segments
-        ReturnVal;segments;List of (content and is_code) tuples
-    Function;+strip_code_wrappers;Remove backticks from text keeping content inside
-        Param;text;Text with backtick wrappers
-        ReturnVal;stripped;Text with backticks removed
-    Function;+measure_text_width;Rough estimate of text width in SVG using monospace sizing
-        Param;text;Text to measure
-        Param;font_size;Font size for measurement (default 11)
-        ReturnVal;width;Estimated width in pixels
-    Function;+split_participant_name;Split participant name by br tags or newlines
-        Param;name;Participant name string
-        ReturnVal;lines;List of name lines
-    Function;+wrap_text;Wrap text at maximum character width
-        Param;text;Text to wrap
-        Param;max_width;Maximum character width (default 80)
-        ReturnVal;lines;List of wrapped text lines
-    Function;+measure_participant_box;Measure required width and height for participant box
-        Param;name;Participant name
-        ReturnVal;dimensions;Tuple of (width and height)
-    Function;+create_state_box;Create SVG elements for a UML state box
-        Param;x;X coordinate
-        Param;y;Y coordinate
-        Param;state_name;Name of the state
-        Param;state_desc;Optional state description
-        ReturnVal;svg_elements;List of SVG element strings
-    Function;+render_text_with_code_styling;Render text as SVG with optional code segment styling
-        Param;content;Text to render
-        Param;x;Starting X position
-        Param;y;Starting Y position
-        Param;font_size;Font size (default 11)
-        Param;text_color;Text color (default black)
-        Param;code_bg_color;Code background color (default CODE_BACKGROUND_COLOR)
-        Param;note_bg_color;Note background color (default None)
-        Param;line_spacing;Line spacing multiplier (default 1.3)
-        ReturnVal;result;Tuple of (svg_elements list and total_height and max_width)
-    Function;+create_note_box;Create SVG elements for a UML note box with folded corner
-        Param;x;X coordinate (center of note)
-        Param;y;Y coordinate (top of note)
-        Param;note;NoteDef object with note_type and content
-        Param;show_text;If True show inline — False shows only on hover
-        ReturnVal;svg_elements;List of SVG element strings
-    Function;+detect_spanning_brackets;Detect spanning brackets based on nesting depth from indentation
-        Param;steps;List of SequenceStep objects
-        ReturnVal;brackets;Dict mapping (start_row and nesting_depth) to (end_row and function_name and src_obj and dst_obj)
-    Function;+render_spanning_bracket;Render a spanning bracket as a filled rectangle on the lane
-        Param;x;X position of lane center (lifeline)
-        Param;y_start;Y position of bracket start
-        Param;y_end;Y position of bracket end
-        Param;label;Text label for message
-        Param;tooltip;Optional tooltip content
-        Param;nesting_depth;Indentation level (default 0)
-        Param;is_self_message;If True render function name label
-        ReturnVal;svg_elements;List of SVG element strings
-    Function;+render_svg;Main rendering function — generates complete SVG for a sequence diagram
-        Param;model;Model containing class definitions
-        Param;seq;SequenceDef to render
-        Param;verbosity_level;Low or Normal or High (default High)
-        Param;lanes_filter;Optional list of lane names to include
-        ReturnVal;svg_markup;Complete SVG markup string
+Class ; SvgRenderer ; SVG rendering engine — module-level functions and constants in svg_renderer.py
+    MemberVar ; FONT_SIZE                  ; Font size for all text labels (12)
+    MemberVar ; MONOSPACE_CHAR_WIDTH       ; Width of each character in monospaced font at 12px (7.2)
+    MemberVar ; MESSAGE_SPACING            ; 1 character space before message and after note (7.2)
+    MemberVar ; LABEL_NOTE_GAP             ; No gap between closing paren and note box (0)
+    MemberVar ; ROW_HEIGHT                 ; Spacing for consecutive message rows (24)
+    MemberVar ; ROW_SPACING                ; Extra spacing between rows (6)
+    MemberVar ; LANE_WIDTH                 ; Spacing between participant lifelines (90)
+    MemberVar ; PARTICIPANT_BOX_WIDTH      ; Default participant box width (140)
+    MemberVar ; PARTICIPANT_BOX_HEIGHT     ; Default participant box height (40)
+    MemberVar ; STATE_BOX_PADDING          ; Padding around state box text (6)
+    MemberVar ; STATE_TEXT_SIZE            ; Font size for state box text (13)
+    MemberVar ; NOTE_BOX_CHARS             ; Note boxes are 2 characters wide
+    MemberVar ; NOTE_BOX_WIDTH             ; 2 chars times MONOSPACE_CHAR_WIDTH (14.4)
+    MemberVar ; NOTE_BOX_HEIGHT            ; Height of note box (13)
+    MemberVar ; NOTE_FOLD_SIZE             ; Size of the folded corner on note boxes (2)
+    MemberVar ; NOTE_SPACING_OFFSET        ; Spacing offset for notes (0)
+    MemberVar ; PARTICIPANT_FONT_SIZE      ; Font size for participant names (14)
+    MemberVar ; PARTICIPANT_PADDING_WIDTH  ; Horizontal padding inside participant box (7)
+    MemberVar ; PARTICIPANT_PADDING_HEIGHT ; Vertical padding inside participant box (12)
+    MemberVar ; MIN_PARTICIPANT_WIDTH      ; Minimum width for participant box (80)
+    MemberVar ; MIN_PARTICIPANT_HEIGHT     ; Minimum height for participant box (40)
+    MemberVar ; MIN_GAP_BETWEEN_BOXES      ; Minimum gap between participant boxes (14)
+    MemberVar ; MIN_ARROW_LENGTH           ; Minimum 2.5 character arrow space (17)
+    MemberVar ; NOTE_COLORS                ; Dict mapping note types (Info/Warning/Error/Success) to fill/stroke/icon
+    MemberVar ; CODE_BACKGROUND_COLOR      ; Light grey background for code segments (#E8E8E8)
+    MemberVar ; CODE_TEXT_COLOR            ; Dark text for code segments (#333333)
+    Function ; +extract_code_segments         ; Parse text and extract backtick-enclosed code segments
+        Param ; text            ; Text to parse for backtick segments
+        ReturnVal ; segments     ; List of (content and is_code) tuples
+    Function ; +strip_code_wrappers           ; Remove backticks from text keeping content inside
+        Param ; text            ; Text with backtick wrappers
+        ReturnVal ; stripped     ; Text with backticks removed
+    Function ; +measure_text_width            ; Rough estimate of text width in SVG using monospace sizing
+        Param ; text            ; Text to measure
+        Param ; font_size       ; Font size for measurement (default 11)
+        ReturnVal ; width        ; Estimated width in pixels
+    Function ; +split_participant_name        ; Split participant name by br tags or newlines
+        Param ; name            ; Participant name string
+        ReturnVal ; lines        ; List of name lines
+    Function ; +wrap_text                     ; Wrap text at maximum character width
+        Param ; text            ; Text to wrap
+        Param ; max_width       ; Maximum character width (default 80)
+        ReturnVal ; lines        ; List of wrapped text lines
+    Function ; +measure_participant_box       ; Measure required width and height for participant box
+        Param ; name            ; Participant name
+        ReturnVal ; dimensions   ; Tuple of (width and height)
+    Function ; +create_state_box              ; Create SVG elements for a UML state box
+        Param ; x               ; X coordinate
+        Param ; y               ; Y coordinate
+        Param ; state_name      ; Name of the state
+        Param ; state_desc      ; Optional state description
+        ReturnVal ; svg_elements ; List of SVG element strings
+    Function ; +render_text_with_code_styling ; Render text as SVG with optional code segment styling
+        Param ; content         ; Text to render
+        Param ; x               ; Starting X position
+        Param ; y               ; Starting Y position
+        Param ; font_size       ; Font size (default 11)
+        Param ; text_color      ; Text color (default black)
+        Param ; code_bg_color   ; Code background color (default CODE_BACKGROUND_COLOR)
+        Param ; note_bg_color   ; Note background color (default None)
+        Param ; line_spacing    ; Line spacing multiplier (default 1.3)
+        ReturnVal ; result       ; Tuple of (svg_elements list and total_height and max_width)
+    Function ; +create_note_box               ; Create SVG elements for a UML note box with folded corner
+        Param ; x               ; X coordinate (center of note)
+        Param ; y               ; Y coordinate (top of note)
+        Param ; note            ; NoteDef object with note_type and content
+        Param ; show_text       ; If True show inline — False shows only on hover
+        ReturnVal ; svg_elements ; List of SVG element strings
+    Function ; +detect_spanning_brackets      ; Detect spanning brackets based on nesting depth from indentation
+        Param ; steps           ; List of SequenceStep objects
+        ReturnVal ; brackets     ; Dict mapping (start_row and nesting_depth) to (end_row and function_name and src_obj and dst_obj)
+    Function ; +render_spanning_bracket       ; Render a spanning bracket as a filled rectangle on the lane
+        Param ; x               ; X position of lane center (lifeline)
+        Param ; y_start         ; Y position of bracket start
+        Param ; y_end           ; Y position of bracket end
+        Param ; label           ; Text label for message
+        Param ; tooltip         ; Optional tooltip content
+        Param ; nesting_depth   ; Indentation level (default 0)
+        Param ; is_self_message ; If True render function name label
+        ReturnVal ; svg_elements ; List of SVG element strings
+    Function ; +render_svg                    ; Main rendering function — generates complete SVG for a sequence diagram
+        Param ; model           ; Model containing class definitions
+        Param ; seq             ; SequenceDef to render
+        Param ; verbosity_level ; Low or Normal or High (default High)
+        Param ; lanes_filter    ; Optional list of lane names to include
+        ReturnVal ; svg_markup   ; Complete SVG markup string

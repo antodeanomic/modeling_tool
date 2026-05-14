@@ -15,7 +15,7 @@ def clean(s: str) -> str:
 def parse_indent(type_field: str) -> tuple[int, str]:
     leading_spaces = len(type_field) - len(type_field.lstrip(" "))
     level = leading_spaces // 4
-    return level, type_field.lstrip(" ")
+    return level, type_field.lstrip(" ").strip()
 
 def parse_note(note_str: str) -> tuple[str, str]:
     """Parse note syntax like @Info,Note content or @Warning,Alert message.

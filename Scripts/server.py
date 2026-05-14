@@ -160,16 +160,38 @@ def find_csv_files():
     return csv_files
 
 def find_default_csv(csv_files):
-    """Find the default CSV to load (prefer test_notes for comprehensive testing)."""
+    """Find the default CSV to load.
+
+    Prefer familiar samples, but only if they parse into at least one
+    renderable sequence or class diagram. This avoids startup failures when a
+    CSV contains only supporting rows such as classes or orphan sequence steps.
+    """
+
+    def _is_renderable(csv_key):
+        try:
+            model = parse_csv(csv_files[csv_key])
+        except Exception as exc:
+            print(f"[warn] Skipping default candidate '{csv_key}': {exc}")
+            return False
+        return bool(model.sequences or model.class_diagrams)
+
+    preferred_keys = []
     for suffix in ('/test_notes.csv', '/test_success_note.csv', '/sample_model.csv'):
-        for key in csv_files:
-            if key.endswith(suffix):
-                return key
-    # Fall back to first test CSV
-    test_csvs = [f for f in csv_files if os.path.basename(f).startswith('test_')]
-    if test_csvs:
-        return sorted(test_csvs)[0]
-    # Last resort: first available
+        preferred_keys.extend(key for key in sorted(csv_files) if key.endswith(suffix))
+
+    for key in preferred_keys:
+        if _is_renderable(key):
+            return key
+
+    test_csvs = [key for key in sorted(csv_files) if os.path.basename(key).startswith('test_')]
+    for key in test_csvs:
+        if _is_renderable(key):
+            return key
+
+    for key in sorted(csv_files):
+        if _is_renderable(key):
+            return key
+
     return list(csv_files.keys())[0]
 
 
@@ -204,6 +226,54 @@ def resolve_csv_registry_key(csv_id):
     if normalized in CSV_FILES:
         return normalized
     return None
+
+
+def find_include_target_csv_keys():
+    """Return CSV registry keys that are referenced by top-level Include rows."""
+    include_targets = set()
+    if not CSV_FILES:
+        return include_targets
+
+    abs_to_key = {os.path.abspath(path): key for key, path in CSV_FILES.items()}
+
+    for source_key, source_path in CSV_FILES.items():
+        try:
+            with open(source_path, newline="", encoding="utf-8-sig") as handle:
+                reader = csv.reader(handle, delimiter=';')
+                first_row = next(reader, None)
+
+                def _rows():
+                    if first_row is not None:
+                        first_type = clean(first_row[0]) if len(first_row) > 0 else ""
+                        first_name = clean(first_row[1]) if len(first_row) > 1 else ""
+                        has_header = first_type == "Type" and first_name == "Name"
+                        if not has_header:
+                            yield first_row
+                    for row in reader:
+                        yield row
+
+                for row in _rows():
+                    if not row or not clean(row[0]):
+                        continue
+                    level, type_name = parse_indent(row[0])
+                    if level != 0 or type_name != "Include":
+                        continue
+
+                    include_ref = clean(row[1]) if len(row) > 1 else ""
+                    if not include_ref:
+                        continue
+
+                    include_path = os.path.normpath(
+                        os.path.join(os.path.dirname(os.path.abspath(source_path)), include_ref)
+                    )
+                    target_key = abs_to_key.get(os.path.abspath(include_path))
+                    if target_key:
+                        include_targets.add(target_key)
+        except Exception:
+            # Best-effort metadata only; ignore malformed files here.
+            continue
+
+    return include_targets
 
 
 def read_csv_text(csv_id):
@@ -701,12 +771,21 @@ class DiagramHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"csvs": [], "warning": "No CSV files found"}).encode('utf-8'))
                 return
+
+            hierarchical_csvs = find_csv_files_hierarchical()
+            hierarchy_lookup = {item['csv_id']: item['hierarchy'] for item in hierarchical_csvs}
+            include_target_keys = find_include_target_csv_keys()
             
             csvs = []
             for csv_name in sorted(CSV_FILES.keys()):
                 # Create a friendly name (remove .csv, replace underscores)
                 friendly_name = csv_name.replace('.csv', '').replace('_', ' ').title()
-                csvs.append({'id': csv_name, 'name': friendly_name})
+                csvs.append({
+                    'id': csv_name,
+                    'name': friendly_name,
+                    'hierarchy': hierarchy_lookup.get(csv_name, []),
+                    'is_include_target': csv_name in include_target_keys
+                })
             
             print(f"[csvs] Found {len(csvs)} CSV files: {[c['id'] for c in csvs]}")
             

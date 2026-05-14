@@ -1,10 +1,9 @@
-Type;Name;Description
-Include;web_server.csv;Import server classes
-Include;csv_parser.csv;Import parser functions
-Include;svg_renderer.csv;Import renderer functions
-Include;data_model.csv;Import all model dataclasses
-ClassDiagram;ServerDependencies;Server orchestrates parser and renderer
-    DiagramHandler;CsvParser;..>;;;uses
-    DiagramHandler;SvgRenderer;..>;;;uses
-    DiagramHandler;Model;..>;;;loads
-    WebServer;DiagramHandler;◆--;1;1;owns
+Include ; web_server.csv   ; Import server classes
+Include ; csv_parser.csv   ; Import parser functions
+Include ; svg_renderer.csv ; Import renderer functions
+Include ; data_model.csv   ; Import all model dataclasses
+ClassDiagram ; ServerDependencies ; Server orchestrates parser and renderer
+    DiagramHandler ; CsvParser   ; ..> ;  ;  ; uses
+    DiagramHandler ; SvgRenderer ; ..> ;  ;  ; uses
+    DiagramHandler ; Model       ; ..> ;  ;  ; loads
+    WebServer ; DiagramHandler ; ◆-- ; 1 ; 1 ; owns

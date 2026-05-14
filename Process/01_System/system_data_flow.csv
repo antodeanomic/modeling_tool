@@ -3,10 +3,9 @@
 # Layers: Storage, Processing, UI
 # Status: Data pipeline architecture
 
-Type;Name;Description
-ClassDiagram;DataFlow;How data flows through the system
-    CsvFile;CsvParser;-->;1;1;input to;Storage
-    CsvParser;DiagramModel;◆--;1;1;produces;Processing
-    DiagramModel;SvgRenderer;◆--;1;0.*;input to;Processing
-    SvgRenderer;WebBrowser;-->;1;1;displays in;UI
-    WebBrowser;User;-->;1;1;viewed by;UI
+ClassDiagram ; DataFlow ; How data flows through the system
+    CsvFile ; CsvParser ; --> ; 1 ; 1 ; input to ; Storage
+    CsvParser ; DiagramModel ; ◆-- ; 1 ; 1 ; produces ; Processing
+    DiagramModel ; SvgRenderer ; ◆-- ; 1 ; 0.* ; input to ; Processing
+    SvgRenderer ; WebBrowser ; --> ; 1 ; 1 ; displays in ; UI
+    WebBrowser ; User ; --> ; 1 ; 1 ; viewed by ; UI

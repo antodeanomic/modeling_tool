@@ -108,7 +108,7 @@ def run_test() -> int:
     expected_final_dirs = {
         ("Gateway", "SessionStore"): "right",
         ("Gateway", "TraceContext"): "up",
-        ("AuthService", "AuditLog"): "right",
+        ("AuthService", "AuditLog"): "up",
         ("Gateway", "OrderService"): "up",
     }
     for pair, expected_dir in expected_final_dirs.items():

@@ -3,9 +3,8 @@
 # Layers: UI
 # Status: User-facing interaction flows
 
-Type;Name;Description
-ClassDiagram;UserInteraction;Users interact with the system through the web UI
-    User;WebBrowser;-->;1;1;views;UI
-    WebBrowser;DiagramViewer;-->;1;1;displays;UI
-    User;DiagramPicker;-->;1;1;selects;UI
-    DiagramPicker;DiagramViewer;-->;1;1;controls;UI
+ClassDiagram ; UserInteraction ; Users interact with the system through the web UI
+    User ; WebBrowser    ; --> ; 1 ; 1 ; views   ; UI
+    WebBrowser ; DiagramViewer ; --> ; 1 ; 1 ; displays ; UI
+    User ; DiagramPicker ; --> ; 1 ; 1 ; selects ; UI
+    DiagramPicker ; DiagramViewer ; --> ; 1 ; 1 ; controls ; UI

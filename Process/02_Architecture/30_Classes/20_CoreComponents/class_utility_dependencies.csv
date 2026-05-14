@@ -1,9 +1,8 @@
-Type;Name;Description
-Include;../50_Utilities/utilities.csv;Import utility classes
-Include;../../20_Components/10_Parser/csv_parser.csv;Import parser functions
-Include;../../20_Components/20_Renderer/svg_renderer.csv;Import renderer functions
-ClassDiagram;UtilityDependencies;Utility scripts and their dependencies
-    MainEntryPoint;CsvParser;..>;;;uses
-    MainEntryPoint;SvgRenderer;..>;;;uses
-    InteractiveUiGenerator;CsvParser;..>;;;uses
-    InteractiveUiGenerator;SvgRenderer;..>;;;uses
+Include ; ../50_Utilities/utilities.csv                    ; Import utility classes
+Include ; ../../20_Components/10_Parser/csv_parser.csv     ; Import parser functions
+Include ; ../../20_Components/20_Renderer/svg_renderer.csv ; Import renderer functions
+ClassDiagram ; UtilityDependencies ; Utility scripts and their dependencies
+    MainEntryPoint ; CsvParser   ; ..> ;  ;  ; uses
+    MainEntryPoint ; SvgRenderer ; ..> ;  ;  ; uses
+    InteractiveUiGenerator ; CsvParser   ; ..> ;  ;  ; uses
+    InteractiveUiGenerator ; SvgRenderer ; ..> ;  ;  ; uses

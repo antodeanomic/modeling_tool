@@ -1,13 +1,12 @@
-Type;Name;Description
-Class;Obj1;First object
-    Function;Msg1;Top-level self message
-        ReturnVal;result1;Result from Msg1
-    Function;Msg1a;Nested self message
-        ReturnVal;result1a;Result from Msg1a
-    Function;Msg1b;Nested self message
-        ReturnVal;result1b;Result from Msg1b
-Class;Obj2;Second object
-Sequence;SoftReq_TEST_SELF_MSG_LABEL_ALIGNMENT;Verify function name labels align at top of spanning brackets
-    Obj1;Obj1;Msg1;result1
-        Obj1;Obj1;Msg1a;result1a
-        Obj1;Obj1;Msg1b;result1b
+Class ; Obj1 ; First object
+    Function ; Msg1  ; Top-level self message
+        ReturnVal ; result1  ; Result from Msg1
+    Function ; Msg1a ; Nested self message
+        ReturnVal ; result1a ; Result from Msg1a
+    Function ; Msg1b ; Nested self message
+        ReturnVal ; result1b ; Result from Msg1b
+Class ; Obj2 ; Second object
+Sequence ; SoftReq_TEST_SELF_MSG_LABEL_ALIGNMENT ; Verify function name labels align at top of spanning brackets
+    Obj1 ; Obj1 ; Msg1  ; result1
+        Obj1 ; Obj1 ; Msg1a ; result1a
+        Obj1 ; Obj1 ; Msg1b ; result1b

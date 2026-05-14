@@ -952,6 +952,10 @@
                     <label for="showTestDiagramsToggle">Show Test Diagrams</label>
                 </div>
                 <div class="checkbox-option">
+                    <input type="checkbox" id="showIncludeCsvToggle">
+                    <label for="showIncludeCsvToggle">Show CSV-Only Files</label>
+                </div>
+                <div class="checkbox-option">
                     <input type="checkbox" id="showEditorToggle" checked>
                     <label for="showEditorToggle">Show CSV Editor</label>
                 </div>
@@ -975,12 +979,13 @@
             // State
             let state = {
             csv: '',
-            diagramType: '',       // 'sequence' or 'class_diagram'
+            diagramType: '',       // 'sequence' or 'class_diagram' (empty for CSV-only selection)
             sequence: '',          // selected sequence ID (for sequence diagrams)
             classDiagramId: '',    // selected class diagram ID
             verbosity: 'High',
             routing: 'orthogonal',   // temporary: class diagrams are orthogonal-only
-            showTestDiagrams: false,
+            showTestDiagrams: true,
+            showIncludeCsvFiles: false,
             selectedLanes: [],
             allLanes: [],
             allDiagrams: [],       // aggregated from all CSVs
@@ -1030,6 +1035,7 @@
                     routing: state.routing,
                     selectedLanes: Array.isArray(state.selectedLanes) ? [...state.selectedLanes] : [],
                     showTestDiagrams: state.showTestDiagrams,
+                    showIncludeCsvFiles: state.showIncludeCsvFiles,
                     editorVisible: state.editorVisible,
                     editorPaneWidth: state.editorPaneWidth,
                     editorZoomLevel: state.editorZoomLevel
@@ -1484,11 +1490,16 @@
                 state.sequence = diagram.id;
                 state.classDiagramId = '';
                 state.allLanes = diagram.lanes || [];
-            } else {
+            } else if (diagram.type === 'class_diagram') {
                 state.diagramType = 'class_diagram';
                 state.classDiagramId = diagram.id;
                 state.sequence = '';
                 state.allLanes = (diagram.layers && diagram.layers.length > 0) ? diagram.layers : [];
+            } else {
+                state.diagramType = '';
+                state.classDiagramId = '';
+                state.sequence = '';
+                state.allLanes = [];
             }
 
             if (Array.isArray(preferredSelectedLanes)) {
@@ -1512,6 +1523,9 @@
             }
             if (typeof persisted.showTestDiagrams === 'boolean') {
                 state.showTestDiagrams = persisted.showTestDiagrams;
+            }
+            if (typeof persisted.showIncludeCsvFiles === 'boolean') {
+                state.showIncludeCsvFiles = persisted.showIncludeCsvFiles;
             }
             if (typeof persisted.editorVisible === 'boolean') {
                 state.editorVisible = persisted.editorVisible;
@@ -1572,6 +1586,7 @@
         const verbosityOptions = document.getElementById('verbosityOptions');
         const routingOptions = document.getElementById('routingOptions');
         const showTestDiagramsToggle = document.getElementById('showTestDiagramsToggle');
+        const showIncludeCsvToggle = document.getElementById('showIncludeCsvToggle');
         const layersList = document.getElementById('layersList');
         const detailsPane = document.getElementById('detailsPane');
         const detailsPaneClose = document.getElementById('detailsPaneClose');
@@ -1714,26 +1729,30 @@
                 const connColor = '#10b981';  // Green
                 const commentColor = '#16a34a'; // Green for comments
                 const keywordColor = '#dc2626'; // Red for diagram marker keywords
+
+                function colorizeNoteTokens(segment, defaultColor, defaultWeight = 'normal') {
+                    return segment.split(/([@](?:Info|Warning|Error|Success))/g).map(part => {
+                        if (!part) return '';
+                        if (part.startsWith('@')) {
+                            return `<span style="color: ${decorColor}; font-weight: bold;">${part}</span>`;
+                        }
+                        return `<span style="color: ${defaultColor}; font-weight: ${defaultWeight};">${part}</span>`;
+                    }).join('');
+                }
                 
                 // Check for comment lines (# prefix)
                 if (line.trimStart().startsWith('#')) {
                     return `<span style="color: ${commentColor};">${line}</span>\n`;
-                }
-                
-                // Check for decorators
-                if (line.includes('@Info') || line.includes('@Warning') || line.includes('@Error')) {
-                    return line.split(/([@]\w+)/g).map(part => {
-                        if (part.startsWith('@')) {
-                            return `<span style="color: ${decorColor}; font-weight: bold;">${part}</span>`;
-                        }
-                        return part;
-                    }).join('');
                 }
 
                 // Split by semicolon but preserve the delimiter
                 const sepColor = '#94a3b8';  // Light separator color for semicolons
                 const parts = line.split(/(;)/);
                 let columnIdx = 0;
+
+                if (parts.length === 1) {
+                    return colorizeNoteTokens(line, descColor) + '\n';
+                }
                 
                 return parts.map((part, i) => {
                     if (part === ';') return `<span style="color: ${sepColor};">${part}</span>`;
@@ -1745,7 +1764,7 @@
                     let fontWeight = 'normal';
                     if (columnIdx === 0) {
                         color = typeColor;  // Type column
-                        if (trimmedPart === 'ClassDiagram' || trimmedPart === 'SequenceDiagram') {
+                        if (trimmedPart === 'ClassDiagram' || trimmedPart === 'SequenceDiagram' || trimmedPart === 'Sequence') {
                             color = keywordColor;
                             fontWeight = '700';
                         }
@@ -1756,7 +1775,7 @@
                     }
                     
                     columnIdx++;
-                    return `<span style="color: ${color}; font-weight: ${fontWeight};">${part}</span>`;
+                    return colorizeNoteTokens(part, color, fontWeight);
                 }).join('') + '\n';
             }).join('');
 
@@ -2078,13 +2097,22 @@
         }
 
         function isColumnarFormat(csvText) {
-            // Detect visual column-padding format: spaces deliberately placed around semicolons.
+            // Detect visual column-padding format: spaces around field separators (outside quotes).
             // Leading structural indentation (e.g. "    User;...") must NOT be treated as columnar.
             const lines = csvText.split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
             if (lines.length === 0) return false;
 
-            // Look for space-padded field separators: " ; " (space-semicolon-space)
-            return lines.some(line => / ; /.test(line));
+            // Look for " ; " that appears as a field SEPARATOR (outside quoted values).
+            return lines.some(line => {
+                let inQuotes = false;
+                for (let i = 0; i < line.length - 2; i++) {
+                    if (line[i] === '"') { inQuotes = !inQuotes; continue; }
+                    if (!inQuotes && line[i] === ' ' && line[i + 1] === ';' && line[i + 2] === ' ') {
+                        return true;
+                    }
+                }
+                return false;
+            });
         }
 
         function condenseCsv(csvText) {
@@ -2105,39 +2133,171 @@
                 if (isTypeNameDescriptionHeader(content.trim())) {
                     return null;
                 }
-                // Split by semicolon, trim each field, rejoin while preserving indentation prefix
-                return leading + content.split(';').map(f => f.trim()).join(';');
+                // Split by semicolon (quote-aware), trim each field, rejoin while preserving indentation prefix
+                return leading + splitFields(content).map(f => f.trim()).join(';');
             }).filter(l => l !== null).join('\n');
         }
 
+        function splitFields(line) {
+            // Split on semicolons while respecting double-quoted values.
+            const fields = [];
+            let current = '';
+            let inQuotes = false;
+            for (const ch of line) {
+                if (ch === '"') {
+                    inQuotes = !inQuotes;
+                    current += ch;
+                } else if (ch === ';' && !inQuotes) {
+                    fields.push(current);
+                    current = '';
+                } else {
+                    current += ch;
+                }
+            }
+            fields.push(current);
+            return fields;
+        }
+
         function isTypeNameDescriptionHeader(line) {
-            const fields = line.split(';').map(f => f.trim().toLowerCase());
-            return fields.length === 3 &&
+            const fields = splitFields(line).map(f => f.trim().toLowerCase());
+            return fields.length >= 3 &&
                 fields[0] === 'type' &&
                 fields[1] === 'name' &&
                 fields[2] === 'description';
         }
 
         function getFieldCount(line) {
-            return line.trimStart().split(';').length;
+            return splitFields(line.trimStart()).length;
+        }
+
+        function getTypeName(line) {
+            return splitFields(line.trimStart())[0].trim();
+        }
+
+        function isIndentedRow(line) {
+            return /^\s+/.test(line);
+        }
+
+        function isNoteToken(value) {
+            return /^@\w+/.test((value || '').trim());
+        }
+
+        function classifySequenceRow(fields) {
+            return (fields.length > 1 && isNoteToken(fields[1])) ? 'note' : 'step';
+        }
+
+        function formatSequenceRows(groupLines) {
+            const widthsByKind = {};
+            const parsed = [];
+
+            groupLines.forEach(line => {
+                const match = line.match(/^(\s*)(.*)$/);
+                const leading = match ? match[1] : '';
+                const content = match ? match[2] : line;
+                const fields = splitFields(content).map(f => f.trim());
+                const kind = classifySequenceRow(fields);
+                if (!widthsByKind[kind]) {
+                    widthsByKind[kind] = { text: [], note: [] };
+                }
+                const widths = widthsByKind[kind];
+
+                fields.forEach((field, idx) => {
+                    if (idx === fields.length - 1) return;
+                    const bucket = isNoteToken(field) ? widths.note : widths.text;
+                    if (!bucket[idx]) bucket[idx] = 0;
+                    bucket[idx] = Math.max(bucket[idx], field.length);
+                });
+
+                parsed.push({ leading, fields, kind });
+            });
+
+            return parsed.map(({ leading, fields, kind }) => {
+                const widths = widthsByKind[kind] || { text: [], note: [] };
+                const formatted = fields.map((field, idx) => {
+                    if (idx === fields.length - 1) return field;
+                    const bucket = isNoteToken(field) ? widths.note : widths.text;
+                    const width = bucket[idx] || field.length;
+                    return field.padEnd(width);
+                }).join(' ; ');
+                return leading + formatted;
+            });
+        }
+
+        function isNoteTypeField(field) {
+            return ['@Info', '@Warning', '@Error', '@Success'].includes(field);
         }
 
         function toCondensedLine(line) {
             const match = line.match(/^(\s*)(.*)$/);
             const leading = match ? match[1] : '';
             const content = match ? match[2] : line;
-            return leading + content.split(';').map(f => f.trim()).join(';');
+            return leading + splitFields(content).map(f => f.trim()).join(';');
+        }
+
+        function normalizeDelimitedLine(line) {
+            const match = line.match(/^(\s*)(.*)$/);
+            const leading = match ? match[1] : '';
+            const content = match ? match[2] : line;
+            const trimmed = content.trim();
+            if (!trimmed || trimmed.startsWith('#')) {
+                return line;
+            }
+            if (content.includes(';') || !content.includes(',')) {
+                return line;
+            }
+            return leading + content.split(',').map(part => part.trim()).join(';');
+        }
+
+        function normalizeCsvSeparators(csvText) {
+            return csvText.split('\n').map(normalizeDelimitedLine).join('\n');
         }
 
         function formatCsvColumnar(csvText) {
             // Convert from condensed to columnar format with aligned columns
-            // Respects hierarchy: each group (header + rows) formatted independently
+            // Pre-computes column widths for all (indent, fieldCount, type) tuples
+            // so rows with same indent + field count + type are aligned together.
             const lines = csvText.split('\n');
+            
+            // Pre-scan: compute widths for each (indent, fieldCount, type) key
+            const widthMap = {}; // key: "indent|fieldCount|type" -> widths array
+            const parsedCache = {}; // index -> {leading, content, fields}
+            
+            lines.forEach((line, idx) => {
+                if (!line.trim() || line.trim().startsWith('#')) {
+                    return;
+                }
+                if (isTypeNameDescriptionHeader(line.trim())) {
+                    return;
+                }
+                
+                const match = line.match(/^(\s*)(.*)$/);
+                const leading = match ? match[1] : '';
+                const content = match ? match[2] : line;
+                const fields = splitFields(content).map(f => f.trim());
+                parsedCache[idx] = { leading, content, fields };
+                
+                const typeName = fields.length > 0 ? fields[0] : '';
+                const key = leading + '|' + fields.length + '|' + typeName;
+                if (!widthMap[key]) {
+                    widthMap[key] = [];
+                }
+                const widths = widthMap[key];
+                fields.forEach((field, fIdx) => {
+                    if (!widths[fIdx]) widths[fIdx] = 0;
+                    widths[fIdx] = Math.max(widths[fIdx], field.length);
+                });
+            });
+            
+            // Format pass
             const result = [];
             let i = 0;
+            let currentTopLevelType = '';
             
             while (i < lines.length) {
                 const line = lines[i];
+                if (!isIndentedRow(line) && line.trim() && !line.trim().startsWith('#')) {
+                    currentTopLevelType = getTypeName(line);
+                }
                 
                 // Pass through comments and empty lines
                 if (line.trim().startsWith('#') || !line.trim()) {
@@ -2152,70 +2312,59 @@
                     continue;
                 }
 
-                // Group contiguous rows with the same field count so connector arrow columns
-                // are never padded based on longer description rows from a different row shape.
-                const group = [line];
-                const fieldCount = getFieldCount(line);
-                i++;
+                // In Sequence blocks, align mixed row shapes together so source/target/function
+                // columns remain visually consistent across the whole sequence.
+                if (currentTopLevelType === 'Sequence' && isIndentedRow(line)) {
+                    const sequenceRows = [];
+                    while (i < lines.length) {
+                        const candidate = lines[i];
+                        const candidateTrimmed = candidate.trim();
+                        if (!candidateTrimmed || candidateTrimmed.startsWith('#')) {
+                            break;
+                        }
+                        if (!isIndentedRow(candidate) || isTypeNameDescriptionHeader(candidateTrimmed)) {
+                            break;
+                        }
+                        sequenceRows.push(candidate);
+                        i++;
+                    }
+                    result.push(...formatSequenceRows(sequenceRows));
+                    continue;
+                }
 
-                while (i < lines.length) {
-                    const nextLine = lines[i];
-                    const nextTrimmed = nextLine.trim();
-                    if (nextTrimmed.startsWith('#') || !nextTrimmed) {
-                        break;
-                    }
-                    if (isTypeNameDescriptionHeader(nextTrimmed)) {
-                        i++; // skip header mid-block
-                        continue;
-                    }
-                    if (getFieldCount(nextLine) !== fieldCount) {
-                        break;
-                    }
-                    group.push(nextLine);
+                // Use precomputed widths for this row's (indent, fieldCount, type)
+                if (!(i in parsedCache)) {
+                    result.push(line);
                     i++;
+                    continue;
                 }
-
-                // Keep single-row items in condensed format.
-                if (group.length === 1) {
-                    result.push(toCondensedLine(group[0]));
+                
+                const { leading, content, fields } = parsedCache[i];
+                const typeName = fields.length > 0 ? fields[0] : '';
+                const key = leading + '|' + fields.length + '|' + typeName;
+                const widths = widthMap[key] || [];
+                const keepTableFormat = getTypeName(line) === 'ClassDiagram';
+                
+                if (widths.length > 1 || keepTableFormat) {
+                    // Format as columnar
+                    const padded = fields.map((field, fIdx) => {
+                        if (fIdx === fields.length - 1 || isNoteTypeField(field)) return field;
+                        const width = widths[fIdx] || 0;
+                        return field.padEnd(width);
+                    });
+                    result.push(leading + padded.join(' ; '));
                 } else {
-                    result.push(...formatGroupWithIndentation(group));
+                    // Condense
+                    result.push(toCondensedLine(line));
                 }
+                i++;
             }
             
             return result.join('\n');
         }
-        
-        function formatGroupWithIndentation(groupLines) {
-            // Calculate column widths using trimmed field content.
-            // Leading structural indentation (e.g. 4 spaces on connector rows) is preserved as-is.
-            const columnWidths = [];
-            const parsedLines = [];
-
-            groupLines.forEach(line => {
-                const match = line.match(/^(\s*)(.*)$/);
-                const leading = match ? match[1] : '';
-                const content = match ? match[2] : line;
-                const fields = content.split(';').map(f => f.trim());
-                parsedLines.push({ leading, fields });
-
-                fields.forEach((field, idx) => {
-                    if (!columnWidths[idx]) columnWidths[idx] = 0;
-                    columnWidths[idx] = Math.max(columnWidths[idx], field.length);
-                });
-            });
-
-            return parsedLines.map(({ leading, fields }) => {
-                const formatted = fields.map((field, fieldIdx) => {
-                    if (fieldIdx === fields.length - 1) return field;
-                    return field.padEnd(columnWidths[fieldIdx] || 0);
-                }).join(' ; ');
-                return leading + formatted;
-            });
-        }
 
         function toggleCsvFormat() {
-            const currentText = csvEditorTextarea.value;
+            const currentText = normalizeCsvSeparators(csvEditorTextarea.value);
             const isColumnar = isColumnarFormat(currentText);
             const newText = isColumnar
                 ? condenseCsv(currentText)
@@ -2383,6 +2532,9 @@
                 if (earlyPersisted && typeof earlyPersisted.showTestDiagrams === 'boolean') {
                     state.showTestDiagrams = earlyPersisted.showTestDiagrams;
                 }
+                if (earlyPersisted && typeof earlyPersisted.showIncludeCsvFiles === 'boolean') {
+                    state.showIncludeCsvFiles = earlyPersisted.showIncludeCsvFiles;
+                }
                 if (earlyPersisted && typeof earlyPersisted.editorVisible === 'boolean') {
                     state.editorVisible = earlyPersisted.editorVisible;
                 }
@@ -2393,6 +2545,9 @@
                     state.editorZoomLevel = earlyPersisted.editorZoomLevel;
                 }
                 showTestDiagramsToggle.checked = state.showTestDiagrams;
+                if (showIncludeCsvToggle) {
+                    showIncludeCsvToggle.checked = state.showIncludeCsvFiles;
+                }
                 if (showEditorToggle) {
                     showEditorToggle.checked = state.editorVisible;
                 }
@@ -2550,12 +2705,54 @@
         }
 
         async function refreshDiagramCatalog() {
-            const response = await fetch(buildAllDiagramsUrl());
-            if (!response.ok) {
-                throw new Error(`Failed to load diagrams: ${response.statusText}`);
+            const [diagramsResponse, csvsResponse] = await Promise.all([
+                fetch(buildAllDiagramsUrl()),
+                fetch('/api/csvs')
+            ]);
+
+            if (!diagramsResponse.ok) {
+                throw new Error(`Failed to load diagrams: ${diagramsResponse.statusText}`);
             }
-            const data = await response.json();
-            state.allDiagrams = data.diagrams || [];
+            if (!csvsResponse.ok) {
+                throw new Error(`Failed to load CSV catalog: ${csvsResponse.statusText}`);
+            }
+
+            const diagramsData = await diagramsResponse.json();
+            const csvsData = await csvsResponse.json();
+            const diagrams = diagramsData.diagrams || [];
+            const allCsvs = csvsData.csvs || [];
+
+            const isTestCsvEntry = (entry) => {
+                const hierarchy = Array.isArray(entry.hierarchy) ? entry.hierarchy : [];
+                const csvKey = String(entry.id || '').replace(/\\/g, '/').toLowerCase();
+                return (
+                    (hierarchy.length > 0 && hierarchy[0] === 'Test') ||
+                    csvKey.startsWith('test/tests/') ||
+                    csvKey.includes('/40_tests/')
+                );
+            };
+
+            const visibleCsvs = state.showTestDiagrams
+                ? allCsvs
+                : allCsvs.filter(entry => !isTestCsvEntry(entry));
+
+            const csvsWithDiagrams = new Set(diagrams.map(diagram => diagram.csv));
+            const csvOnlyEntries = visibleCsvs
+                .filter(entry => !csvsWithDiagrams.has(entry.id))
+                .map(entry => ({
+                    type: 'csv_only',
+                    id: entry.id,
+                    name: `CSV: ${entry.id}`,
+                    csv: entry.id,
+                    hierarchy: Array.isArray(entry.hierarchy) ? entry.hierarchy : [],
+                    symbols: [],
+                    lanes: [],
+                    layers: []
+                }));
+
+            state.allDiagrams = state.showIncludeCsvFiles
+                ? diagrams.concat(csvOnlyEntries)
+                : diagrams;
         }
         
         function updatePaletteHighlight(items) {
@@ -2644,19 +2841,27 @@
                 // First, render any diagrams at this level (before folders)
                 if (treeNode._diagrams) {
                     const sortedDiagrams = treeNode._diagrams.sort((a, b) => {
-                        if (a.type === 'class_diagram' && b.type === 'sequence') return -1;
-                        if (a.type === 'sequence' && b.type === 'class_diagram') return 1;
+                        const typeOrder = {
+                            class_diagram: 0,
+                            sequence: 1,
+                            csv_only: 2
+                        };
+                        const orderA = Object.prototype.hasOwnProperty.call(typeOrder, a.type) ? typeOrder[a.type] : 99;
+                        const orderB = Object.prototype.hasOwnProperty.call(typeOrder, b.type) ? typeOrder[b.type] : 99;
+                        if (orderA !== orderB) {
+                            return orderA - orderB;
+                        }
                         return a.name.localeCompare(b.name);
                     });
                     
                     sortedDiagrams.forEach(d => {
                         const item = document.createElement('div');
                         item.className = 'palette-item';
-                        const typePrefix = d.type === 'sequence' ? 'seq' : 'cd';
+                        const typePrefix = d.type === 'sequence' ? 'seq' : (d.type === 'class_diagram' ? 'cd' : 'csv');
                         item.dataset.value = typePrefix + ':' + d.csv + ':' + d.id;
                         item.style.paddingLeft = (depth * 16) + 'px';
                         
-                        const typeLabel = d.type === 'sequence' ? 'SEQ' : 'CLS';
+                        const typeLabel = d.type === 'sequence' ? 'SEQ' : (d.type === 'class_diagram' ? 'CLS' : 'CSV');
                         item.innerHTML = `<span class="item-type">${typeLabel}</span> ${escapeHtml(d.name)}`;
                         const onSelect = (e) => {
                             e.preventDefault();
@@ -2717,7 +2922,7 @@
             state.navHistory = [];
             state.navFuture = [];
             // Palette selection is a fresh diagram selection; auto-fit once.
-            state.applyFitOnLoad = true;
+            state.applyFitOnLoad = diagram.type !== 'csv_only';
             applyDiagramSelection(diagram);
             updateMenuVisibility();
             updateLaneCheckboxes();
@@ -2748,6 +2953,9 @@
 
             if (showTestDiagramsToggle) {
                 showTestDiagramsToggle.checked = !!state.showTestDiagrams;
+            }
+            if (showIncludeCsvToggle) {
+                showIncludeCsvToggle.checked = !!state.showIncludeCsvFiles;
             }
         }
         
@@ -2818,6 +3026,7 @@
             menu.classList.toggle('active');
         });
         showTestDiagramsToggle.addEventListener('change', onShowTestDiagramsChange);
+        showIncludeCsvToggle.addEventListener('change', onShowIncludeCsvChange);
         showEditorToggle.addEventListener('change', () => {
             state.editorVisible = showEditorToggle.checked;
             applyEditorVisibility();
@@ -3239,6 +3448,44 @@
 
         async function onShowTestDiagramsChange(e) {
             state.showTestDiagrams = e.target.checked;
+            const currentDiagramKey = getCurrentDiagramKey();
+
+            await refreshDiagramCatalog();
+            populatePalette('');
+            savePersistedViewerState();
+
+            if (!currentDiagramKey) {
+                return;
+            }
+
+            const stillVisible = state.allDiagrams.find(diagram => getDiagramKeyFor(diagram) === currentDiagramKey);
+            if (stillVisible) {
+                return;
+            }
+
+            state.navHistory = [];
+            state.navFuture = [];
+            paletteInput.value = '';
+            state.diagramType = '';
+            state.sequence = '';
+            state.classDiagramId = '';
+            state.csv = '';
+            state.allLanes = [];
+            state.selectedLanes = [];
+            state.editorCsv = '';
+            state.editorOriginalText = '';
+            state.editorDirty = false;
+            csvEditorTextarea.value = '';
+            updateEditorTitle();
+            setEditorStatus('Saved');
+            updateEditorSaveButtonState();
+            updateLaneCheckboxes();
+            updateNavHistory();
+            diagramContainer.innerHTML = '<div style="color: #999; font-size: 16px;">Select a diagram from the palette above</div>';
+        }
+
+        async function onShowIncludeCsvChange(e) {
+            state.showIncludeCsvFiles = e.target.checked;
             const currentDiagramKey = getCurrentDiagramKey();
 
             await refreshDiagramCatalog();
@@ -3733,6 +3980,18 @@
             closeClassLinkMenu();
             if (!state.csv) {
                 diagramContainer.innerHTML = '<div style="color: #999;">Loading...</div>';
+                return;
+            }
+
+            if (!state.diagramType) {
+                try {
+                    await loadCsvEditorText();
+                } catch (editorError) {
+                    setEditorStatus(`Error: ${editorError.message}`, 'error');
+                }
+                diagramContainer.innerHTML = '<div style="color: #777; font-size: 15px;">No renderable diagram rows were found in this CSV. You can still edit and save the CSV in the editor.</div>';
+                updateNavHistory();
+                savePersistedViewerState();
                 return;
             }
             

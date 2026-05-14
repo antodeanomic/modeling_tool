@@ -1,20 +1,19 @@
-Type;Name;Description
-Class;Caller;External caller
-    Function;InitMsg;Trigger initialization
-        ReturnVal;initResult;Initialization result
-Class;Obj1;First object
-    Function;Msg1;Outer message container
-        ReturnVal;result1;Outer result
-    Function;Msg1a;Nested self call
-        ReturnVal;result1a;Inner result
-    Function;Msg1b;Nested call to other object
-        Param;data;Some data
-        ReturnVal;response1b;Response
-Class;Obj2;Second object
-    Function;Msg1b;Receive message from Obj1
-        Param;data;Data parameter
-        ReturnVal;response;Response value
-Sequence;SoftReq_TEST_MSG_NESTING;Multi-row message nesting with spanning brackets
-    Caller;Obj1;Msg1;result1
-        Obj1;Obj1;Msg1a;result1a
-        Obj1;Obj2;Msg1b;data;response1b
+Class ; Caller ; External caller
+    Function ; InitMsg ; Trigger initialization
+        ReturnVal ; initResult ; Initialization result
+Class ; Obj1   ; First object
+    Function ; Msg1    ; Outer message container
+        ReturnVal ; result1    ; Outer result
+    Function ; Msg1a   ; Nested self call
+        ReturnVal ; result1a   ; Inner result
+    Function ; Msg1b   ; Nested call to other object
+        Param ; data ; Some data
+        ReturnVal ; response1b ; Response
+Class ; Obj2   ; Second object
+    Function ; Msg1b   ; Receive message from Obj1
+        Param ; data ; Data parameter
+        ReturnVal ; response   ; Response value
+Sequence ; SoftReq_TEST_MSG_NESTING ; Multi-row message nesting with spanning brackets
+    Caller ; Obj1 ; Msg1  ; result1
+        Obj1   ; Obj1 ; Msg1a ; result1a
+        Obj1   ; Obj2 ; Msg1b ; data ; response1b

@@ -10,60 +10,59 @@
 # (4) right side starts with nearest
 # (5) end at far-right
 
-Type;Name;Description
-Class;HubTop;Central hub for top fanout
-Class;Top_L_far;Top left far target
-Class;Top_L_mid;Top left mid target
-Class;Top_L_near;Top left near target
-Class;Top_dir;Top direct target
-Class;Top_R_near;Top right near target
-Class;Top_R_mid;Top right mid target
-Class;Top_R_far;Top right far target
+Class ; HubTop        ; Central hub for top fanout
+Class ; Top_L_far     ; Top left far target
+Class ; Top_L_mid     ; Top left mid target
+Class ; Top_L_near    ; Top left near target
+Class ; Top_dir       ; Top direct target
+Class ; Top_R_near    ; Top right near target
+Class ; Top_R_mid     ; Top right mid target
+Class ; Top_R_far     ; Top right far target
 
-Class;HubBottom;Central hub for bottom fanout
-Class;Bottom_L_far;Bottom left far target
-Class;Bottom_L_mid;Bottom left mid target
-Class;Bottom_L_near;Bottom left near target
-Class;Bottom_dir;Bottom direct target
-Class;Bottom_R_near;Bottom right near target
-Class;Bottom_R_mid;Bottom right mid target
-Class;Bottom_R_far;Bottom right far target
+Class ; HubBottom     ; Central hub for bottom fanout
+Class ; Bottom_L_far  ; Bottom left far target
+Class ; Bottom_L_mid  ; Bottom left mid target
+Class ; Bottom_L_near ; Bottom left near target
+Class ; Bottom_dir    ; Bottom direct target
+Class ; Bottom_R_near ; Bottom right near target
+Class ; Bottom_R_mid  ; Bottom right mid target
+Class ; Bottom_R_far  ; Bottom right far target
 
-Class;HubLeft;Central hub for left fanout
-Class;Left_T_near;Left top near target
-Class;Left_T_mid;Left top mid target
-Class;Left_T_far;Left top far target
-Class;Left_T_dir;Left top direct target
-Class;Left_B_dir;Left bottom direct target
-Class;Left_B_far;Left bottom far target
-Class;Left_B_mid;Left bottom mid target
-Class;Left_B_near;Left bottom near target
+Class ; HubLeft       ; Central hub for left fanout
+Class ; Left_T_near   ; Left top near target
+Class ; Left_T_mid    ; Left top mid target
+Class ; Left_T_far    ; Left top far target
+Class ; Left_T_dir    ; Left top direct target
+Class ; Left_B_dir    ; Left bottom direct target
+Class ; Left_B_far    ; Left bottom far target
+Class ; Left_B_mid    ; Left bottom mid target
+Class ; Left_B_near   ; Left bottom near target
 
-Class;HubRight;Central hub for right fanout
-Class;Right_T_near;Right top near target
-Class;Right_T_mid;Right top mid target
-Class;Right_T_far;Right top far target
-Class;Right_T_dir;Right top direct target
-Class;Right_B_dir;Right bottom direct target
-Class;Right_B_far;Right bottom far target
-Class;Right_B_mid;Right bottom mid target
-Class;Right_B_near;Right bottom near target
+Class ; HubRight      ; Central hub for right fanout
+Class ; Right_T_near  ; Right top near target
+Class ; Right_T_mid   ; Right top mid target
+Class ; Right_T_far   ; Right top far target
+Class ; Right_T_dir   ; Right top direct target
+Class ; Right_B_dir   ; Right bottom direct target
+Class ; Right_B_far   ; Right bottom far target
+Class ; Right_B_mid   ; Right bottom mid target
+Class ; Right_B_near  ; Right bottom near target
 
-ClassDiagram;FanoutTop;Fanout Scen2: Up-sideways-up
-    HubTop;Top_L_far;-->;;5;L_far
-    HubTop;Top_L_mid;-->;;1..*;L_mid
-    HubTop;Top_L_near;-->;;1..*;L_near
-    HubTop;Top_dir;-->;;1;T_dir
-    HubTop;Top_R_near;-->;;1..*;R_near
-    HubTop;Top_R_mid;-->;;1..*;R_mid
-    HubTop;Top_R_far;-->;;5;R_far
+ClassDiagram ; FanoutTop    ; Fanout Scen2: Up-sideways-up
+    HubTop ; Top_L_far  ; --> ;  ; 5    ; L_far
+    HubTop ; Top_L_mid  ; --> ;  ; 1..* ; L_mid
+    HubTop ; Top_L_near ; --> ;  ; 1..* ; L_near
+    HubTop ; Top_dir    ; --> ;  ; 1    ; T_dir
+    HubTop ; Top_R_near ; --> ;  ; 1..* ; R_near
+    HubTop ; Top_R_mid  ; --> ;  ; 1..* ; R_mid
+    HubTop ; Top_R_far  ; --> ;  ; 5    ; R_far
 
-ClassDiagram;FanoutBottom;Fanout Scen2 Mirror: Down-sideways-down
-    HubBottom;Bottom_L_far;-->;;5;L_far
-    HubBottom;Bottom_L_mid;-->;;1..*;L_mid
-    HubBottom;Bottom_L_near;-->;;1..*;L_near
-    HubBottom;Bottom_dir;-->;;1;dir
-    HubBottom;Bottom_R_near;-->;;1..*;R_near
-    HubBottom;Bottom_R_mid;-->;;1..*;R_mid
-    HubBottom;Bottom_R_far;-->;;5;R_far
+ClassDiagram ; FanoutBottom ; Fanout Scen2 Mirror: Down-sideways-down
+    HubBottom ; Bottom_L_far  ; --> ;  ; 5    ; L_far
+    HubBottom ; Bottom_L_mid  ; --> ;  ; 1..* ; L_mid
+    HubBottom ; Bottom_L_near ; --> ;  ; 1..* ; L_near
+    HubBottom ; Bottom_dir    ; --> ;  ; 1    ; dir
+    HubBottom ; Bottom_R_near ; --> ;  ; 1..* ; R_near
+    HubBottom ; Bottom_R_mid  ; --> ;  ; 1..* ; R_mid
+    HubBottom ; Bottom_R_far  ; --> ;  ; 5    ; R_far
 
