@@ -2539,6 +2539,65 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
             if not moved:
                 break
         return tx, ty
+
+    def _text_bbox(text: str, x: float, y: float, anchor: str, char_width: float) -> Tuple[float, float, float, float]:
+        """Return approximate SVG text bounds for overlap checks."""
+        width = max(6.0, len(text) * char_width)
+        if anchor == 'end':
+            left = x - width
+            right = x
+        elif anchor == 'middle':
+            left = x - width / 2.0
+            right = x + width / 2.0
+        else:
+            left = x
+            right = x + width
+        top = y - 11.0
+        bottom = y + 2.0
+        return left, top, right, bottom
+
+    def _rects_overlap(a: Tuple[float, float, float, float], b: Tuple[float, float, float, float], pad: float = 1.5) -> bool:
+        """Return True when two rectangles overlap (with optional padding)."""
+        al, at, ar, ab = a
+        bl, bt, br, bb = b
+        return not ((ar + pad) <= bl or (br + pad) <= al or (ab + pad) <= bt or (bb + pad) <= at)
+
+    def _label_overlaps_multiplicity(connector, path_points, label_text: str, x: float, y: float, anchor: str) -> bool:
+        """Detect overlap between a connector label and endpoint multiplicity text."""
+        if not label_text:
+            return False
+
+        label_rect = _text_bbox(label_text, x, y, anchor, CONNECTOR_CHAR_WIDTH)
+        mult_rects = []
+
+        if connector.src_mult:
+            sx, sy, sanchor = _guardrail_multiplicity_position(connector, path_points, True)
+            mult_rects.append(_text_bbox(connector.src_mult, sx, sy, sanchor, CONNECTOR_CHAR_WIDTH))
+
+        if connector.tgt_mult:
+            tx, ty, tanchor = _guardrail_multiplicity_position(connector, path_points, False)
+            mult_rects.append(_text_bbox(connector.tgt_mult, tx, ty, tanchor, CONNECTOR_CHAR_WIDTH))
+
+        return any(_rects_overlap(label_rect, rect) for rect in mult_rects)
+
+    def _resolve_label_position(connector, path_points, label_text: str, x: float, y: float, anchor: str) -> Tuple[float, float, str]:
+        """Reposition labels when they collide with endpoint multiplicity text."""
+        candidates = [
+            (x, y, anchor),
+            (x, y - 16, anchor),
+            (x, y + 16, anchor),
+            ((connector.source_x + connector.target_x) / 2.0, min(connector.source_y, connector.target_y) - 20.0, 'middle'),
+            ((connector.source_x + connector.target_x) / 2.0, max(connector.source_y, connector.target_y) + 16.0, 'middle'),
+        ]
+
+        best = None
+        for cx, cy, canchor in candidates:
+            nx, ny = _place_connector_text(connector, cx, cy)
+            best = (nx, ny, canchor)
+            if not _label_overlaps_multiplicity(connector, path_points, label_text, nx, ny, canchor):
+                return nx, ny, canchor
+
+        return best if best is not None else (x, y, anchor)
     
     # Get planned connectors (filtered by layer if needed)
     connectors = planner.get_connectors(layer_filter=None)
@@ -2906,7 +2965,15 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         label_gap = 10 + ((len(connector.src_mult or "") + 2) * CONNECTOR_CHAR_WIDTH)
                         label_x = connector.source_x + direction * label_gap
                         label_anchor = 'start' if direction > 0 else 'end'
-                        label_x, label_y = _place_connector_text(connector, label_x, base_y - lane_dy)
+                        label_x, label_y, label_anchor = _resolve_label_position(
+                            connector,
+                            path_points,
+                            connector.label,
+                            label_x,
+                            base_y - lane_dy,
+                            label_anchor,
+                        )
+
                         parts.append(f'  <text x="{label_x}" y="{label_y}" font-family="{FONT_FAMILY}" '
                                      f'font-size="11" font-style="italic" fill="#444" text-anchor="{label_anchor}">'
                                      f'{_escape_xml(connector.label)}</text>')
@@ -2961,9 +3028,16 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                             else:
                                 mx = connector.source_x + 8
                                 my = (connector.source_y + connector.target_y) / 2
-                            mx, my = _nudge_text_outside_boxes(mx, my)
+                            mx, my, manchor = _resolve_label_position(
+                                connector,
+                                path_points,
+                                connector.label,
+                                mx,
+                                my,
+                                'start',
+                            )
                             parts.append(f'  <text x="{mx}" y="{my}" font-family="{FONT_FAMILY}" '
-                                         f'font-size="11" font-style="italic" fill="#444" text-anchor="start">'
+                                         f'font-size="11" font-style="italic" fill="#444" text-anchor="{manchor}">'
                                          f'{_escape_xml(connector.label)}</text>')
                         
                         if connector.tgt_mult:
@@ -3094,7 +3168,14 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                                 anchor = 'end'
                             else:
                                 lx, ly, anchor = _source_label_anchor(connector, path_points)
-                            lx, ly = _place_connector_text(connector, lx, ly - lane_dy)
+                            lx, ly, anchor = _resolve_label_position(
+                                connector,
+                                path_points,
+                                connector.label,
+                                lx,
+                                ly - lane_dy,
+                                anchor,
+                            )
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" font-style="italic" fill="#444" text-anchor="{anchor}">'
                                          f'{_escape_xml(connector.label)}</text>')
@@ -3120,7 +3201,14 @@ def _render_connectors_with_planner(planner, boxes, box_colors=None, verbosity_l
                         if connector.label:
                             lx, ly, anchor = _source_label_anchor(connector, path_points)
                             text = f"{connector.label}"
-                            lx, ly = _place_connector_text(connector, lx, ly)
+                            lx, ly, anchor = _resolve_label_position(
+                                connector,
+                                path_points,
+                                text,
+                                lx,
+                                ly,
+                                anchor,
+                            )
                             parts.append(f'  <text x="{lx}" y="{ly}" font-family="{FONT_FAMILY}" '
                                          f'font-size="11" fill="#444" text-anchor="{anchor}">'
                                          f'{_escape_xml(text)}</text>')
