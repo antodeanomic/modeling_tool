@@ -3865,6 +3865,13 @@
             // Only clear highlights when entering a different element.
             let currentHoveredElement = null;
 
+            const isHoverTargetElement = (element) => {
+                if (!element || !(element instanceof Element)) {
+                    return false;
+                }
+                return !!element.closest('g.cls-object[data-class-name], g.cls-connector[data-source][data-target]');
+            };
+
             const clearHighlightIfDifferent = (newElement) => {
                 if (currentHoveredElement !== newElement) {
                     clearClassDiagramHoverVisuals(svg);
@@ -3884,9 +3891,13 @@
                         }
                     }
                 });
-                obj.addEventListener('mouseleave', () => {
+                obj.addEventListener('mouseleave', (event) => {
                     if (currentHoveredElement === obj) {
                         currentHoveredElement = null;
+                        if (!isHoverTargetElement(event.relatedTarget)) {
+                            clearClassDiagramHoverVisuals(svg);
+                            clearCsvRowHighlight();
+                        }
                     }
                 });
             });
@@ -3917,9 +3928,14 @@
                         );
                     }
                 });
-                conn.addEventListener('mouseleave', () => {
+                conn.addEventListener('mouseleave', (event) => {
                     if (currentHoveredElement === conn) {
                         currentHoveredElement = null;
+                        // Avoid flicker while moving directly to another hover target.
+                        if (!isHoverTargetElement(event.relatedTarget)) {
+                            clearClassDiagramHoverVisuals(svg);
+                            clearCsvRowHighlight();
+                        }
                     }
                 });
             });
