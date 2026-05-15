@@ -362,15 +362,76 @@ def _check_svg(csv_path: Path, diagram_id: str) -> None:
     _check_probe_fanout_separation(blocks, diagram_id)
 
 
+def _check_label_multiplicity_non_overlap(svg_text: str, diagram_id: str, routing_mode: str) -> None:
+    blocks, _object_boxes = _collect_connector_blocks(svg_text)
+    checked = 0
+
+    for _cid, source, target, _pts, texts in blocks:
+        mult_nodes = []
+        label_nodes = []
+        for t in texts:
+            txt = (t.text or "").strip()
+            if not txt:
+                continue
+            if t.attrib.get("font-family") == "monospace":
+                mult_nodes.append(t)
+            else:
+                label_nodes.append(t)
+
+        if not mult_nodes or not label_nodes:
+            continue
+
+        for label in label_nodes:
+            lx = float(label.attrib.get("x", "0"))
+            ly = float(label.attrib.get("y", "0"))
+            ltxt = (label.text or "").strip()
+            lanchor = label.attrib.get("text-anchor", "start")
+            lrect = _text_bbox(ltxt, lx, ly, lanchor)
+
+            for mult in mult_nodes:
+                mx = float(mult.attrib.get("x", "0"))
+                my = float(mult.attrib.get("y", "0"))
+                mtxt = (mult.text or "").strip()
+                manchor = mult.attrib.get("text-anchor", "start")
+                mrect = _text_bbox(mtxt, mx, my, manchor)
+
+                _assert(
+                    not _rects_intersect(lrect, mrect, pad=1.0),
+                    (
+                        f"FAIL [{diagram_id}][{routing_mode}] {source}->{target} label '{ltxt}' "
+                        f"overlaps multiplicity '{mtxt}'"
+                    ),
+                )
+                checked += 1
+
+    _assert(checked > 0, f"FAIL [{diagram_id}][{routing_mode}] no label-vs-multiplicity checks executed")
+
+
+def _check_dataflow_routing_label_overlap(csv_path: Path) -> None:
+    model = parse_csv(str(csv_path))
+    diagram = next(d for d in model.class_diagrams if d.diagram_id == "DataFlow")
+
+    original_routing = diagram.routing
+    try:
+        for routing_mode in ("diagonal", "orthogonal"):
+            diagram.routing = routing_mode
+            svg_text = render_class_diagram_svg(model, diagram, verbosity_level="High")
+            _check_label_multiplicity_non_overlap(svg_text, "DataFlow", routing_mode)
+    finally:
+        diagram.routing = original_routing
+
+
 def run_test() -> int:
     fanout_csv = REPO_ROOT / "Test" / "tests" / "fanout.csv"
-    probe_csv = REPO_ROOT / "Process" / "01_System" / "40_Tests" / "20_Advanced" / "test_class_diagram_all_connector_combinations.csv"
+    top_probe_csv = REPO_ROOT / "Process" / "01_System" / "40_Tests" / "20_Advanced" / "test_orthogonal_top_entry_probe.csv"
+    arrow_probe_csv = REPO_ROOT / "Process" / "01_System" / "40_Tests" / "20_Advanced" / "test_orthogonal_arrow_types.csv"
 
     _check_svg(fanout_csv, "FanoutTop")
     _check_svg(fanout_csv, "FanoutBottom")
-    _check_svg(probe_csv, "OrthogonalTopEntryProbe")
-    _check_svg(probe_csv, "OrthogonalArrowTypeAndRoutes")
-    _check_probe_layout_alignment(probe_csv, "OrthogonalTopEntryProbe")
+    _check_svg(top_probe_csv, "OrthogonalTopEntryProbe")
+    _check_svg(arrow_probe_csv, "OrthogonalArrowTypeAndRoutes")
+    _check_probe_layout_alignment(top_probe_csv, "OrthogonalTopEntryProbe")
+    _check_dataflow_routing_label_overlap(REPO_ROOT / "Process" / "01_System" / "system_data_flow.csv")
     print("OK: multiplicity guardrail checks passed (first/last segment + endpoint adjacency)")
     return 0
 

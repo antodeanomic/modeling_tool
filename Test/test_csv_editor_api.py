@@ -9,9 +9,13 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS_DIR = os.path.join(REPO_ROOT, "Scripts")
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
+TOOLS_DIR = os.path.join(REPO_ROOT, "Tools")
+if TOOLS_DIR not in sys.path:
+    sys.path.insert(0, TOOLS_DIR)
 
 import server
 import parser as csv_parser
+import format_csv_files
 
 
 def _write_file(path, content):
@@ -446,10 +450,105 @@ def run_parser_padding_regression_test() -> int:
     return 0
 
 
+def run_requirements_quoted_semicolon_formatter_test() -> int:
+    """Regression test: quoted semicolons remain a single CSV field when formatting."""
+
+    original = (
+        "ID;Level;Type;Description;Linked From;Linked To;Status\n"
+        "Sequence_0001;Component;Requirement;Parse and render sequence diagrams from CSV format;"
+        "UserStory_0001;\"Parser_0001;Rendering_0001\";Implemented\n"
+        "Parser_0001;Feature;Requirement;Parse CSV hierarchical format with indentation into model objects;"
+        "-;\"Architecture_0001;Sequence_0001\";Implemented\n"
+    )
+
+    formatted = format_csv_files.format_csv_text(original)
+    rows = [line for line in formatted.splitlines() if line.strip()]
+    if len(rows) < 3:
+        print("FAIL: expected header + 2 rows in formatted requirements output")
+        return 1
+
+    parsed_rows = [format_csv_files.parse_semicolon_fields(line) for line in rows]
+    data_rows = parsed_rows[1:]
+
+    if any(len(row) != 7 for row in data_rows):
+        print(f"FAIL: expected 7 columns per row after formatting, got {[len(r) for r in data_rows]}")
+        return 1
+
+    expected_linked_to = [
+        "Parser_0001;Rendering_0001",
+        "Architecture_0001;Sequence_0001",
+    ]
+    actual_linked_to = [row[5].strip() for row in data_rows]
+    if actual_linked_to != expected_linked_to:
+        print("FAIL: quoted Linked To field changed after formatting")
+        print("  expected:", expected_linked_to)
+        print("  got:     ", actual_linked_to)
+        return 1
+
+    print("OK: formatter preserves quoted semicolon fields as single columns")
+    return 0
+
+
+def run_requirements_alignment_and_bom_regression_test() -> int:
+    """Regression: formatted requirements table stays aligned and strips UTF-8 BOM."""
+
+    original = (
+        "\ufeffID;Level;Type;Description;Linked From;Linked To;Status\n"
+        "Sequence_0001;Component;Requirement;Parse and render sequence diagrams from CSV format;"
+        "UserStory_0001;\"Parser_0001;Rendering_0001\";Implemented\n"
+        "Note_0001;Component;Requirement;Implement note system with Info, Warning, Error types;"
+        "UserStory_0003;\"Parser_0006;Rendering_0011\";Implemented\n"
+        "Parser_0002;Feature;Requirement;Extract sequence steps with source, destination, function name;"
+        "-;Sequence_0001;Implemented\n"
+    )
+
+    formatted = format_csv_files.format_csv_text(original)
+    lines = [line for line in formatted.splitlines() if line.strip()]
+    if len(lines) < 4:
+        print("FAIL: expected at least 4 non-empty lines in formatted requirements output")
+        return 1
+
+    if lines[0].startswith("\ufeff"):
+        print("FAIL: BOM was not removed from formatted requirements header")
+        return 1
+
+    def _sep_positions(line: str):
+        positions = []
+        start = 0
+        while True:
+            pos = line.find(" ; ", start)
+            if pos == -1:
+                break
+            positions.append(pos)
+            start = pos + 3
+        return positions
+
+    expected = _sep_positions(lines[0])
+    if len(expected) < 6:
+        print(f"FAIL: expected 6+ separators in header row, got {len(expected)}")
+        return 1
+
+    for line in lines[1:4]:
+        positions = _sep_positions(line)
+        if positions != expected:
+            print("FAIL: requirements columns are not aligned across rows")
+            print("  expected positions:", expected)
+            print("  got positions:     ", positions)
+            print("  row:", line)
+            return 1
+
+    print("OK: requirements formatter keeps columns aligned and removes BOM")
+    return 0
+
+
 if __name__ == "__main__":
     rc = run_test()
     if rc == 0:
         rc = run_formatter_test()
     if rc == 0:
         rc = run_parser_padding_regression_test()
+    if rc == 0:
+        rc = run_requirements_quoted_semicolon_formatter_test()
+    if rc == 0:
+        rc = run_requirements_alignment_and_bom_regression_test()
     raise SystemExit(rc)

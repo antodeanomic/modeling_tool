@@ -333,8 +333,8 @@
             font-family: Consolas, "Courier New", monospace;
             font-size: 13px;
             line-height: 1.4;
-            color: transparent;
-            background: transparent;
+            color: #1f2937;
+            background: white;
             overflow: auto;
             white-space: pre;
             word-wrap: normal;
@@ -1710,77 +1710,10 @@
         }
 
         function highlightCsvSyntax(text) {
+            // Syntax highlighting disabled - creates visual clutter without adding value
             const highlightElement = document.getElementById('csvEditorHighlight');
-            if (!text) {
-                highlightElement.innerHTML = '';
-                return;
-            }
-
-            const lines = text.split('\n');
-            const colored = lines.map((line, lineIdx) => {
-                // Preserve empty lines so highlight div row positions match textarea exactly
-                if (!line.trim()) return '\n';
-                
-                // Color map for columns
-                const typeColor = '#9333ea';  // Purple
-                const nameColor = '#2563eb';  // Blue
-                const descColor = '#6b7280';  // Gray
-                const decorColor = '#f97316'; // Orange
-                const connColor = '#10b981';  // Green
-                const commentColor = '#16a34a'; // Green for comments
-                const keywordColor = '#dc2626'; // Red for diagram marker keywords
-
-                function colorizeNoteTokens(segment, defaultColor, defaultWeight = 'normal') {
-                    return segment.split(/([@](?:Info|Warning|Error|Success))/g).map(part => {
-                        if (!part) return '';
-                        if (part.startsWith('@')) {
-                            return `<span style="color: ${decorColor}; font-weight: bold;">${part}</span>`;
-                        }
-                        return `<span style="color: ${defaultColor}; font-weight: ${defaultWeight};">${part}</span>`;
-                    }).join('');
-                }
-                
-                // Check for comment lines (# prefix)
-                if (line.trimStart().startsWith('#')) {
-                    return `<span style="color: ${commentColor};">${line}</span>\n`;
-                }
-
-                // Split by semicolon but preserve the delimiter
-                const sepColor = '#94a3b8';  // Light separator color for semicolons
-                const parts = line.split(/(;)/);
-                let columnIdx = 0;
-
-                if (parts.length === 1) {
-                    return colorizeNoteTokens(line, descColor) + '\n';
-                }
-                
-                return parts.map((part, i) => {
-                    if (part === ';') return `<span style="color: ${sepColor};">${part}</span>`;
-                    if (!part) return '';
-                    
-                    const trimmedPart = part.trim();
-                    // Determine color based on column
-                    let color = descColor;
-                    let fontWeight = 'normal';
-                    if (columnIdx === 0) {
-                        color = typeColor;  // Type column
-                        if (trimmedPart === 'ClassDiagram' || trimmedPart === 'SequenceDiagram' || trimmedPart === 'Sequence') {
-                            color = keywordColor;
-                            fontWeight = '700';
-                        }
-                    } else if (columnIdx === 1) {
-                        color = nameColor;  // Name column
-                    } else if (part.includes('-->') || part.includes('..>') || part.includes('◆--') || part.includes('◇--') || part.includes('--') || part.includes('--->')) {
-                        color = connColor;  // Connectors
-                    }
-                    
-                    columnIdx++;
-                    return colorizeNoteTokens(part, color, fontWeight);
-                }).join('') + '\n';
-            }).join('');
-
-            highlightElement.innerHTML = colored;
-            highlightElement.style.display = 'block';
+            highlightElement.innerHTML = '';
+            highlightElement.style.display = 'none';
         }
 
         function syncHighlightScroll() {
@@ -2124,13 +2057,60 @@
                 if (isTypeNameDescriptionHeader(content.trim())) {
                     return null;
                 }
-                // Split by semicolon, trim each field, rejoin while preserving indentation prefix
-                return leading + content.split(';').map(f => f.trim()).join(';');
+                // Split by semicolon (quote-aware), trim each field, and rejoin.
+                return leading + joinCsvFields(parseSemicolonFields(content), ';');
             }).filter(l => l !== null).join('\n');
         }
 
+        function parseSemicolonFields(content) {
+            const fields = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < content.length; i++) {
+                const ch = content[i];
+                if (ch === '"') {
+                    if (inQuotes && i + 1 < content.length && content[i + 1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                    continue;
+                }
+                if (ch === ';' && !inQuotes) {
+                    fields.push(current.trim());
+                    current = '';
+                    continue;
+                }
+                current += ch;
+            }
+
+            fields.push(current.trim());
+            if (fields.length > 0) {
+                fields[0] = fields[0].replace(/^\uFEFF+/, '');
+            }
+            return fields;
+        }
+
+        function encodeCsvField(value) {
+            const text = String(value ?? '');
+            if (/[;"\r\n]/.test(text)) {
+                return `"${text.replace(/"/g, '""')}"`;
+            }
+            return text;
+        }
+
+        function joinCsvFields(fields, separator) {
+            return fields.map(encodeCsvField).join(separator);
+        }
+
+        function serializedFieldWidth(field) {
+            return encodeCsvField(field).length;
+        }
+
         function isTypeNameDescriptionHeader(line) {
-            const fields = line.split(';').map(f => f.trim().toLowerCase());
+            const fields = parseSemicolonFields(line).map(f => f.toLowerCase());
             return fields.length >= 3 &&
                 fields[0] === 'type' &&
                 fields[1] === 'name' &&
@@ -2138,11 +2118,12 @@
         }
 
         function getFieldCount(line) {
-            return line.trimStart().split(';').length;
+            return parseSemicolonFields(line.trimStart()).length;
         }
 
         function getTypeName(line) {
-            return line.trimStart().split(';')[0].trim();
+            const fields = parseSemicolonFields(line.trimStart());
+            return fields.length > 0 ? fields[0].trim() : '';
         }
 
         function isIndentedRow(line) {
@@ -2165,7 +2146,7 @@
                 const match = line.match(/^(\s*)(.*)$/);
                 const leading = match ? match[1] : '';
                 const content = match ? match[2] : line;
-                const fields = content.split(';').map(f => f.trim());
+                const fields = parseSemicolonFields(content);
                 const kind = classifySequenceRow(fields);
                 if (!widthsByKind[kind]) {
                     widthsByKind[kind] = { text: [], note: [] };
@@ -2176,7 +2157,7 @@
                     if (idx === fields.length - 1) return;
                     const bucket = isNoteToken(field) ? widths.note : widths.text;
                     if (!bucket[idx]) bucket[idx] = 0;
-                    bucket[idx] = Math.max(bucket[idx], field.length);
+                    bucket[idx] = Math.max(bucket[idx], serializedFieldWidth(field));
                 });
 
                 parsed.push({ leading, fields, kind });
@@ -2185,12 +2166,13 @@
             return parsed.map(({ leading, fields, kind }) => {
                 const widths = widthsByKind[kind] || { text: [], note: [] };
                 const formatted = fields.map((field, idx) => {
-                    if (idx === fields.length - 1) return field;
+                    const serialized = encodeCsvField(field);
+                    if (idx === fields.length - 1) return serialized;
                     const bucket = isNoteToken(field) ? widths.note : widths.text;
-                    const width = bucket[idx] || field.length;
-                    return field.padEnd(width);
-                }).join(' ; ');
-                return leading + formatted;
+                    const width = bucket[idx] || serialized.length;
+                    return serialized.padEnd(width);
+                });
+                return leading + formatted.join(' ; ');
             });
         }
 
@@ -2202,7 +2184,7 @@
             const match = line.match(/^(\s*)(.*)$/);
             const leading = match ? match[1] : '';
             const content = match ? match[2] : line;
-            return leading + content.split(';').map(f => f.trim()).join(';');
+            return leading + joinCsvFields(parseSemicolonFields(content), ';');
         }
 
         function normalizeDelimitedLine(line) {
@@ -2317,30 +2299,38 @@
                 const match = line.match(/^(\s*)(.*)$/);
                 const leading = match ? match[1] : '';
                 const content = match ? match[2] : line;
-                const fields = content.split(';').map(f => f.trim());
+                const fields = parseSemicolonFields(content);
                 parsedLines.push({ leading, fields });
 
                 fields.forEach((field, idx) => {
                     if (!columnWidths[idx]) columnWidths[idx] = 0;
-                    columnWidths[idx] = Math.max(columnWidths[idx], field.length);
+                    columnWidths[idx] = Math.max(columnWidths[idx], serializedFieldWidth(field));
                 });
             });
 
             return parsedLines.map(({ leading, fields }) => {
                 const formatted = fields.map((field, fieldIdx) => {
-                    if (fieldIdx === fields.length - 1 || isNoteTypeField(field)) return field;
-                    return field.padEnd(columnWidths[fieldIdx] || 0);
-                }).join(' ; ');
-                return leading + formatted;
+                    const serialized = encodeCsvField(field);
+                    if (fieldIdx === fields.length - 1 || isNoteTypeField(field)) return serialized;
+                    return serialized.padEnd(columnWidths[fieldIdx] || 0);
+                });
+                return leading + formatted.join(' ; ');
             });
         }
 
         function toggleCsvFormat() {
             const currentText = normalizeCsvSeparators(csvEditorTextarea.value);
-            const isColumnar = isColumnarFormat(currentText);
-            const newText = isColumnar
-                ? condenseCsv(currentText)
-                : formatCsvColumnar(currentText);
+            
+            // Determine current format and toggle
+            let newText;
+            if (isColumnarFormat(currentText)) {
+                // Currently columnar, convert to condensed
+                newText = condenseCsv(currentText);
+            } else {
+                // Currently condensed, convert to columnar
+                newText = formatCsvColumnar(currentText);
+            }
+            
             const changed = newText !== currentText;
             
             csvEditorTextarea.value = newText;
@@ -2610,21 +2600,49 @@
                 }
 
                 const startupDiagram = (() => {
-                    if (startupCsv && startupSequence) {
+                    const normalizeCsvPath = (value) => String(value || '').trim().replace(/\\/g, '/');
+                    const startupCsvNormalized = normalizeCsvPath(startupCsv);
+                    const startupCsvBase = startupCsvNormalized.includes('/')
+                        ? startupCsvNormalized.split('/').pop()
+                        : startupCsvNormalized;
+
+                    const csvMatchesStartup = (diagramCsv) => {
+                        const diagramCsvNormalized = normalizeCsvPath(diagramCsv);
+                        if (!startupCsvNormalized) {
+                            return false;
+                        }
+                        if (diagramCsvNormalized === startupCsvNormalized) {
+                            return true;
+                        }
+                        const diagramCsvBase = diagramCsvNormalized.includes('/')
+                            ? diagramCsvNormalized.split('/').pop()
+                            : diagramCsvNormalized;
+                        return diagramCsvBase === startupCsvBase;
+                    };
+
+                    if (startupCsvNormalized && startupSequence) {
                         return state.allDiagrams.find(diagram =>
-                            diagram.csv === startupCsv &&
+                            csvMatchesStartup(diagram.csv) &&
                             diagram.type === 'sequence' &&
                             diagram.id === startupSequence
                         ) || null;
                     }
 
-                    if (startupCsv) {
-                        const csvMatch = state.allDiagrams.find(diagram =>
-                            diagram.csv === startupCsv &&
+                    if (startupCsvNormalized) {
+                        // Prefer a renderable diagram from the requested CSV, but if none exists
+                        // (requirements/spec tables), still select the CSV entry so editor actions
+                        // like Format apply to the requested file.
+                        const csvRenderableMatch = state.allDiagrams.find(diagram =>
+                            csvMatchesStartup(diagram.csv) &&
                             (diagram.type === 'sequence' || diagram.type === 'class_diagram')
                         );
-                        if (csvMatch) {
-                            return csvMatch;
+                        if (csvRenderableMatch) {
+                            return csvRenderableMatch;
+                        }
+
+                        const csvAnyMatch = state.allDiagrams.find(diagram => csvMatchesStartup(diagram.csv));
+                        if (csvAnyMatch) {
+                            return csvAnyMatch;
                         }
                     }
 

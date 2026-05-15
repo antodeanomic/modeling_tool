@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -11,31 +12,42 @@ SKIP_DIR_NAMES = {".git", ".venv", "__pycache__"}
 SKIP_PATH_PARTS = {"generated_svgs"}
 
 
-def split_fields(line: str) -> list[str]:
-    """Split a semicolon-delimited line into fields, respecting double-quoted values."""
-    fields: list[str] = []
-    current: list[str] = []
-    in_quotes = False
-    for ch in line:
-        if ch == '"':
-            in_quotes = not in_quotes
-            current.append(ch)
-        elif ch == ';' and not in_quotes:
-            fields.append(''.join(current))
-            current = []
-        else:
-            current.append(ch)
-    fields.append(''.join(current))
-    return fields
-
-
 def is_header_row(line: str) -> bool:
-    fields = [field.strip().lower() for field in split_fields(line)]
+    fields = [field.strip().lower() for field in parse_semicolon_fields(line)]
     return len(fields) >= 3 and fields[0] == "type" and fields[1] == "name" and fields[2] == "description"
 
 
+def parse_semicolon_fields(line: str) -> list[str]:
+    try:
+        row = next(csv.reader([line], delimiter=";", quotechar='"', skipinitialspace=True))
+        fields = [field.strip() for field in row]
+        if fields:
+            fields[0] = fields[0].lstrip("\ufeff")
+        return fields
+    except Exception:
+        fields = [field.strip() for field in line.split(";")]
+        if fields:
+            fields[0] = fields[0].lstrip("\ufeff")
+        return fields
+
+
+def encode_csv_field(value: str) -> str:
+    text = "" if value is None else str(value)
+    if any(ch in text for ch in (';', '"', '\n', '\r')):
+        return '"' + text.replace('"', '""') + '"'
+    return text
+
+
+def join_csv_fields(fields: list[str], separator: str) -> str:
+    return separator.join(encode_csv_field(field) for field in fields)
+
+
+def serialized_field_width(field: str) -> int:
+    return len(encode_csv_field(field))
+
+
 def get_field_count(line: str) -> int:
-    return len(split_fields(line.lstrip()))
+    return len(parse_semicolon_fields(line.lstrip()))
 
 
 def split_indent(line: str) -> tuple[str, str]:
@@ -45,12 +57,13 @@ def split_indent(line: str) -> tuple[str, str]:
 
 def to_condensed_line(line: str) -> str:
     leading, content = split_indent(line)
-    return leading + ";".join(field.strip() for field in split_fields(content))
+    return leading + join_csv_fields(parse_semicolon_fields(content), ";")
 
 
 def get_type_name(line: str) -> str:
     _, content = split_indent(line)
-    first_field = split_fields(content)[0] if content else ""
+    parsed = parse_semicolon_fields(content) if content else []
+    first_field = parsed[0] if parsed else ""
     return first_field.strip()
 
 
@@ -76,7 +89,7 @@ def format_sequence_rows(group_lines: list[str]) -> list[str]:
 
     for line in group_lines:
         leading, content = split_indent(line)
-        fields = [field.strip() for field in split_fields(content)]
+        fields = parse_semicolon_fields(content)
         kind = classify_sequence_row(fields)
         widths = widths_by_kind.setdefault(kind, {"text": [], "note": []})
 
@@ -87,22 +100,23 @@ def format_sequence_rows(group_lines: list[str]) -> list[str]:
             bucket = widths[bucket_name]
             if idx >= len(bucket):
                 bucket.extend([0] * (idx + 1 - len(bucket)))
-            bucket[idx] = max(bucket[idx], len(field))
+            bucket[idx] = max(bucket[idx], serialized_field_width(field))
 
         parsed.append((leading, fields, kind))
 
     formatted_lines: list[str] = []
     for leading, fields, kind in parsed:
         widths = widths_by_kind[kind]
-        padded: list[str] = []
+        padded_serialized: list[str] = []
         for idx, field in enumerate(fields):
+            serialized = encode_csv_field(field)
             if idx == len(fields) - 1:
-                padded.append(field)
+                padded_serialized.append(serialized)
                 continue
             bucket = widths["note"] if is_note_token(field) else widths["text"]
-            width = bucket[idx] if idx < len(bucket) and bucket[idx] > 0 else len(field)
-            padded.append(field.ljust(width))
-        formatted_lines.append(leading + " ; ".join(padded))
+            width = bucket[idx] if idx < len(bucket) and bucket[idx] > 0 else serialized_field_width(field)
+            padded_serialized.append(serialized.ljust(width))
+        formatted_lines.append(leading + " ; ".join(padded_serialized))
 
     return formatted_lines
 
@@ -113,22 +127,23 @@ def format_group(group_lines: list[str]) -> list[str]:
 
     for line in group_lines:
         leading, content = split_indent(line)
-        fields = [field.strip() for field in split_fields(content)]
+        fields = parse_semicolon_fields(content)
         parsed_lines.append((leading, fields))
         for idx, field in enumerate(fields):
             if idx >= len(column_widths):
                 column_widths.append(0)
-            column_widths[idx] = max(column_widths[idx], len(field))
+            column_widths[idx] = max(column_widths[idx], serialized_field_width(field))
 
     formatted_lines = []
     for leading, fields in parsed_lines:
-        padded = []
+        padded_serialized = []
         for idx, field in enumerate(fields):
+            serialized = encode_csv_field(field)
             if idx == len(fields) - 1 or is_note_type_field(field):
-                padded.append(field)
+                padded_serialized.append(serialized)
             else:
-                padded.append(field.ljust(column_widths[idx]))
-        formatted_lines.append(leading + " ; ".join(padded))
+                padded_serialized.append(serialized.ljust(column_widths[idx]))
+        formatted_lines.append(leading + " ; ".join(padded_serialized))
     return formatted_lines
 
 
@@ -140,38 +155,9 @@ def format_csv_text(text: str) -> str:
     if trailing_newline:
         lines = lines[:-1]
 
-    # Pre-scan: compute column widths for each (indent, field_count, type_name) tuple.
-    # This ensures rows with same indent, field count, AND type align together.
-    width_map: dict[tuple[str, int, str], list[int]] = {}
-    parsed_cache: dict[int, tuple[str, str, list[str]]] = {}
-
-    for idx, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if is_header_row(stripped):
-            continue
-
-        leading, content = split_indent(line)
-        fields = [field.strip() for field in split_fields(content)]
-        parsed_cache[idx] = (leading, content, fields)
-
-        type_name = fields[0] if fields else ""
-        key = (leading, len(fields), type_name)
-        if key not in width_map:
-            width_map[key] = []
-
-        widths = width_map[key]
-        for field_idx, field in enumerate(fields):
-            if field_idx >= len(widths):
-                widths.append(0)
-            widths[field_idx] = max(widths[field_idx], len(field))
-
-    # Format pass: use precomputed widths.
     result: list[str] = []
     idx = 0
     current_top_level_type = ""
-
     while idx < len(lines):
         line = lines[idx]
         stripped = line.strip()
@@ -202,40 +188,34 @@ def format_csv_text(text: str) -> str:
             result.extend(format_sequence_rows(sequence_rows))
             continue
 
-        # Get precomputed widths for this row's (indent, field_count, type).
-        if idx not in parsed_cache:
-            result.append(line)
-            idx += 1
-            continue
-
-        leading, content, fields = parsed_cache[idx]
-        type_name = fields[0] if fields else ""
-        key = (leading, len(fields), type_name)
-        widths = width_map.get(key, [])
-
-        keep_table_format = get_type_name(line) == "ClassDiagram"
-
-        if widths and (len(widths) > 1 or keep_table_format):
-            # Format as columnar using precomputed widths.
-            padded = []
-            for field_idx, field in enumerate(fields):
-                if field_idx == len(fields) - 1 or is_note_type_field(field):
-                    padded.append(field)
-                else:
-                    width = widths[field_idx] if field_idx < len(widths) else len(field)
-                    padded.append(field.ljust(width))
-            result.append(leading + " ; ".join(padded))
-        else:
-            # Condense single-column or unformatted rows.
-            result.append(to_condensed_line(line))
-
+        group = [line]
+        field_count = get_field_count(line)
         idx += 1
+
+        while idx < len(lines):
+            next_line = lines[idx]
+            next_stripped = next_line.strip()
+            if not next_stripped or next_stripped.startswith("#"):
+                break
+            if is_header_row(next_stripped):
+                idx += 1
+                continue
+            if get_field_count(next_line) != field_count:
+                break
+            group.append(next_line)
+            idx += 1
+
+        keep_table_format = get_type_name(group[0]) == "ClassDiagram"
+
+        if len(group) == 1 and not keep_table_format:
+            result.append(to_condensed_line(group[0]))
+        else:
+            result.extend(format_group(group))
 
     output = "\n".join(result)
     if trailing_newline:
         output += "\n"
     return output.replace("\n", newline)
-
 
 
 def iter_csv_files(root: Path) -> list[Path]:

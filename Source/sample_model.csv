@@ -1,43 +1,43 @@
-Class ; User ; User interface ; trace_req=Architecture_0001,UserInterface_0001 ; trace_story=UserStory_0001 ; trace_test=test_interactive_001
-    Function ; ReadKey     ; Reads a key
-        ReturnVal ; Key          ; Key read from hardware
+Class;User;User interface;trace_req=Architecture_0001,UserInterface_0001;trace_story=UserStory_0001;trace_test=test_interactive_001
+    Function  ; ReadKey ; Reads a key
+        ReturnVal ; Key     ; Key read from hardware
 
-    Function ; AppendDigit ; Adds a digit
-        Param ; Digit ; Digit pressed
+    Function  ; AppendDigit  ; Adds a digit
+        Param     ; Digit        ; Digit pressed
         ReturnVal ; UpdatedValue ; New value
 
-    Function ; Compute     ; Performs calculation
-        Param ; ID    ; Unique ID
-        Param ; Mode  ; Mode
-        ReturnVal ; Result       ; Computed result
+    Function  ; Compute ; Performs calculation
+        Param     ; ID      ; Unique ID
+        Param     ; Mode    ; Mode
+        ReturnVal ; Result  ; Computed result
 
-    Function ; Update      ; Updates display
-        Param ; Value ; Value to display
-        ReturnVal ; Done         ; Display updated
+    Function  ; Update ; Updates display
+        Param     ; Value  ; Value to display
+        ReturnVal ; Done   ; Display updated
 
-    StateMachine ; MainSM    ; Primary user interaction state machine
-        State ; Idle             ; Waiting for user input
-        State ; EnteringNumber   ; User is typing digits
-        State ; OperationPending ; Operator selected and waiting for next value
-        State ; Error            ; Invalid input or calculation error
+    StateMachine ; MainSM           ; Primary user interaction state machine
+        State        ; Idle             ; Waiting for user input
+        State        ; EnteringNumber   ; User is typing digits
+        State        ; OperationPending ; Operator selected and waiting for next value
+        State        ; Error            ; Invalid input or calculation error
 
-Class ; Display ; Shows current value and results ; trace_req=Rendering_0001,Rendering_0007 ; trace_test=test_render_001
-    MemberVar ; text ; Current text displayed
-    Function ; Update      ; Updates the display with new text
+Class;Display;Shows current value and results;trace_req=Rendering_0001,Rendering_0007;trace_test=test_render_001
+    MemberVar ; text   ; Current text displayed
+    Function  ; Update ; Updates the display with new text
     
-    StateMachine ; DisplaySM ; Display state transitions
-        State ; Empty            ; No value displayed
-        State ; ShowingValue     ; Displaying numeric value
-        State ; ShowingResult    ; Displaying result
+    StateMachine ; DisplaySM     ; Display state transitions
+        State        ; Empty         ; No value displayed
+        State        ; ShowingValue  ; Displaying numeric value
+        State        ; ShowingResult ; Displaying result
 
-Class ; Keypad  ; Receives button presses         ; trace_req=Parser_0001                   ; trace_feature=FEAT-001
-    Function ; ReadKey     ; Returns which key was pressed
+Class;Keypad;Receives button presses;trace_req=Parser_0001;trace_feature=FEAT-001
+    Function;ReadKey;Returns which key was pressed
 
 ClassDiagram ; CalculatorDiagonalArchitecture ; Calculator architecture with diagonal connectors ; routing=diagonal
-    User ; Display ; --> ; 1 ; 1 ; updates
-    User ; Keypad  ; --> ; 1 ; 1 ; reads
-    Keypad ; Display ; ..> ;  ;  ; notifies
+    User   ; Display ; --> ; 1 ; 1 ; updates
+    User   ; Keypad  ; --> ; 1 ; 1 ; reads
+    Keypad ; Display ; ..> ;   ;   ; notifies
 
-Sequence ; SoftReq0001 ; Sample calculator interaction ;  ; parent=CalculatorDiagonalArchitecture
-    User    ; Keypad  ; ReadKey ; key   ; digit
+Sequence ; SoftReq0001 ; Sample calculator interaction ; ; parent=CalculatorDiagonalArchitecture
+    User    ; Keypad  ; ReadKey ; key ; digit
     Display ; Display ; Update  ; digit ; done
