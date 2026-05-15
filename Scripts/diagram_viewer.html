@@ -2097,22 +2097,13 @@
         }
 
         function isColumnarFormat(csvText) {
-            // Detect visual column-padding format: spaces around field separators (outside quotes).
+            // Detect visual column-padding format: spaces deliberately placed around semicolons.
             // Leading structural indentation (e.g. "    User;...") must NOT be treated as columnar.
             const lines = csvText.split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
             if (lines.length === 0) return false;
 
-            // Look for " ; " that appears as a field SEPARATOR (outside quoted values).
-            return lines.some(line => {
-                let inQuotes = false;
-                for (let i = 0; i < line.length - 2; i++) {
-                    if (line[i] === '"') { inQuotes = !inQuotes; continue; }
-                    if (!inQuotes && line[i] === ' ' && line[i + 1] === ';' && line[i + 2] === ' ') {
-                        return true;
-                    }
-                }
-                return false;
-            });
+            // Look for space-padded field separators: " ; " (space-semicolon-space)
+            return lines.some(line => / ; /.test(line));
         }
 
         function condenseCsv(csvText) {
@@ -2133,33 +2124,13 @@
                 if (isTypeNameDescriptionHeader(content.trim())) {
                     return null;
                 }
-                // Split by semicolon (quote-aware), trim each field, rejoin while preserving indentation prefix
-                return leading + splitFields(content).map(f => f.trim()).join(';');
+                // Split by semicolon, trim each field, rejoin while preserving indentation prefix
+                return leading + content.split(';').map(f => f.trim()).join(';');
             }).filter(l => l !== null).join('\n');
         }
 
-        function splitFields(line) {
-            // Split on semicolons while respecting double-quoted values.
-            const fields = [];
-            let current = '';
-            let inQuotes = false;
-            for (const ch of line) {
-                if (ch === '"') {
-                    inQuotes = !inQuotes;
-                    current += ch;
-                } else if (ch === ';' && !inQuotes) {
-                    fields.push(current);
-                    current = '';
-                } else {
-                    current += ch;
-                }
-            }
-            fields.push(current);
-            return fields;
-        }
-
         function isTypeNameDescriptionHeader(line) {
-            const fields = splitFields(line).map(f => f.trim().toLowerCase());
+            const fields = line.split(';').map(f => f.trim().toLowerCase());
             return fields.length >= 3 &&
                 fields[0] === 'type' &&
                 fields[1] === 'name' &&
@@ -2167,11 +2138,11 @@
         }
 
         function getFieldCount(line) {
-            return splitFields(line.trimStart()).length;
+            return line.trimStart().split(';').length;
         }
 
         function getTypeName(line) {
-            return splitFields(line.trimStart())[0].trim();
+            return line.trimStart().split(';')[0].trim();
         }
 
         function isIndentedRow(line) {
@@ -2194,7 +2165,7 @@
                 const match = line.match(/^(\s*)(.*)$/);
                 const leading = match ? match[1] : '';
                 const content = match ? match[2] : line;
-                const fields = splitFields(content).map(f => f.trim());
+                const fields = content.split(';').map(f => f.trim());
                 const kind = classifySequenceRow(fields);
                 if (!widthsByKind[kind]) {
                     widthsByKind[kind] = { text: [], note: [] };
@@ -2231,7 +2202,7 @@
             const match = line.match(/^(\s*)(.*)$/);
             const leading = match ? match[1] : '';
             const content = match ? match[2] : line;
-            return leading + splitFields(content).map(f => f.trim()).join(';');
+            return leading + content.split(';').map(f => f.trim()).join(';');
         }
 
         function normalizeDelimitedLine(line) {
@@ -2254,41 +2225,8 @@
 
         function formatCsvColumnar(csvText) {
             // Convert from condensed to columnar format with aligned columns
-            // Pre-computes column widths for all (indent, fieldCount, type) tuples
-            // so rows with same indent + field count + type are aligned together.
+            // Respects hierarchy: each group (header + rows) formatted independently
             const lines = csvText.split('\n');
-            
-            // Pre-scan: compute widths for each (indent, fieldCount, type) key
-            const widthMap = {}; // key: "indent|fieldCount|type" -> widths array
-            const parsedCache = {}; // index -> {leading, content, fields}
-            
-            lines.forEach((line, idx) => {
-                if (!line.trim() || line.trim().startsWith('#')) {
-                    return;
-                }
-                if (isTypeNameDescriptionHeader(line.trim())) {
-                    return;
-                }
-                
-                const match = line.match(/^(\s*)(.*)$/);
-                const leading = match ? match[1] : '';
-                const content = match ? match[2] : line;
-                const fields = splitFields(content).map(f => f.trim());
-                parsedCache[idx] = { leading, content, fields };
-                
-                const typeName = fields.length > 0 ? fields[0] : '';
-                const key = leading + '|' + fields.length + '|' + typeName;
-                if (!widthMap[key]) {
-                    widthMap[key] = [];
-                }
-                const widths = widthMap[key];
-                fields.forEach((field, fIdx) => {
-                    if (!widths[fIdx]) widths[fIdx] = 0;
-                    widths[fIdx] = Math.max(widths[fIdx], field.length);
-                });
-            });
-            
-            // Format pass
             const result = [];
             let i = 0;
             let currentTopLevelType = '';
@@ -2332,35 +2270,69 @@
                     continue;
                 }
 
-                // Use precomputed widths for this row's (indent, fieldCount, type)
-                if (!(i in parsedCache)) {
-                    result.push(line);
-                    i++;
-                    continue;
-                }
-                
-                const { leading, content, fields } = parsedCache[i];
-                const typeName = fields.length > 0 ? fields[0] : '';
-                const key = leading + '|' + fields.length + '|' + typeName;
-                const widths = widthMap[key] || [];
-                const keepTableFormat = getTypeName(line) === 'ClassDiagram';
-                
-                if (widths.length > 1 || keepTableFormat) {
-                    // Format as columnar
-                    const padded = fields.map((field, fIdx) => {
-                        if (fIdx === fields.length - 1 || isNoteTypeField(field)) return field;
-                        const width = widths[fIdx] || 0;
-                        return field.padEnd(width);
-                    });
-                    result.push(leading + padded.join(' ; '));
-                } else {
-                    // Condense
-                    result.push(toCondensedLine(line));
-                }
+                // Group contiguous rows with the same field count so connector arrow columns
+                // are never padded based on longer description rows from a different row shape.
+                const group = [line];
+                const fieldCount = getFieldCount(line);
                 i++;
+
+                while (i < lines.length) {
+                    const nextLine = lines[i];
+                    const nextTrimmed = nextLine.trim();
+                    if (nextTrimmed.startsWith('#') || !nextTrimmed) {
+                        break;
+                    }
+                    if (isTypeNameDescriptionHeader(nextTrimmed)) {
+                        i++; // skip header mid-block
+                        continue;
+                    }
+                    if (getFieldCount(nextLine) !== fieldCount) {
+                        break;
+                    }
+                    group.push(nextLine);
+                    i++;
+                }
+
+                const keepTableFormat = getTypeName(group[0]) === 'ClassDiagram';
+
+                // Keep single-row items condensed except ClassDiagram rows and
+                // sequence-step rows, which should retain table-style separators.
+                if (group.length === 1 && !keepTableFormat) {
+                    result.push(toCondensedLine(group[0]));
+                } else {
+                    result.push(...formatGroupWithIndentation(group));
+                }
             }
             
             return result.join('\n');
+        }
+        
+        function formatGroupWithIndentation(groupLines) {
+            // Calculate column widths using trimmed field content.
+            // Leading structural indentation (e.g. 4 spaces on connector rows) is preserved as-is.
+            const columnWidths = [];
+            const parsedLines = [];
+
+            groupLines.forEach(line => {
+                const match = line.match(/^(\s*)(.*)$/);
+                const leading = match ? match[1] : '';
+                const content = match ? match[2] : line;
+                const fields = content.split(';').map(f => f.trim());
+                parsedLines.push({ leading, fields });
+
+                fields.forEach((field, idx) => {
+                    if (!columnWidths[idx]) columnWidths[idx] = 0;
+                    columnWidths[idx] = Math.max(columnWidths[idx], field.length);
+                });
+            });
+
+            return parsedLines.map(({ leading, fields }) => {
+                const formatted = fields.map((field, fieldIdx) => {
+                    if (fieldIdx === fields.length - 1 || isNoteTypeField(field)) return field;
+                    return field.padEnd(columnWidths[fieldIdx] || 0);
+                }).join(' ; ');
+                return leading + formatted;
+            });
         }
 
         function toggleCsvFormat() {
@@ -2526,6 +2498,10 @@
             try {
                 console.log('Initializing diagram viewer...');
 
+                const startupParams = window.initialParams || {};
+                const startupCsv = String(startupParams.csv || '').trim();
+                const startupSequence = String(startupParams.sequence || '').trim();
+
                 // Restore showTestDiagrams from persisted state before the first catalog
                 // fetch so test diagrams are included when the user previously enabled them.
                 const earlyPersisted = loadPersistedViewerState();
@@ -2569,13 +2545,9 @@
                 // Check if initial parameters were provided via window.initialParams
                 if (window.initialParams) {
                     // Always allow externally provided verbosity.
-                    state.verbosity = window.initialParams.verbosity || state.verbosity;
-                    // Only treat csv/sequence as startup selection when URL
-                    // explicitly requested a specific diagram.
-                    if (hasExternalSelectionOverride) {
-                        state.csv = window.initialParams.csv || state.csv;
-                        state.sequence = window.initialParams.sequence || state.sequence;
-                    }
+                    state.verbosity = startupParams.verbosity || state.verbosity;
+                    state.csv = startupCsv || state.csv;
+                    state.sequence = startupSequence || state.sequence;
                 } else if (diagramParam) {
                     let csvPath = diagramParam;
                     if (csvPath.includes('/')) {
@@ -2630,6 +2602,40 @@
                 // Restore prior session only when no explicit external diagram
                 // override was provided.
                 if (!hasExternalSelectionOverride && restorePersistedSelection()) {
+                    updateMenuVisibility();
+                    syncMenuControlsFromState();
+                    updateLaneCheckboxes();
+                    await loadDiagram();
+                    return;
+                }
+
+                const startupDiagram = (() => {
+                    if (startupCsv && startupSequence) {
+                        return state.allDiagrams.find(diagram =>
+                            diagram.csv === startupCsv &&
+                            diagram.type === 'sequence' &&
+                            diagram.id === startupSequence
+                        ) || null;
+                    }
+
+                    if (startupCsv) {
+                        const csvMatch = state.allDiagrams.find(diagram =>
+                            diagram.csv === startupCsv &&
+                            (diagram.type === 'sequence' || diagram.type === 'class_diagram')
+                        );
+                        if (csvMatch) {
+                            return csvMatch;
+                        }
+                    }
+
+                    return state.allDiagrams.find(diagram =>
+                        diagram.type === 'sequence' || diagram.type === 'class_diagram'
+                    ) || null;
+                })();
+
+                if (startupDiagram) {
+                    state.applyFitOnLoad = true;
+                    applyDiagramSelection(startupDiagram);
                     updateMenuVisibility();
                     syncMenuControlsFromState();
                     updateLaneCheckboxes();
@@ -3865,13 +3871,6 @@
             // Only clear highlights when entering a different element.
             let currentHoveredElement = null;
 
-            const isHoverTargetElement = (element) => {
-                if (!element || !(element instanceof Element)) {
-                    return false;
-                }
-                return !!element.closest('g.cls-object[data-class-name], g.cls-connector[data-source][data-target]');
-            };
-
             const clearHighlightIfDifferent = (newElement) => {
                 if (currentHoveredElement !== newElement) {
                     clearClassDiagramHoverVisuals(svg);
@@ -3887,17 +3886,15 @@
                         const className = obj.getAttribute('data-class-name');
                         if (className) {
                             applyClassHoverVisuals(svg, className);
-                            clearCsvRowHighlight();
+                            highlightCsvRow(className);
                         }
                     }
                 });
-                obj.addEventListener('mouseleave', (event) => {
+                obj.addEventListener('mouseleave', () => {
                     if (currentHoveredElement === obj) {
                         currentHoveredElement = null;
-                        if (!isHoverTargetElement(event.relatedTarget)) {
-                            clearClassDiagramHoverVisuals(svg);
-                            clearCsvRowHighlight();
-                        }
+                        clearClassDiagramHoverVisuals(svg);
+                        clearCsvRowHighlight();
                     }
                 });
             });
@@ -3928,14 +3925,11 @@
                         );
                     }
                 });
-                conn.addEventListener('mouseleave', (event) => {
+                conn.addEventListener('mouseleave', () => {
                     if (currentHoveredElement === conn) {
                         currentHoveredElement = null;
-                        // Avoid flicker while moving directly to another hover target.
-                        if (!isHoverTargetElement(event.relatedTarget)) {
-                            clearClassDiagramHoverVisuals(svg);
-                            clearCsvRowHighlight();
-                        }
+                        clearClassDiagramHoverVisuals(svg);
+                        clearCsvRowHighlight();
                     }
                 });
             });
