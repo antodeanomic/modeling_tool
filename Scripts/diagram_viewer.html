@@ -1709,25 +1709,22 @@
             updateEditorSaveButtonState();
         }
 
-        // Language-specific syntax color palettes (extensible for future language support)
-        // Light mode colors optimized for white backgrounds (VS Code Light+ theme)
-        // Key artifacts (ClassDiagram, Sequence) use vibrant colors for maximum visibility
         const languagePalettes = {
             'C++': {
-                'Class': '#0e707e',             // Dark Cyan (subdued)
-                'Function': '#0000ff',          // Dark Blue (function name - high contrast)
-                'Param': '#267cb9',             // Medium Blue (parameter - good contrast)
-                'ReturnVal': '#0e707e',         // Dark Cyan (return type, same as Class)
-                'MemberVar': '#0971f1',         // Blue variant (member variable)
-                'State': '#0971f1',             // Blue (keyword-like)
-                'Event': '#d65000',             // Dark Orange (special event - high contrast)
-                'StateMachine': '#a31515',      // Dark Red (structural)
-                'Sequence': '#7c3aed',          // Bright Purple (KEY ARTIFACT - pops!)
-                'ClassDiagram': '#d32f2f',      // Bright Red (KEY ARTIFACT - pops!)
-                'SequenceDiagram': '#7c3aed',   // Bright Purple (diagram-specific, matches Sequence)
-                'UserStorySequence': '#7c3aed', // Bright Purple (diagram-specific)
-                'Include': '#646695',           // Gray (disabled/comment-like)
-                'Note': '#498400',              // Dark Lime (special markup)
+                'Class': '#0e707e',
+                'Function': '#0000ff',
+                'Param': '#267cb9',
+                'ReturnVal': '#0e707e',
+                'MemberVar': '#0971f1',
+                'State': '#0971f1',
+                'Event': '#d65000',
+                'StateMachine': '#a31515',
+                'Sequence': '#7c3aed',
+                'ClassDiagram': '#d32f2f',
+                'SequenceDiagram': '#7c3aed',
+                'UserStorySequence': '#7c3aed',
+                'Include': '#646695',
+                'Note': '#498400',
             },
             'Python': {
                 'Class': '#0e707e',
@@ -1763,7 +1760,6 @@
             },
         };
 
-        // Current active language (can be changed dynamically in the future)
         let currentSyntaxLanguage = 'C++';
 
         function highlightCsvSyntax(text) {
@@ -1774,7 +1770,7 @@
             }
 
             const lines = text.split('\n');
-            
+
             // Get active language palette
             const semanticColors = languagePalettes[currentSyntaxLanguage] || languagePalettes['C++'];
 
@@ -1807,7 +1803,7 @@
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 const indent = line.match(/^(\s*)/)[1].length;
-                
+
                 // A row is "table-like" if it's followed by indented rows (has children)
                 // or if it's indented and part of a parent's children group
                 if (i + 1 < lines.length) {
@@ -1848,7 +1844,7 @@
                 }
 
                 const parts = line.split(/(;)/);
-                
+
                 if (parts.length === 1) {
                     return colorizeNoteTokens(line, '#6b7280') + '\n';
                 }
@@ -2321,13 +2317,10 @@
                 const content = match ? match[2] : line;
                 const fields = parseSemicolonFields(content);
                 const kind = classifySequenceRow(fields);
-                // Keep alignment local to hierarchy depth so parent and nested rows
-                // do not force each other's column widths.
-                const kindKey = kind + '|' + leading;
-                if (!widthsByKind[kindKey]) {
-                    widthsByKind[kindKey] = [];
+                if (!widthsByKind[kind]) {
+                    widthsByKind[kind] = [];
                 }
-                const widths = widthsByKind[kindKey];
+                const widths = widthsByKind[kind];
 
                 fields.forEach((field, idx) => {
                     if (idx === fields.length - 1) return;
@@ -2335,11 +2328,11 @@
                     widths[idx] = Math.max(widths[idx], serializedFieldWidth(field));
                 });
 
-                parsed.push({ leading, fields, kindKey });
+                parsed.push({ leading, fields, kind });
             });
 
-            return parsed.map(({ leading, fields, kindKey }) => {
-                const widths = widthsByKind[kindKey] || [];
+            return parsed.map(({ leading, fields, kind }) => {
+                const widths = widthsByKind[kind] || [];
                 const formatted = fields.map((field, idx) => {
                     const serialized = encodeCsvField(field);
                     if (idx === fields.length - 1) return serialized;
@@ -2358,7 +2351,7 @@
             const match = line.match(/^(\s*)(.*)$/);
             const leading = match ? match[1] : '';
             const content = match ? match[2] : line;
-            return leading + joinCsvFields(parseSemicolonFields(content), ' ; ');
+            return leading + joinCsvFields(parseSemicolonFields(content), ';');
         }
 
         function normalizeDelimitedLine(line) {
@@ -2379,33 +2372,19 @@
             return csvText.split('\n').map(normalizeDelimitedLine).join('\n');
         }
 
-        function getEnclosingTopLevelType(lines, rowIndex) {
-            for (let j = rowIndex; j >= 0; j--) {
-                const line = lines[j];
-                const trimmed = line.trim();
-                if (!trimmed || trimmed.startsWith('#')) {
-                    continue;
-                }
-                if (isTypeNameDescriptionHeader(trimmed)) {
-                    continue;
-                }
-                if (!isIndentedRow(line)) {
-                    return getTypeName(line);
-                }
-            }
-            return '';
-        }
-
         function formatCsvColumnar(csvText) {
             // Convert from condensed to columnar format with aligned columns
             // Respects hierarchy: each group (header + rows) formatted independently
             const lines = csvText.split('\n');
             const result = [];
             let i = 0;
+            let currentTopLevelType = '';
             
             while (i < lines.length) {
                 const line = lines[i];
-                const enclosingTopLevelType = getEnclosingTopLevelType(lines, i);
+                if (!isIndentedRow(line) && line.trim() && !line.trim().startsWith('#')) {
+                    currentTopLevelType = getTypeName(line);
+                }
                 
                 // Pass through comments and empty lines
                 if (line.trim().startsWith('#') || !line.trim()) {
@@ -2422,7 +2401,7 @@
 
                 // In Sequence blocks, align mixed row shapes together so source/target/function
                 // columns remain visually consistent across the whole sequence.
-                if (enclosingTopLevelType === 'Sequence' && isIndentedRow(line)) {
+                if (currentTopLevelType === 'Sequence' && isIndentedRow(line)) {
                     const sequenceRows = [];
                     while (i < lines.length) {
                         const candidate = lines[i];
@@ -2444,7 +2423,6 @@
                 // are never padded based on longer description rows from a different row shape.
                 const group = [line];
                 const fieldCount = getFieldCount(line);
-                const baseIndent = (line.match(/^(\s*)/) || ['', ''])[1];
                 i++;
 
                 while (i < lines.length) {
@@ -2457,10 +2435,6 @@
                         i++; // skip header mid-block
                         continue;
                     }
-                    const nextIndent = (nextLine.match(/^(\s*)/) || ['', ''])[1];
-                    if (nextIndent !== baseIndent) {
-                        break;
-                    }
                     if (getFieldCount(nextLine) !== fieldCount) {
                         break;
                     }
@@ -2468,7 +2442,7 @@
                     i++;
                 }
 
-                const keepTableFormat = ['ClassDiagram', 'Class', 'Function'].includes(getTypeName(group[0]));
+                const keepTableFormat = getTypeName(group[0]) === 'ClassDiagram';
 
                 // Keep single-row items condensed except ClassDiagram rows and
                 // sequence-step rows, which should retain table-style separators.
