@@ -1,0 +1,36 @@
+Class ; LoginForm ; Login form component ; UI
+Class ; APIGateway ; API gateway/router ; API
+Class ; AuthService ; Authentication service ; Business Logic
+Class ; TokenValidator ; Token validation handler ; Business Logic
+Class ; PermissionChecker ; Permission checker ; Business Logic
+Class ; PermissionCache ; In-memory cache ; Business Logic
+Class ; UserDB ; User database ; Data Access
+Class ; PermissionDB ; Permission database ; Data Access
+Class ; AuditLog ; Audit logging service ; Data Access
+Class ; DataPortal ; Data upload portal ; UI
+Class ; FileUpload ; File upload component ; UI
+Class ; APIServer ; REST API server ; API
+Class ; RequestValidator ; Request validator ; Business Logic
+Class ; DataProcessor ; Data processor/transformer ; Business Logic
+Class ; ValidationEngine ; Validation rules engine ; Business Logic
+Class ; StorageManager ; Storage manager ; Business Logic
+Class ; FileStore ; File storage system ; Data Access
+Class ; DataDB ; Data warehouse ; Data Access
+Class ; SearchIndex ; Search index ; Data Access
+Class ; DiagramViewer ; Diagram rendering UI ; UI
+Class ; DiagramPicker ; Diagram selection UI ; UI
+Class ; DiagramProcessor ; Diagram orchestration component ; Processing
+Class ; CsvParser ; CSV parsing engine ; Processing
+Class ; SvgRenderer ; SVG rendering engine ; Processing
+Class ; DiagramModel ; Parsed diagram model ; Processing
+Class ; SvgOutput ; Rendered SVG output artifact ; UI
+Class ; CsvFile ; CSV input file ; Storage
+Class ; UILayer ; UI layer boundary ; UI
+Class ; APISLayer ; API/service boundary ; API
+Class ; ProcessingLayer ; Processing boundary ; Processing
+Class ; StorageLayer ; Storage boundary ; Storage
+Class ; FileSystem ; File storage access layer ; Storage
+Class ; CsvRepository ; CSV repository cache ; Storage
+Class ; AvailableDiagrams ; Available diagram catalog ; Storage
+Class ; CacheLayer ; Rendered diagram cache layer ; Storage
+Class ; RenderedDiagrams ; Cached rendered diagrams ; Storage

@@ -1,4 +1,4 @@
-Legend:
+﻿Legend:
 (1) start far-left
 (2) continue left -> right (toward source)
 (3) direct connectors use center slots

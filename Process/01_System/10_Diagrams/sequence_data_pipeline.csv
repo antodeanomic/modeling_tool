@@ -1,17 +1,6 @@
-# DiagramType: Sequence
-# Purpose: End-to-end data upload and processing pipeline from user submission to indexed storage
-# Layers: UI, API, Business Logic, Data Access
+Include ; ../20_Definitions/actors.csv ; Import reusable actor definitions
+Include ; ../20_Definitions/packages.csv ; Import reusable system package definitions
 
-Class ; DataPortal       ; Data upload portal         ; UI
-Class ; FileUpload       ; File upload component      ; UI
-Class ; APIServer        ; REST API server            ; API
-Class ; RequestValidator ; Request validator          ; Business Logic
-Class ; DataProcessor    ; Data processor/transformer ; Business Logic
-Class ; ValidationEngine ; Validation rules engine    ; Business Logic
-Class ; StorageManager   ; Storage manager            ; Business Logic
-Class ; FileStore        ; File storage system        ; Data Access
-Class ; DataDB           ; Data warehouse             ; Data Access
-Class ; SearchIndex      ; Search index               ; Data Access
 Sequence ; SEQ_003_DataUploadProcessing ; Data upload with multi-layer processing
     DataPortal       ; FileUpload       ; BrowseFiles     ; -          ; selected_file ; @Info    ; User selects CSV file
     FileUpload       ; APIServer        ; UploadFile      ; file       ; upload_id     ; @Info    ; POST file to server

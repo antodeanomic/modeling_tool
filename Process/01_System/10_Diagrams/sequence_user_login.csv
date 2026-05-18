@@ -1,17 +1,6 @@
-# DiagramType: Sequence
-# Purpose: Multi-layer user authentication and permission workflow
-# Layers: UI, API, Business Logic, Data Access
+Include ; ../20_Definitions/actors.csv ; Import reusable actor definitions
+Include ; ../20_Definitions/packages.csv ; Import reusable system package definitions
 
-Class ; Client            ; Web browser client       ; UI
-Class ; LoginForm         ; Login form component     ; UI
-Class ; APIGateway        ; API gateway/router       ; API
-Class ; AuthService       ; Authentication service   ; Business Logic
-Class ; TokenValidator    ; Token validation handler ; Business Logic
-Class ; PermissionChecker ; Permission checker       ; Business Logic
-Class ; PermissionCache   ; In-memory cache          ; Business Logic
-Class ; UserDB            ; User database            ; Data Access
-Class ; PermissionDB      ; Permission database      ; Data Access
-Class ; AuditLog          ; Audit logging service    ; Data Access
 Sequence ; SEQ_002_UserLogin ; Multi-layer user login flow
     Client            ; LoginForm         ; EnterCredentials ; username ; password    ; -           ; @Info    ; User enters credentials
     LoginForm         ; APIGateway        ; Authenticate     ; username ; password    ; token       ; @Info    ; Submit login request

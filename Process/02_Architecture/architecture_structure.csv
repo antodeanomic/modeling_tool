@@ -1,6 +1,0 @@
-# DiagramType: Class Diagram
-# Purpose: High-level architecture structure showing package/component dependencies and relationships
-# Status: PLACEHOLDER - Ready for detailed design
-# Future: Define component boundaries, interfaces, and layer dependencies
-
-ClassDiagram ; ArchitecturePackages ; Package and component structure

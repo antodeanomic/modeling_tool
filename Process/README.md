@@ -1,104 +1,39 @@
 # Process Documentation
 
-This directory contains process documentation, requirements, and design diagrams that define how the system works at multiple levels of abstraction.
+This directory contains requirements and model artifacts used to drive implementation.
 
-## Directory Structure
+## Final Hierarchy
 
-### `/01_System`
-**High-level system diagrams from the user's perspective**
+Each domain uses diagram composition plus reusable definitions:
 
-Contains diagrams showing how users interact with the system and how the system integrates with external components.
+- `01_System/`
+	- `00_Main/` (entrypoint diagrams)
+	- `10_Diagrams/` (composed diagrams)
+	- `20_Definitions/` (reusable classes/actors/packages included by diagrams)
+- `02_Architecture/`
+	- `10_Diagrams/`
+	- `20_Definitions/`
+- `03_Design/`
+	- `10_Diagrams/`
+	- `20_Definitions/`
 
-- **Sequence Diagrams**: User-facing workflows and integration flows
-- **Structure Diagrams**: System components and their relationships
+## Include Workflow
 
-Use these diagrams to understand:
-- What the user sees and does
-- How the system responds
-- External system integration points
+1. Put reusable CSV building blocks in `20_Definitions`.
+2. Put renderable composition diagrams in `10_Diagrams` (and `00_Main` for System entrypoints).
+3. Use relative `Include` rows from diagram CSVs to definition CSVs.
+4. Keep test CSV files unchanged unless explicitly requested.
 
-### `/02_Architecture`
-**Technical architecture and component design**
+## CSV Style
 
-Contains diagrams showing internal component interactions, dependencies, and design structure.
+Diagram CSVs in this hierarchy are kept comment-free. Use `Include` lines first (when needed), then a blank line, then diagram definitions.
 
-- **Sequence Diagrams**: Component-to-component interactions
-- **Structure Diagrams**: Package/component boundaries and dependencies
-- **Legacy Architecture Models**: Individual component designs (csv_parser, renderer, etc.)
+## Configuration and Requirements Files
 
-Use these diagrams to understand:
-- How components interact internally
-- Architectural layers and responsibilities
-- Technical design decisions
-
-### Configuration & Requirements Files
-
-- `_REQUIREMENTS.md` - Customer/functional requirements with traceability
-- `_REQUIREMENTS_FULL.md` - Extended requirements with additional context
-- `traceability.csv` - Requirement-to-implementation mapping
+- `_REQUIREMENTS.md` - customer and functional requirements with traceability
+- `_REQUIREMENTS_FULL.md` - extended requirement context
+- `traceability.csv` - requirement-to-implementation mapping
+- `_ADR.md` - architecture decision index
 - `ui_data.json` - UI configuration and metadata
-- `ai_diagram_filter_config.schema.json` - Future JSON schema for AI-authored problem-focused diagram collections and per-diagram filter settings
-- `ai_diagram_filter_config.example.json` - Example instance of the future AI diagram filter configuration
-
-## Layer-Based Filtering
-
-All sequence diagrams support **layer-based filtering** to control complexity:
-
-**Typical layers:**
-- **UI** - User interface components
-- **API** - API/Gateway layer
-- **Business Logic** - Core processing services
-- **Data Access** - Database and storage
-
-Use the "Display Layers" menu in the diagram viewer to:
-1. Show only specific layers
-2. Hide implementation details
-3. Focus on specific architectural concerns
-
-## Class Diagram Interaction and Routing Notes
-
-- Class diagrams use orthogonal connector routing in production behavior.
-- Dense domain-layer diagrams use larger vertical spacing to reduce connector overlap pressure.
-- Hovering a class object in the viewer highlights related connectors and connector text.
-- Hover mode is intentionally transient (no click-to-pin state in the current implementation).
-
-## Metadata Headers
-
-Each diagram file includes metadata comments to identify and document it:
-
-```csv
-# DiagramType: Sequence | Class | State
-# Purpose: Brief description of what this diagram shows
-# Layers: List of architectural layers (if applicable)
-
-Type;Name;Description;...
-```
-
-This allows tools to:
-- Scan and identify diagram files
-- Extract purpose and scope
-- Verify diagram types
-
-## Adding New Diagrams
-
-When adding diagrams:
-
-1. Choose the appropriate directory:
-   - `/System` for user-facing workflows
-   - `/Architecture` for internal component design
-
-2. Include metadata header with DiagramType and Purpose
-
-3. Assign layers to classes for filtering capability
-
-4. Update the relevant README with description
-
-5. Commit with clear message indicating which section was extended
-
-## Design Principles
-
-1. **Separation of Concerns**: System vs Architecture
-2. **Multi-layer Design**: UI, API, Logic, Data layers
-3. **Complexity Control**: Layer filtering for different audiences
-4. **Documentation**: Self-documenting with headers and comments
-5. **Traceability**: Link diagrams to requirements and user stories
+- `ai_diagram_filter_config.schema.json` - schema for AI-authored diagram collections
+- `ai_diagram_filter_config.example.json` - example configuration

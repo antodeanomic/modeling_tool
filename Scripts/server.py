@@ -47,7 +47,7 @@ def find_csv_files_hierarchical():
                         'csv_id': os.path.join('diagrams', rel_path, file).replace(os.sep, '/').replace('./', '')
                     })
     
-    # Scan Process/ folder to capture System and Architecture hierarchy
+    # Scan Process/ folder to capture System/Architecture/Design hierarchy
     process_dir = os.path.join(repo_root, 'Process')
     if os.path.isdir(process_dir):
         for root, dirs, files in os.walk(process_dir):
@@ -176,7 +176,7 @@ def find_default_csv(csv_files):
         return bool(model.sequences or model.class_diagrams)
 
     preferred_keys = []
-    for suffix in ('/test_notes.csv', '/test_success_note.csv', '/sample_model.csv'):
+    for suffix in ('/system_main.csv', '/test_notes.csv', '/test_success_note.csv', '/sample_model.csv'):
         preferred_keys.extend(key for key in sorted(csv_files) if key.endswith(suffix))
 
     for key in preferred_keys:

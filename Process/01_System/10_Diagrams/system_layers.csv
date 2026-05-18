@@ -1,7 +1,5 @@
-# DiagramType: Class Diagram
-# Purpose: Architectural layers of the system
-# Layers: UI, API, Processing, Storage
-# Status: Layered architecture view
+Include ; ../20_Definitions/actors.csv ; Import reusable actor definitions
+Include ; ../20_Definitions/packages.csv ; Import reusable system package definitions
 
 ClassDiagram ; SystemLayers ; Architectural layers of the system
     User ; UILayer ; --> ; 1 ; 1 ; interacts with ; UI

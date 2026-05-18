@@ -8,18 +8,26 @@ This directory captures the **internal architecture** of the system. Diagrams he
 ## Contents
 
 ### Sequence Diagrams
-- **sequence_parser_flow.csv** - CSV parsing and SVG rendering showing component interactions
+- **10_Diagrams/sequence_parser_flow.csv** - CSV parsing and SVG rendering showing component interactions
 
 ### Structure Diagrams
-- **architecture_structure.csv** - Package/component dependencies and boundaries (PLACEHOLDER)
+- **10_Diagrams/architecture_structure.csv** - Package/component dependencies and boundaries
+- **10_Diagrams/data_model_relationships.csv** - Data model relationship overview
+- **10_Diagrams/parser_to_model.csv** - Parser-to-model dependency view
+- **10_Diagrams/renderer_dependencies.csv** - Renderer dependency map
+- **10_Diagrams/server_dependencies.csv** - Server dependency map
+- **10_Diagrams/test_dependencies.csv** - Test-related dependency map
+- **10_Diagrams/utility_dependencies.csv** - Utility dependency map
 
-### Legacy Architecture Models
-The `architecture/` subdirectory contains class diagrams for individual components:
-- csv_parser.csv - CSV parsing component design
-- svg_renderer.csv - SVG rendering engine design
-- data_model.csv - Core data model classes
-- test_framework.csv - Testing infrastructure design
-- web_server.csv - HTTP server design
+### Reusable Definitions
+Definition CSVs used through `Include` are in `20_Definitions/`:
+- `20_Definitions/csv_parser.csv`
+- `20_Definitions/data_model.csv`
+- `20_Definitions/data_model_component.csv`
+- `20_Definitions/svg_renderer.csv`
+- `20_Definitions/web_server.csv`
+- `20_Definitions/test_framework.csv`
+- `20_Definitions/utilities.csv`
 
 ## Layer Filtering
 Sequence diagrams organize components by architectural layers:

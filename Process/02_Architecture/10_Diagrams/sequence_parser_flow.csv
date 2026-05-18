@@ -1,7 +1,3 @@
-# DiagramType: Sequence
-# Purpose: Complete CSV parsing and SVG rendering flow showing internal component interactions
-# Layers: User, UI, API, Business Logic, Data Access
-
 Class ; Engineer      ; Software engineer  ; User
 Class ; WebUI         ; Web browser        ; UI
 Class ; DiagramViewer ; Diagram viewer app ; UI

@@ -1,7 +1,0 @@
-Include ; svg_renderer.csv ; Import renderer functions
-Include ; data_model.csv   ; Import all model dataclasses
-ClassDiagram ; RendererDependencies ; Renderer reads Model to produce SVG
-    SvgRenderer ; Model       ; ..> ;  ;  ; reads
-    SvgRenderer ; SequenceDef ; ..> ;  ;  ; reads
-    SvgRenderer ; ClassDef    ; ..> ;  ;  ; reads
-    SvgRenderer ; NoteDef     ; ..> ;  ;  ; reads

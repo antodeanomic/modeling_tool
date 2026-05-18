@@ -1,7 +1,5 @@
-# DiagramType: Class Diagram
-# Purpose: Main system components and their responsibilities
-# Layers: UI, API, Processing
-# Status: Core system architecture
+Include ; ../20_Definitions/actors.csv ; Import reusable actor definitions
+Include ; ../20_Definitions/packages.csv ; Import reusable system package definitions
 
 ClassDiagram ; SystemComponents ; Main system components and their responsibilities
     DiagramViewer ; APIGateway ; --> ; 1 ; 1 ; requests diagrams from ; UI

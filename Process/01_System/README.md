@@ -7,12 +7,23 @@ This directory captures how users interact with the system and how the system in
 
 ## Contents
 
+### Main Entry Diagram
+- **00_Main/system_main.csv** - Starting point for navigating system-level diagrams
+
 ### Sequence Diagrams
-- **sequence_user_login.csv** - Authentication flow from user login through permission checking
-- **sequence_data_pipeline.csv** - Data upload process from user submission through indexing
+- **10_Diagrams/sequence_user_login.csv** - Authentication flow from user login through permission checking
+- **10_Diagrams/sequence_data_pipeline.csv** - Data upload process from user submission through indexing
 
 ### Structure Diagrams
-- **system_structure.csv** - High-level system components and relationships (PLACEHOLDER)
+- **10_Diagrams/system_components.csv** - High-level system components and boundaries
+- **10_Diagrams/system_data_flow.csv** - System-level data flow relationships
+- **10_Diagrams/system_layers.csv** - Layered view of user-facing and internal services
+- **10_Diagrams/system_storage.csv** - Storage-related system elements
+- **10_Diagrams/system_user_interaction.csv** - User interaction surface and key touchpoints
+
+### Reusable Definitions
+- **20_Definitions/actors.csv** - Shared actor definitions
+- **20_Definitions/packages.csv** - Shared package/component definitions
 
 ## Layer Filtering
 Sequence diagrams are organized by layers:

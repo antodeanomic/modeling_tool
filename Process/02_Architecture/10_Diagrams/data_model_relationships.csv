@@ -1,9 +1,10 @@
-Include ; ../../data_model.csv                             ; Import all model dataclasses
-Include ; ../../20_Components/10_Parser/csv_parser.csv     ; Import parser functions
-Include ; ../../20_Components/20_Renderer/svg_renderer.csv ; Import renderer functions
-Include ; ../../20_Components/40_WebServer/web_server.csv  ; Import server classes
-Include ; ../40_Testing/test_framework.csv                 ; Import test framework
-Include ; ../50_Utilities/utilities.csv                    ; Import utility classes
+Include ; ../20_Definitions/data_model.csv     ; Import all model dataclasses
+Include ; ../20_Definitions/csv_parser.csv     ; Import parser functions
+Include ; ../20_Definitions/svg_renderer.csv   ; Import renderer functions
+Include ; ../20_Definitions/web_server.csv     ; Import server classes
+Include ; ../20_Definitions/test_framework.csv ; Import test framework
+Include ; ../20_Definitions/utilities.csv      ; Import utility classes
+
 ClassDiagram ; DataModelRelationships ; Relationships between model dataclasses
     Model ; ClassDef        ; ◇-- ; 1 ; 0.* ; contains
     Model ; SequenceDef     ; ◇-- ; 1 ; 0.* ; contains
