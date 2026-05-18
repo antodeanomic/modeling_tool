@@ -333,8 +333,8 @@
             font-family: Consolas, "Courier New", monospace;
             font-size: 13px;
             line-height: 1.4;
-            color: #1f2937;
-            background: white;
+            color: transparent;
+            background: transparent;
             overflow: auto;
             white-space: pre;
             word-wrap: normal;
@@ -1709,11 +1709,184 @@
             updateEditorSaveButtonState();
         }
 
+        // Language-specific syntax color palettes (extensible for future language support)
+        // Light mode colors optimized for white backgrounds (VS Code Light+ theme)
+        // Key artifacts (ClassDiagram, Sequence) use vibrant colors for maximum visibility
+        const languagePalettes = {
+            'C++': {
+                'Class': '#0e707e',             // Dark Cyan (subdued)
+                'Function': '#0000ff',          // Dark Blue (function name - high contrast)
+                'Param': '#267cb9',             // Medium Blue (parameter - good contrast)
+                'ReturnVal': '#0e707e',         // Dark Cyan (return type, same as Class)
+                'MemberVar': '#0971f1',         // Blue variant (member variable)
+                'State': '#0971f1',             // Blue (keyword-like)
+                'Event': '#d65000',             // Dark Orange (special event - high contrast)
+                'StateMachine': '#a31515',      // Dark Red (structural)
+                'Sequence': '#7c3aed',          // Bright Purple (KEY ARTIFACT - pops!)
+                'ClassDiagram': '#d32f2f',      // Bright Red (KEY ARTIFACT - pops!)
+                'SequenceDiagram': '#7c3aed',   // Bright Purple (diagram-specific, matches Sequence)
+                'UserStorySequence': '#7c3aed', // Bright Purple (diagram-specific)
+                'Include': '#646695',           // Gray (disabled/comment-like)
+                'Note': '#498400',              // Dark Lime (special markup)
+            },
+            'Python': {
+                'Class': '#0e707e',
+                'Function': '#0000ff',
+                'Param': '#267cb9',
+                'ReturnVal': '#0e707e',
+                'MemberVar': '#0971f1',
+                'State': '#0971f1',
+                'Event': '#d65000',
+                'StateMachine': '#a31515',
+                'Sequence': '#7c3aed',
+                'ClassDiagram': '#d32f2f',
+                'SequenceDiagram': '#7c3aed',
+                'UserStorySequence': '#7c3aed',
+                'Include': '#646695',
+                'Note': '#498400',
+            },
+            'Java': {
+                'Class': '#0e707e',
+                'Function': '#0000ff',
+                'Param': '#267cb9',
+                'ReturnVal': '#0e707e',
+                'MemberVar': '#0971f1',
+                'State': '#0971f1',
+                'Event': '#d65000',
+                'StateMachine': '#a31515',
+                'Sequence': '#7c3aed',
+                'ClassDiagram': '#d32f2f',
+                'SequenceDiagram': '#7c3aed',
+                'UserStorySequence': '#7c3aed',
+                'Include': '#646695',
+                'Note': '#498400',
+            },
+        };
+
+        // Current active language (can be changed dynamically in the future)
+        let currentSyntaxLanguage = 'C++';
+
         function highlightCsvSyntax(text) {
-            // Syntax highlighting disabled - creates visual clutter without adding value
             const highlightElement = document.getElementById('csvEditorHighlight');
-            highlightElement.innerHTML = '';
-            highlightElement.style.display = 'none';
+            if (!text) {
+                highlightElement.innerHTML = '';
+                return;
+            }
+
+            const lines = text.split('\n');
+            
+            // Get active language palette
+            const semanticColors = languagePalettes[currentSyntaxLanguage] || languagePalettes['C++'];
+
+            // Column position colors for table entries (Sequence, ClassDiagram, etc.)
+            const tableColumnColors = [
+                '#0e707e',  // Column 0: row type color (semantic)
+                '#267cb9',  // Column 1: blue (name/id)
+                '#097969',  // Column 2: teal (description)
+                '#0971f1',  // Column 3: blue (data/metadata)
+                '#d65000',  // Column 4: orange (additional data)
+                '#a31515',  // Column 5: red (more data)
+                '#498400',  // Column 6: lime
+                '#646695',  // Column 7: gray
+            ];
+
+            // Column position colors for array entries (single/standalone rows)
+            const arrayColumnColors = [
+                '#000000',  // Column 0: black (row type/first field)
+                '#267cb9',  // Column 1: blue (name/id)
+                '#d65000',  // Column 2: orange (description)
+                '#0971f1',  // Column 3: blue (data/metadata)
+                '#097969',  // Column 4: teal (additional data)
+                '#498400',  // Column 5: lime (more data)
+                '#ec4899',  // Column 6: pink
+                '#0e707e',  // Column 7: dark cyan
+            ];
+
+            // Pre-analyze which rows are part of table groups vs standalone arrays
+            const isTableRow = new Array(lines.length).fill(false);
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const indent = line.match(/^(\s*)/)[1].length;
+                
+                // A row is "table-like" if it's followed by indented rows (has children)
+                // or if it's indented and part of a parent's children group
+                if (i + 1 < lines.length) {
+                    const nextLine = lines[i + 1];
+                    const nextIndent = nextLine.match(/^(\s*)/)[1].length;
+                    if (nextIndent > indent) {
+                        isTableRow[i] = true;  // This row has children
+                    }
+                }
+                // If this row is indented, it's part of a table group
+                if (indent > 0) {
+                    isTableRow[i] = true;
+                }
+            }
+
+            const colored = lines.map((line, lineIdx) => {
+                // Preserve empty lines
+                if (!line.trim()) return '\n';
+
+                const decorColor = '#f97316';     // Orange for decorators
+                const connColor = '#10b981';      // Green for connectors
+                const commentColor = '#6b7280';   // Gray for comments
+                const sepColor = '#94a3b8';       // Light gray for semicolons
+
+                function colorizeNoteTokens(segment, defaultColor, defaultWeight = 'normal') {
+                    return segment.split(/([@](?:Info|Warning|Error|Success))/g).map(part => {
+                        if (!part) return '';
+                        if (part.startsWith('@')) {
+                            return `<span style="color: ${decorColor}; font-weight: bold;">${part}</span>`;
+                        }
+                        return `<span style="color: ${defaultColor}; font-weight: ${defaultWeight};">${part}</span>`;
+                    }).join('');
+                }
+
+                // Check for comment lines
+                if (line.trimStart().startsWith('#')) {
+                    return `<span style="color: ${commentColor};">${line}</span>\n`;
+                }
+
+                const parts = line.split(/(;)/);
+                
+                if (parts.length === 1) {
+                    return colorizeNoteTokens(line, '#6b7280') + '\n';
+                }
+
+                const firstField = parts[0].trim();
+                const isArray = !isTableRow[lineIdx];  // Standalone row = array entry
+                let columnIdx = 0;
+
+                return parts.map((part, i) => {
+                    if (part === ';') return `<span style="color: ${sepColor};">${part}</span>`;
+                    if (!part) return '';
+
+                    let color = '#6b7280';
+                    let fontWeight = 'normal';
+
+                    if (isArray) {
+                        // Array entry: use array column position colors
+                        color = arrayColumnColors[columnIdx % arrayColumnColors.length];
+                        if (columnIdx === 0) fontWeight = '600';
+                    } else {
+                        // Table row: use table column colors (per-column, can repeat row-type colors)
+                        if (columnIdx === 0) {
+                            // First column: use row type semantic color
+                            color = semanticColors[firstField] || tableColumnColors[0];
+                            fontWeight = '600';
+                        } else {
+                            // Subsequent columns: use table column colors
+                            color = tableColumnColors[columnIdx % tableColumnColors.length];
+                        }
+                    }
+
+                    columnIdx++;
+                    return colorizeNoteTokens(part, color, fontWeight);
+                }).join('') + '\n';
+            }).join('');
+
+            highlightElement.innerHTML = colored;
+            highlightElement.style.display = 'block';
         }
 
         function syncHighlightScroll() {
@@ -2148,28 +2321,29 @@
                 const content = match ? match[2] : line;
                 const fields = parseSemicolonFields(content);
                 const kind = classifySequenceRow(fields);
-                if (!widthsByKind[kind]) {
-                    widthsByKind[kind] = { text: [], note: [] };
+                // Keep alignment local to hierarchy depth so parent and nested rows
+                // do not force each other's column widths.
+                const kindKey = kind + '|' + leading;
+                if (!widthsByKind[kindKey]) {
+                    widthsByKind[kindKey] = [];
                 }
-                const widths = widthsByKind[kind];
+                const widths = widthsByKind[kindKey];
 
                 fields.forEach((field, idx) => {
                     if (idx === fields.length - 1) return;
-                    const bucket = isNoteToken(field) ? widths.note : widths.text;
-                    if (!bucket[idx]) bucket[idx] = 0;
-                    bucket[idx] = Math.max(bucket[idx], serializedFieldWidth(field));
+                    if (!widths[idx]) widths[idx] = 0;
+                    widths[idx] = Math.max(widths[idx], serializedFieldWidth(field));
                 });
 
-                parsed.push({ leading, fields, kind });
+                parsed.push({ leading, fields, kindKey });
             });
 
-            return parsed.map(({ leading, fields, kind }) => {
-                const widths = widthsByKind[kind] || { text: [], note: [] };
+            return parsed.map(({ leading, fields, kindKey }) => {
+                const widths = widthsByKind[kindKey] || [];
                 const formatted = fields.map((field, idx) => {
                     const serialized = encodeCsvField(field);
                     if (idx === fields.length - 1) return serialized;
-                    const bucket = isNoteToken(field) ? widths.note : widths.text;
-                    const width = bucket[idx] || serialized.length;
+                    const width = widths[idx] || serialized.length;
                     return serialized.padEnd(width);
                 });
                 return leading + formatted.join(' ; ');
@@ -2184,7 +2358,7 @@
             const match = line.match(/^(\s*)(.*)$/);
             const leading = match ? match[1] : '';
             const content = match ? match[2] : line;
-            return leading + joinCsvFields(parseSemicolonFields(content), ';');
+            return leading + joinCsvFields(parseSemicolonFields(content), ' ; ');
         }
 
         function normalizeDelimitedLine(line) {
@@ -2205,19 +2379,33 @@
             return csvText.split('\n').map(normalizeDelimitedLine).join('\n');
         }
 
+        function getEnclosingTopLevelType(lines, rowIndex) {
+            for (let j = rowIndex; j >= 0; j--) {
+                const line = lines[j];
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) {
+                    continue;
+                }
+                if (isTypeNameDescriptionHeader(trimmed)) {
+                    continue;
+                }
+                if (!isIndentedRow(line)) {
+                    return getTypeName(line);
+                }
+            }
+            return '';
+        }
+
         function formatCsvColumnar(csvText) {
             // Convert from condensed to columnar format with aligned columns
             // Respects hierarchy: each group (header + rows) formatted independently
             const lines = csvText.split('\n');
             const result = [];
             let i = 0;
-            let currentTopLevelType = '';
             
             while (i < lines.length) {
                 const line = lines[i];
-                if (!isIndentedRow(line) && line.trim() && !line.trim().startsWith('#')) {
-                    currentTopLevelType = getTypeName(line);
-                }
+                const enclosingTopLevelType = getEnclosingTopLevelType(lines, i);
                 
                 // Pass through comments and empty lines
                 if (line.trim().startsWith('#') || !line.trim()) {
@@ -2234,7 +2422,7 @@
 
                 // In Sequence blocks, align mixed row shapes together so source/target/function
                 // columns remain visually consistent across the whole sequence.
-                if (currentTopLevelType === 'Sequence' && isIndentedRow(line)) {
+                if (enclosingTopLevelType === 'Sequence' && isIndentedRow(line)) {
                     const sequenceRows = [];
                     while (i < lines.length) {
                         const candidate = lines[i];
@@ -2256,6 +2444,7 @@
                 // are never padded based on longer description rows from a different row shape.
                 const group = [line];
                 const fieldCount = getFieldCount(line);
+                const baseIndent = (line.match(/^(\s*)/) || ['', ''])[1];
                 i++;
 
                 while (i < lines.length) {
@@ -2268,6 +2457,10 @@
                         i++; // skip header mid-block
                         continue;
                     }
+                    const nextIndent = (nextLine.match(/^(\s*)/) || ['', ''])[1];
+                    if (nextIndent !== baseIndent) {
+                        break;
+                    }
                     if (getFieldCount(nextLine) !== fieldCount) {
                         break;
                     }
@@ -2275,7 +2468,7 @@
                     i++;
                 }
 
-                const keepTableFormat = getTypeName(group[0]) === 'ClassDiagram';
+                const keepTableFormat = ['ClassDiagram', 'Class', 'Function'].includes(getTypeName(group[0]));
 
                 // Keep single-row items condensed except ClassDiagram rows and
                 // sequence-step rows, which should retain table-style separators.
@@ -2311,7 +2504,7 @@
             return parsedLines.map(({ leading, fields }) => {
                 const formatted = fields.map((field, fieldIdx) => {
                     const serialized = encodeCsvField(field);
-                    if (fieldIdx === fields.length - 1 || isNoteTypeField(field)) return serialized;
+                    if (fieldIdx === fields.length - 1) return serialized;
                     return serialized.padEnd(columnWidths[fieldIdx] || 0);
                 });
                 return leading + formatted.join(' ; ');

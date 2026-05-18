@@ -133,6 +133,8 @@ def run_formatter_test() -> int:
     7. Condensing a formatted CSV strips field padding while keeping indentation.
     8. Round-trip (format then condense) is semantically equivalent to the original
          minus the header row.
+        9. Format button toggle contract: click once condenses, click twice re-applies
+            columnar formatting with hierarchy-aware sequence alignment.
     """
 
     import re
@@ -149,7 +151,7 @@ def run_formatter_test() -> int:
     def condense_line(line):
         m = re.match(r'^(\s*)(.*)', line)
         leading, content = m.group(1), m.group(2)
-        return leading + ';'.join(f.strip() for f in content.split(';'))
+        return leading + ' ; '.join(f.strip() for f in content.split(';'))
 
     def get_type_name(line):
         return line.lstrip().split(';')[0].strip()
@@ -165,6 +167,18 @@ def run_formatter_test() -> int:
 
     def is_note_type_field(field):
         return field in {'@Info', '@Warning', '@Error', '@Success'}
+
+    def get_enclosing_top_level_type(lines, row_index):
+        for j in range(row_index, -1, -1):
+            line = lines[j]
+            trimmed = line.strip()
+            if not trimmed or trimmed.startswith('#'):
+                continue
+            if is_header(trimmed):
+                continue
+            if not is_indented_row(line):
+                return get_type_name(line)
+        return ''
 
     def format_group(group):
         parsed = []
@@ -196,31 +210,29 @@ def run_formatter_test() -> int:
             leading, content = m.group(1), m.group(2)
             fields = [f.strip() for f in content.split(';')]
             kind = classify_sequence_row(fields)
-            if kind not in widths_by_kind:
-                widths_by_kind[kind] = {'text': [], 'note': []}
-            widths = widths_by_kind[kind]
+            kind_key = f"{kind}|{leading}"
+            if kind_key not in widths_by_kind:
+                widths_by_kind[kind_key] = []
+            widths = widths_by_kind[kind_key]
 
             for idx, f in enumerate(fields):
                 if idx == len(fields) - 1:
                     continue
-                bucket_name = 'note' if is_note_token(f) else 'text'
-                bucket = widths[bucket_name]
-                if idx >= len(bucket):
-                    bucket.extend([0] * (idx + 1 - len(bucket)))
-                bucket[idx] = max(bucket[idx], len(f))
+                if idx >= len(widths):
+                    widths.extend([0] * (idx + 1 - len(widths)))
+                widths[idx] = max(widths[idx], len(f))
 
-            parsed.append((leading, fields, kind))
+            parsed.append((leading, fields, kind_key))
 
         result = []
-        for leading, fields, kind in parsed:
-            widths = widths_by_kind[kind]
+        for leading, fields, kind_key in parsed:
+            widths = widths_by_kind[kind_key]
             parts = []
             for idx, f in enumerate(fields):
                 if idx == len(fields) - 1:
                     parts.append(f)
                     continue
-                bucket = widths['note'] if is_note_token(f) else widths['text']
-                width = bucket[idx] if idx < len(bucket) and bucket[idx] > 0 else len(f)
+                width = widths[idx] if idx < len(widths) and widths[idx] > 0 else len(f)
                 parts.append(f.ljust(width))
             result.append(leading + ' ; '.join(parts))
         return result
@@ -229,11 +241,9 @@ def run_formatter_test() -> int:
         lines = text.split('\n')
         result = []
         i = 0
-        current_top_level_type = ''
         while i < len(lines):
             line = lines[i]
-            if line.strip() and not line.strip().startswith('#') and not is_indented_row(line):
-                current_top_level_type = get_type_name(line)
+            enclosing_top_level_type = get_enclosing_top_level_type(lines, i)
             if line.strip().startswith('#') or not line.strip():
                 result.append(line)
                 i += 1
@@ -242,7 +252,7 @@ def run_formatter_test() -> int:
                 i += 1
                 continue
 
-            if current_top_level_type == 'Sequence' and is_indented_row(line):
+            if enclosing_top_level_type == 'Sequence' and is_indented_row(line):
                 sequence_rows = []
                 while i < len(lines):
                     nxt = lines[i]
@@ -258,6 +268,7 @@ def run_formatter_test() -> int:
 
             group = [line]
             fc = get_field_count(line)
+            base_indent = line[: len(line) - len(line.lstrip(' '))]
             i += 1
             while i < len(lines):
                 nxt = lines[i]
@@ -266,11 +277,14 @@ def run_formatter_test() -> int:
                 if is_header(nxt.strip()):
                     i += 1
                     continue
+                next_indent = nxt[: len(nxt) - len(nxt.lstrip(' '))]
+                if next_indent != base_indent:
+                    break
                 if get_field_count(nxt) != fc:
                     break
                 group.append(nxt)
                 i += 1
-            keep_table_format = get_type_name(group[0]) == 'ClassDiagram'
+            keep_table_format = get_type_name(group[0]) in {'ClassDiagram', 'Class', 'Function'}
             if len(group) == 1 and not keep_table_format:
                 result.append(condense_line(group[0]))
             else:
@@ -292,6 +306,15 @@ def run_formatter_test() -> int:
                 continue  # drop header
             out.append(leading + ';'.join(f.strip() for f in content.split(';')))
         return '\n'.join(out)
+
+    def is_columnar_format(text):
+        return any(' ; ' in line for line in text.split('\n'))
+
+    def toggle_csv_format(text):
+        current = text
+        if is_columnar_format(current):
+            return condense_csv(current)
+        return format_csv(current)
 
     # --- test fixture ---------------------------------------------------------
 
@@ -406,6 +429,71 @@ def run_formatter_test() -> int:
         print("FAIL [rule 8]: round-trip mismatch:")
         print("  expected:", repr(original_no_header.strip()))
         print("  got:     ", repr(condensed_back.strip()))
+        return 1
+
+    # Rule 8b: Class/Function rows do not inherit excessive padding from other hierarchy levels.
+    compact_fixture = (
+        "Class;Caller;External caller\n"
+        "    Function;InitMsg;Trigger initialization\n"
+        "        ReturnVal;initResult;Initialization result\n"
+        "Class;Obj1;First object\n"
+        "    Function;Msg1;Outer message container\n"
+        "Class;Obj2;Second object\n"
+    )
+    compact_formatted = format_csv(compact_fixture)
+    compact_lines = [l for l in compact_formatted.split('\n') if l.strip()]
+
+    expected_compact_lines = {
+        "Class ; Caller ; External caller",
+        "Class ; Obj1 ; First object",
+        "Class ; Obj2 ; Second object",
+        "    Function ; InitMsg ; Trigger initialization",
+        "    Function ; Msg1 ; Outer message container",
+    }
+    missing_lines = [l for l in expected_compact_lines if l not in compact_lines]
+    if missing_lines:
+        print("FAIL [rule 8b]: compact Class/Function lines missing after formatting")
+        print("  missing:", missing_lines)
+        print("  got:    ", compact_lines)
+        return 1
+
+    # Rule 9: format button toggle contract (click once condense, click twice columnar)
+    toggle_fixture = (
+        "Sequence ; SoftReq_TEST_MSG_NESTING ; Multi-row message nesting with spanning brackets\n"
+        "    Caller ; Obj1 ; Msg1  ; result1\n"
+        "        Obj1   ; Obj1 ; Msg1a ; result1a\n"
+        "        Obj1   ; Obj2 ; Msg1b ; data ; response1b\n"
+    )
+    after_first_click = toggle_csv_format(toggle_fixture)
+    after_second_click = toggle_csv_format(after_first_click)
+
+    first_click_lines = [l for l in after_first_click.split('\n') if l.strip()]
+    second_click_lines = [l for l in after_second_click.split('\n') if l.strip()]
+
+    if any(' ; ' in l for l in first_click_lines):
+        print("FAIL [rule 9]: first toggle click should condense all sequence rows")
+        print("  got:", first_click_lines)
+        return 1
+
+    expected_second_click_tail = [
+        "    Caller ; Obj1 ; Msg1 ; result1",
+        "        Obj1 ; Obj1 ; Msg1a ; result1a",
+        "        Obj1 ; Obj2 ; Msg1b ; data ; response1b",
+    ]
+    if second_click_lines[-3:] != expected_second_click_tail:
+        print("FAIL [rule 9]: second toggle click did not restore expected hierarchy-aware columnar formatting")
+        print("  expected:", expected_second_click_tail)
+        print("  got:     ", second_click_lines[-3:])
+        return 1
+
+    parent_row = second_click_lines[-3]
+    nested_row = second_click_lines[-2]
+    parent_first_sep = parent_row.find(' ; ')
+    nested_first_sep = nested_row.find(' ; ')
+    if parent_first_sep == nested_first_sep:
+        print("FAIL [rule 9]: parent and nested sequence rows were aligned to the same hierarchy column")
+        print("  parent:", parent_row)
+        print("  nested:", nested_row)
         return 1
 
     print("OK: CSV formatter contract: header removal, single-row ClassDiagram table format, "
