@@ -242,11 +242,27 @@ The **Format** button in the CSV editor must toggle between columnar-aligned and
 - Each block header (e.g. `ClassDiagram`, `Sequence`) starts an independent formatting table — column widths are computed per-block, not across blocks.
 - Indented child rows are never grouped with their parent header row for column-width computation.
 
+### Column-Width Grouping Rules
+
+When expanding to columnar format, the formatter groups contiguous rows into a shared column-width table. The grouping rules are:
+
+1. **Same field count** — rows with a different number of `;`-separated fields always start a new group.
+2. **Same indentation level** — indented child rows are never grouped with non-indented rows (or with rows at a different indent depth).
+3. **No intervening blank lines or comment lines** — a blank line or `#` comment always ends the current group.
+4. **Known keyword type isolation** — when the first field is a *known CSV keyword* (see list below), rows are only grouped with other rows of the **same** keyword type.  Example: `StateMachine` and `State` rows are never merged into one table even when contiguous, because `State` would then be padded to the width of `StateMachine`.
+5. **Connector row exception** — rows whose first field is *not* a known keyword (i.e. a class-instance name used as a connector source, such as `User`, `UILayer`) are grouped purely by field count.  This ensures all connector rows in a `ClassDiagram` block share one aligned column-width table regardless of their differing source-class names.
+
+**Known CSV keywords** (subject to rule 4):
+`Class`, `ClassDiagram`, `Function`, `Param`, `ReturnVal`, `MemberVar`, `State`, `StateMachine`, `Event`, `Sequence`, `SequenceDiagram`, `UserStorySequence`, `Include`, `Note`
+
 ### Acceptance Criteria
 1. A condensed CSV (`;` only) produces columnar-aligned output after one Format click.
 2. A columnar CSV (` ; ` separators) produces condensed output after one Format click.
 3. Clicking Format twice on the same content returns it to the original format (round-trip stable).
 4. A `Sequence` header row and its indented step rows are formatted as independent tables — the step columns are not padded to the header's field widths.
+5. `StateMachine` and `State` rows that are contiguous are formatted as **separate** tables — `State` is not padded to the width of `StateMachine`.
+6. All connector rows in a `ClassDiagram` block (e.g. `User;UILayer;-->;...`, `UILayer;APISLayer;-->;...`) are formatted as a **single** shared column-width table, aligned across all connector rows regardless of differing source-class names.
+7. Every row (including single-row groups such as a lone `Class` or `ClassDiagram` header) receives ` ; ` separators when expanding — no row is left in condensed form after an expand operation.
 
 ---
 

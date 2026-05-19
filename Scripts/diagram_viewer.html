@@ -1709,54 +1709,57 @@
             updateEditorSaveButtonState();
         }
 
+        // Each CSV keyword must have a unique colour so the type column is
+        // instantly distinguishable at a glance. No two entries may share the
+        // same hex value within a palette.
         const languagePalettes = {
             'C++': {
-                'Class': '#0e707e',
-                'Function': '#0000ff',
-                'Param': '#267cb9',
-                'ReturnVal': '#0e707e',
-                'MemberVar': '#0971f1',
-                'State': '#0971f1',
-                'Event': '#d65000',
-                'StateMachine': '#a31515',
-                'Sequence': '#7c3aed',
-                'ClassDiagram': '#d32f2f',
-                'SequenceDiagram': '#7c3aed',
-                'UserStorySequence': '#7c3aed',
-                'Include': '#646695',
-                'Note': '#498400',
+                'Class':              '#0e707e',  // dark teal
+                'Function':           '#0000ff',  // pure blue
+                'Param':              '#267cb9',  // steel blue
+                'ReturnVal':          '#c65d00',  // amber        (was duplicate of Class)
+                'MemberVar':          '#0971f1',  // bright blue
+                'State':              '#795548',  // warm brown   (was dark green #2e7d32, too close to Class)
+                'Event':              '#e65100',  // deep orange
+                'StateMachine':       '#a31515',  // dark red
+                'Sequence':           '#7c3aed',  // vivid purple
+                'ClassDiagram':       '#d32f2f',  // crimson
+                'SequenceDiagram':    '#6a1b9a',  // dark purple  (was duplicate of Sequence)
+                'UserStorySequence':  '#00838f',  // dark cyan    (was duplicate of Sequence)
+                'Include':            '#546e7a',  // blue-grey
+                'Note':               '#498400',  // olive green
             },
             'Python': {
-                'Class': '#0e707e',
-                'Function': '#0000ff',
-                'Param': '#267cb9',
-                'ReturnVal': '#0e707e',
-                'MemberVar': '#0971f1',
-                'State': '#0971f1',
-                'Event': '#d65000',
-                'StateMachine': '#a31515',
-                'Sequence': '#7c3aed',
-                'ClassDiagram': '#d32f2f',
-                'SequenceDiagram': '#7c3aed',
-                'UserStorySequence': '#7c3aed',
-                'Include': '#646695',
-                'Note': '#498400',
+                'Class':              '#0e707e',
+                'Function':           '#0000ff',
+                'Param':              '#267cb9',
+                'ReturnVal':          '#c65d00',
+                'MemberVar':          '#0971f1',
+                'State':              '#795548',  // warm brown
+                'Event':              '#e65100',
+                'StateMachine':       '#a31515',
+                'Sequence':           '#7c3aed',
+                'ClassDiagram':       '#d32f2f',
+                'SequenceDiagram':    '#6a1b9a',
+                'UserStorySequence':  '#00838f',
+                'Include':            '#546e7a',
+                'Note':               '#498400',
             },
             'Java': {
-                'Class': '#0e707e',
-                'Function': '#0000ff',
-                'Param': '#267cb9',
-                'ReturnVal': '#0e707e',
-                'MemberVar': '#0971f1',
-                'State': '#0971f1',
-                'Event': '#d65000',
-                'StateMachine': '#a31515',
-                'Sequence': '#7c3aed',
-                'ClassDiagram': '#d32f2f',
-                'SequenceDiagram': '#7c3aed',
-                'UserStorySequence': '#7c3aed',
-                'Include': '#646695',
-                'Note': '#498400',
+                'Class':              '#0e707e',
+                'Function':           '#0000ff',
+                'Param':              '#267cb9',
+                'ReturnVal':          '#c65d00',
+                'MemberVar':          '#0971f1',
+                'State':              '#795548',  // warm brown
+                'Event':              '#e65100',
+                'StateMachine':       '#a31515',
+                'Sequence':           '#7c3aed',
+                'ClassDiagram':       '#d32f2f',
+                'SequenceDiagram':    '#6a1b9a',
+                'UserStorySequence':  '#00838f',
+                'Include':            '#546e7a',
+                'Note':               '#498400',
             },
         };
 
@@ -1778,11 +1781,11 @@
             const tableColumnColors = [
                 '#0e707e',  // Column 0: row type color (semantic)
                 '#267cb9',  // Column 1: blue (name/id)
-                '#097969',  // Column 2: teal (description)
-                '#0971f1',  // Column 3: blue (data/metadata)
+                '#5c6bc0',  // Column 2: indigo (description)  — was teal #097969
+                '#0971f1',  // Column 3: bright blue (data/metadata)
                 '#d65000',  // Column 4: orange (additional data)
                 '#a31515',  // Column 5: red (more data)
-                '#498400',  // Column 6: lime
+                '#546e7a',  // Column 6: blue-grey
                 '#646695',  // Column 7: gray
             ];
 
@@ -1791,9 +1794,9 @@
                 '#000000',  // Column 0: black (row type/first field)
                 '#267cb9',  // Column 1: blue (name/id)
                 '#d65000',  // Column 2: orange (description)
-                '#0971f1',  // Column 3: blue (data/metadata)
-                '#097969',  // Column 4: teal (additional data)
-                '#498400',  // Column 5: lime (more data)
+                '#0971f1',  // Column 3: bright blue (data/metadata)
+                '#ad1457',  // Column 4: dark pink  — was teal #097969
+                '#795548',  // Column 5: brown (more data)  — was lime #498400
                 '#ec4899',  // Column 6: pink
                 '#0e707e',  // Column 7: dark cyan
             ];
@@ -2438,10 +2441,22 @@
                     continue;
                 }
 
-                // Group contiguous rows with the same field count so connector arrow columns
-                // are never padded based on longer description rows from a different row shape.
+                // Group contiguous rows with the same field count.
+                // For known CSV keyword types (Class, State, StateMachine, etc.) also
+                // require matching keyword types so e.g. StateMachine and State rows are
+                // never padded against each other.
+                // Connector rows (source-class names as first field) are NOT known keywords
+                // and continue to be grouped purely by field count so arrow columns align.
+                const knownKeywordTypes = new Set([
+                    'Class', 'ClassDiagram', 'Function', 'Param', 'ReturnVal',
+                    'MemberVar', 'State', 'StateMachine', 'Event',
+                    'Sequence', 'SequenceDiagram', 'UserStorySequence',
+                    'Include', 'Note',
+                ]);
                 const group = [line];
                 const fieldCount = getFieldCount(line);
+                const groupKeyword = getTypeName(line);
+                const groupIsKnown = knownKeywordTypes.has(groupKeyword);
                 i++;
 
                 while (i < lines.length) {
@@ -2462,19 +2477,19 @@
                     if (isIndentedRow(nextLine) !== isIndentedRow(group[0])) {
                         break;
                     }
+                    // For known keyword types, don't mix different types (e.g. StateMachine
+                    // and State). Connector rows (unknown first-field names) ignore this
+                    // rule so all connector rows stay in one aligned column-width table.
+                    if (groupIsKnown && getTypeName(nextLine) !== groupKeyword) {
+                        break;
+                    }
                     group.push(nextLine);
                     i++;
                 }
 
-                const keepTableFormat = ['ClassDiagram', 'Sequence'].includes(getTypeName(group[0]));
-
-                // Keep single-row items condensed except block headers (ClassDiagram, Sequence)
-                // and sequence-step rows, which should retain table-style separators.
-                if (group.length === 1 && !keepTableFormat) {
-                    result.push(toCondensedLine(group[0]));
-                } else {
-                    result.push(...formatGroupWithIndentation(group));
-                }
+                // Always use table-style separators when expanding to columnar
+                // format — every row gets ' ; ' regardless of group size.
+                result.push(...formatGroupWithIndentation(group));
             }
             
             return result.join('\n');
