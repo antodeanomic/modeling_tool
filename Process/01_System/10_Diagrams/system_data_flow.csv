@@ -1,9 +1,9 @@
-Include ; ../20_Definitions/actors.csv ; Import reusable actor definitions
-Include ; ../20_Definitions/packages.csv ; Import reusable system package definitions
+Include;../20_Definitions/actors.csv;Import reusable actor definitions
+Include;../20_Definitions/packages.csv;Import reusable system package definitions
 
-ClassDiagram ; DataFlow ; How data flows through the system
-    CsvFile ; CsvParser ; --> ; 1 ; 1 ; input to ; Storage
-    CsvParser ; DiagramModel ; ◆-- ; 1 ; 1 ; produces ; Processing
-    DiagramModel ; SvgRenderer ; ◆-- ; 1 ; 0.* ; input to ; Processing
-    SvgRenderer ; WebBrowser ; --> ; 1 ; 1 ; displays in ; UI
-    WebBrowser ; User ; --> ; 1 ; 1 ; viewed by ; UI
+ClassDiagram;DataFlow;How data flows through the system
+    CsvFile;CsvParser;-->;1;1;input to;Storage
+    CsvParser;DiagramModel;◆--;1;1;produces;Processing
+    DiagramModel;SvgRenderer;◆--;1;0.*;input to;Processing
+    SvgRenderer;WebBrowser;-->;1;1;displays in;UI
+    WebBrowser;User;-->;1;1;viewed by;UI

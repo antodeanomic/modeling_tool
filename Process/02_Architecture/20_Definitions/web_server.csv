@@ -1,34 +1,34 @@
-Class ; DiagramHandler ; HTTP request handler extending SimpleHTTPRequestHandler — serves diagrams and API endpoints
-    Function ; +do_GET                  ; Handle all GET requests and route to appropriate handler
-        Param ; self         ; Handler instance
-    Function ; +handle_diagram_request  ; Generate and return an SVG diagram from query parameters
-        Param ; self         ; Handler instance
-        Param ; query_string ; URL query string with csv/sequence/verbosity/lanes params
-    Function ; +handle_csvs_request     ; Return available CSV files as JSON
-        Param ; self         ; Handler instance
-    Function ; +handle_lanes_request    ; Return available lanes and sequences and verbosity levels as JSON
-        Param ; self         ; Handler instance
-    Function ; +log_message             ; Suppress default HTTP logging (no-op override)
-        Param ; self         ; Handler instance
-        Param ; format       ; Log format string
-        Param ; *args        ; Format arguments
-Class ; WebServer      ; Module-level server functions in server.py
-    MemberVar ; CSV_FILES   ; Dict mapping CSV filename to absolute file path
-    MemberVar ; DEFAULT_CSV ; Default CSV filename selected at startup
-    MemberVar ; HTML_PATH   ; Absolute path to diagram_viewer.html
-    Function ; +find_csv_files          ; Search common locations for all CSV files relative to script
-        ReturnVal ; csv_files    ; Dict mapping filename to absolute path
-    Function ; +find_default_csv        ; Choose the default CSV to load from available files
-        Param ; csv_files    ; Dict of available CSV files
-        ReturnVal ; default_name ; Default CSV filename
-    Function ; +find_html_file          ; Search for diagram_viewer.html in known locations
-        ReturnVal ; html_path    ; Absolute path to the HTML viewer file
-    Function ; +load_model              ; Load and parse a Model from a CSV file by name
-        Param ; csv_name     ; CSV filename (defaults to DEFAULT_CSV)
-        ReturnVal ; model        ; Parsed Model object
-    Function ; +load_model_and_sequence ; Load model and specific sequence from CSV (fresh parse each request)
-        Param ; csv_name     ; CSV filename
-        Param ; sequence_id  ; Sequence ID to retrieve
-        ReturnVal ; result       ; Tuple of (Model and SequenceDef)
-    Function ; +run_server              ; Start the HTTP server on the given port
-        Param ; port         ; Port number (default 8000)
+Class;DiagramHandler;HTTP request handler extending SimpleHTTPRequestHandler — serves diagrams and API endpoints
+    Function;+do_GET;Handle all GET requests and route to appropriate handler
+        Param;self;Handler instance
+    Function;+handle_diagram_request;Generate and return an SVG diagram from query parameters
+        Param;self;Handler instance
+        Param;query_string;URL query string with csv/sequence/verbosity/lanes params
+    Function;+handle_csvs_request;Return available CSV files as JSON
+        Param;self;Handler instance
+    Function;+handle_lanes_request;Return available lanes and sequences and verbosity levels as JSON
+        Param;self;Handler instance
+    Function;+log_message;Suppress default HTTP logging (no-op override)
+        Param;self;Handler instance
+        Param;format;Log format string
+        Param;*args;Format arguments
+Class;WebServer;Module-level server functions in server.py
+    MemberVar;CSV_FILES;Dict mapping CSV filename to absolute file path
+    MemberVar;DEFAULT_CSV;Default CSV filename selected at startup
+    MemberVar;HTML_PATH;Absolute path to diagram_viewer.html
+    Function;+find_csv_files;Search common locations for all CSV files relative to script
+        ReturnVal;csv_files;Dict mapping filename to absolute path
+    Function;+find_default_csv;Choose the default CSV to load from available files
+        Param;csv_files;Dict of available CSV files
+        ReturnVal;default_name;Default CSV filename
+    Function;+find_html_file;Search for diagram_viewer.html in known locations
+        ReturnVal;html_path;Absolute path to the HTML viewer file
+    Function;+load_model;Load and parse a Model from a CSV file by name
+        Param;csv_name;CSV filename (defaults to DEFAULT_CSV)
+        ReturnVal;model;Parsed Model object
+    Function;+load_model_and_sequence;Load model and specific sequence from CSV (fresh parse each request)
+        Param;csv_name;CSV filename
+        Param;sequence_id;Sequence ID to retrieve
+        ReturnVal;result;Tuple of (Model and SequenceDef)
+    Function;+run_server;Start the HTTP server on the given port
+        Param;port;Port number (default 8000)

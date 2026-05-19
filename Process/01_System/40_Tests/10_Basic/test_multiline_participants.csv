@@ -1,8 +1,8 @@
-Type ; Level ; Name ; Description
-Model ; 0 ; Test Model ; Testing multi-line participant names
-Class ; 1 ; Client<br><<Interface>> ; A client that uses interfaces
-Class ; 1 ; Server<br>Controller    ; Server component that handles requests
-Sequence ; 1 ; MultilineDemo ; Demonstrates multi-line participant names
-Step ; 2 ; Client<br><<Interface>> ; request()        ; Server<br>Controller    ; Sends a request
-Step ; 2 ; Server<br>Controller    ; processRequest() ; Server<br>Controller    ; Processes internally
-Step ; 2 ; Server<br>Controller    ; response()       ; Client<br><<Interface>> ; Returns response
+Type;Level;Name;Description
+Model;0;Test Model;Testing multi-line participant names
+Class;1;Client<br><<Interface>>;A client that uses interfaces
+Class;1;Server<br>Controller;Server component that handles requests
+Sequence;1;MultilineDemo;Demonstrates multi-line participant names
+Step;2;Client<br><<Interface>>;request();Server<br>Controller;Sends a request
+Step;2;Server<br>Controller;processRequest();Server<br>Controller;Processes internally
+Step;2;Server<br>Controller;response();Client<br><<Interface>>;Returns response

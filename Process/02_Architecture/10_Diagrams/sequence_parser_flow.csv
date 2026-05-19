@@ -1,36 +1,36 @@
-Class ; Engineer      ; Software engineer  ; User
-Class ; WebUI         ; Web browser        ; UI
-Class ; DiagramViewer ; Diagram viewer app ; UI
-Class ; Server        ; HTTP server        ; API
-Class ; CSVParser     ; CSV parser         ; Business Logic
-Class ; Model         ; Data model         ; Business Logic
-Class ; SVGRenderer   ; SVG renderer       ; Business Logic
-Class ; FileSystem    ; File system        ; Data Access
-Sequence ; SEQ_001_ParseDiagram ; Complete diagram parsing and rendering flow
-    Engineer      ; WebUI         ; OpenBrowser      ; localhost:8000 ; -                     ; @Info    ; Engineer opens viewer
-    WebUI         ; Server        ; GetDiagramList   ; -              ; diagrams              ; @Info    ; Request available diagrams
-    Server        ; FileSystem    ; ScanCSVFiles     ; diagrams/      ; files                 ; @Info    ; Discover CSV files
-    FileSystem    ; Server        ; ScanCSVFiles     ; files
-    Server        ; DiagramViewer ; DisplayDiagrams  ; diagrams       ; -                     ; @Success ; Diagrams loaded
-    Engineer      ; WebUI         ; SelectDiagram    ; sequence_001   ; -                     ; @Info    ; Engineer chooses diagram
-    WebUI         ; Server        ; RequestDiagram   ; csv=parser     ; sequence=sequence_001 ; svg
-    Server        ; FileSystem    ; ReadCSVFile      ; parser.csv     ; content               ; @Info    ; Load CSV file
-    FileSystem    ; Server        ; ReadCSVFile      ; content
-    Server        ; CSVParser     ; ParseCSV         ; content        ; model                 ; @Info    ; Parse CSV format
-    CSVParser     ; CSVParser     ; ValidateClasses  ; class_list     ; warnings              ; @Warning ; Check class references
-    CSVParser     ; Server        ; ParseCSV         ; model
-    Server        ; Model         ; CreateSequence   ; steps          ; sequence              ; @Info    ; Build sequence object
-    Model         ; Server        ; CreateSequence   ; sequence
-    Server        ; SVGRenderer   ; RenderDiagram    ; sequence       ; verbosity=High        ; svg ; @Info ; Generate SVG
-    SVGRenderer   ; Model         ; GetLanes         ; sequence       ; lanes                 ; @Info    ; Extract participants
-    Model         ; SVGRenderer   ; GetLanes         ; lanes
-    SVGRenderer   ; SVGRenderer   ; LayoutDiagram    ; lanes          ; layout                ; @Info    ; Calculate positions
-    SVGRenderer   ; SVGRenderer   ; DrawParticipants ; layout         ; paths                 ; @Info    ; Draw lanes
-    SVGRenderer   ; SVGRenderer   ; DrawMessages     ; layout         ; paths                 ; @Info    ; Draw interactions
-    SVGRenderer   ; SVGRenderer   ; ApplyStyles      ; paths          ; svg                   ; @Success ; Style SVG
-    SVGRenderer   ; Server        ; RenderDiagram    ; svg
-    Server        ; FileSystem    ; WriteSVG         ; svg            ; -                     ; @Info    ; Cache SVG output
-    FileSystem    ; Server        ; WriteSVG         ; -
-    Server        ; WebUI         ; SendSVG          ; svg            ; -                     ; @Success ; Send to browser
-    WebUI         ; DiagramViewer ; RenderSVG        ; svg            ; -                     ; @Success ; Display diagram
-    DiagramViewer ; Engineer      ; Display          ; diagram        ; -                     ; @Success ; Engineer reviews design
+Class;Engineer;Software engineer;User
+Class;WebUI;Web browser;UI
+Class;DiagramViewer;Diagram viewer app;UI
+Class;Server;HTTP server;API
+Class;CSVParser;CSV parser;Business Logic
+Class;Model;Data model;Business Logic
+Class;SVGRenderer;SVG renderer;Business Logic
+Class;FileSystem;File system;Data Access
+Sequence;SEQ_001_ParseDiagram;Complete diagram parsing and rendering flow
+    Engineer;WebUI;OpenBrowser;localhost:8000;-;@Info;Engineer opens viewer
+    WebUI;Server;GetDiagramList;-;diagrams;@Info;Request available diagrams
+    Server;FileSystem;ScanCSVFiles;diagrams/;files;@Info;Discover CSV files
+    FileSystem;Server;ScanCSVFiles;files
+    Server;DiagramViewer;DisplayDiagrams;diagrams;-;@Success;Diagrams loaded
+    Engineer;WebUI;SelectDiagram;sequence_001;-;@Info;Engineer chooses diagram
+    WebUI;Server;RequestDiagram;csv=parser;sequence=sequence_001;svg
+    Server;FileSystem;ReadCSVFile;parser.csv;content;@Info;Load CSV file
+    FileSystem;Server;ReadCSVFile;content
+    Server;CSVParser;ParseCSV;content;model;@Info;Parse CSV format
+    CSVParser;CSVParser;ValidateClasses;class_list;warnings;@Warning;Check class references
+    CSVParser;Server;ParseCSV;model
+    Server;Model;CreateSequence;steps;sequence;@Info;Build sequence object
+    Model;Server;CreateSequence;sequence
+    Server;SVGRenderer;RenderDiagram;sequence;verbosity=High;svg;@Info;Generate SVG
+    SVGRenderer;Model;GetLanes;sequence;lanes;@Info;Extract participants
+    Model;SVGRenderer;GetLanes;lanes
+    SVGRenderer;SVGRenderer;LayoutDiagram;lanes;layout;@Info;Calculate positions
+    SVGRenderer;SVGRenderer;DrawParticipants;layout;paths;@Info;Draw lanes
+    SVGRenderer;SVGRenderer;DrawMessages;layout;paths;@Info;Draw interactions
+    SVGRenderer;SVGRenderer;ApplyStyles;paths;svg;@Success;Style SVG
+    SVGRenderer;Server;RenderDiagram;svg
+    Server;FileSystem;WriteSVG;svg;-;@Info;Cache SVG output
+    FileSystem;Server;WriteSVG;-
+    Server;WebUI;SendSVG;svg;-;@Success;Send to browser
+    WebUI;DiagramViewer;RenderSVG;svg;-;@Success;Display diagram
+    DiagramViewer;Engineer;Display;diagram;-;@Success;Engineer reviews design

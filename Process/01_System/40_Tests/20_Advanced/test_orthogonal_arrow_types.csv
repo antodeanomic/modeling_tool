@@ -1,45 +1,45 @@
-Class ; AR_S01 ; Arrow source 01
-Class ; AR_T01 ; Arrow target 01
-Class ; AR_S02 ; Arrow source 02
-Class ; AR_T02 ; Arrow target 02
-Class ; AR_S03 ; Arrow source 03
-Class ; AR_T03 ; Arrow target 03
-Class ; AR_S04 ; Arrow source 04
-Class ; AR_T04 ; Arrow target 04
-Class ; AR_S05 ; Arrow source 05
-Class ; AR_T05 ; Arrow target 05
-Class ; AR_S06 ; Arrow source 06
-Class ; AR_T06 ; Arrow target 06
-Class ; AR_S07 ; Arrow source 07
-Class ; AR_T07 ; Arrow target 07
-Class ; AR_S08 ; Arrow source 08
-Class ; AR_T08 ; Arrow target 08
-Class ; AR_S09 ; Arrow source 09
-Class ; AR_T09 ; Arrow target 09
-Class ; AR_S10 ; Arrow source 10
-Class ; AR_T10 ; Arrow target 10
-Class ; AR_S11 ; Arrow source 11
-Class ; AR_T11 ; Arrow target 11
-Class ; AR_S12 ; Arrow source 12
-Class ; AR_T12 ; Arrow target 12
-Class ; AR_S13 ; Arrow source 13
-Class ; AR_T13 ; Arrow target 13
-Class ; AR_S14 ; Arrow source 14
-Class ; AR_T14 ; Arrow target 14
+Class;AR_S01;Arrow source 01
+Class;AR_T01;Arrow target 01
+Class;AR_S02;Arrow source 02
+Class;AR_T02;Arrow target 02
+Class;AR_S03;Arrow source 03
+Class;AR_T03;Arrow target 03
+Class;AR_S04;Arrow source 04
+Class;AR_T04;Arrow target 04
+Class;AR_S05;Arrow source 05
+Class;AR_T05;Arrow target 05
+Class;AR_S06;Arrow source 06
+Class;AR_T06;Arrow target 06
+Class;AR_S07;Arrow source 07
+Class;AR_T07;Arrow target 07
+Class;AR_S08;Arrow source 08
+Class;AR_T08;Arrow target 08
+Class;AR_S09;Arrow source 09
+Class;AR_T09;Arrow target 09
+Class;AR_S10;Arrow source 10
+Class;AR_T10;Arrow target 10
+Class;AR_S11;Arrow source 11
+Class;AR_T11;Arrow target 11
+Class;AR_S12;Arrow source 12
+Class;AR_T12;Arrow target 12
+Class;AR_S13;Arrow source 13
+Class;AR_T13;Arrow target 13
+Class;AR_S14;Arrow source 14
+Class;AR_T14;Arrow target 14
 
-ClassDiagram ; OrthogonalArrowTypeAndRoutes ; All arrow types with forced multi-segment orthogonal routes ; elements=AR_S01:object,AR_T01:object,AR_S02:object,AR_T02:object,AR_S03:object,AR_T03:object,AR_S04:object,AR_T04:object,AR_S05:object,AR_T05:object,AR_S06:object,AR_T06:object,AR_S07:object,AR_T07:object,AR_S08:object,AR_T08:object,AR_S09:object,AR_T09:object,AR_S10:object,AR_T10:object,AR_S11:object,AR_T11:object,AR_S12:object,AR_T12:object,AR_S13:object,AR_T13:object,AR_S14:object,AR_T14:object
+ClassDiagram;OrthogonalArrowTypeAndRoutes;All arrow types with forced multi-segment orthogonal routes;elements=AR_S01:object,AR_T01:object,AR_S02:object,AR_T02:object,AR_S03:object,AR_T03:object,AR_S04:object,AR_T04:object,AR_S05:object,AR_T05:object,AR_S06:object,AR_T06:object,AR_S07:object,AR_T07:object,AR_S08:object,AR_T08:object,AR_S09:object,AR_T09:object,AR_S10:object,AR_T10:object,AR_S11:object,AR_T11:object,AR_S12:object,AR_T12:object,AR_S13:object,AR_T13:object,AR_S14:object,AR_T14:object
     # 14 UML arrow syntaxes, each as an orthogonal probe route.
-    AR_S01 ; AR_T01 ; -- ; 1 ; 0..* ; route_l_t_assoc ; arrow
-    AR_S02 ; AR_T02 ; --> ; 1 ; 0..* ; route_l_b_assoc_dir_lr ; arrow
-    AR_S03 ; AR_T03 ; <-- ; 1 ; 0..* ; route_r_t_assoc_dir_rl ; arrow
-    AR_S04 ; AR_T04 ; <--> ; 1 ; 0..* ; route_r_b_assoc_bi ; arrow
-    AR_S05 ; AR_T05 ; --▷ ; 1 ; 0..* ; route_t_l_generalization_lr ; arrow
-    AR_S06 ; AR_T06 ; ◁-- ; 1 ; 0..* ; route_t_r_generalization_rl ; arrow
-    AR_S07 ; AR_T07 ; --◆ ; 1 ; 0..* ; route_b_l_composition_lr ; arrow
-    AR_S08 ; AR_T08 ; ◆-- ; 1 ; 0..* ; route_b_r_composition_rl ; arrow
-    AR_S09 ; AR_T09 ; --◇ ; 1 ; 0..* ; route_l_t_aggregation_lr ; arrow
-    AR_S10 ; AR_T10 ; ◇-- ; 1 ; 0..* ; route_l_b_aggregation_rl ; arrow
-    AR_S11 ; AR_T11 ; ..> ; 1 ; 0..* ; route_r_t_dependency_lr ; arrow
-    AR_S12 ; AR_T12 ; <.. ; 1 ; 0..* ; route_r_b_dependency_rl ; arrow
-    AR_S13 ; AR_T13 ; ..▷ ; 1 ; 0..* ; route_t_l_realization_lr ; arrow
-    AR_S14 ; AR_T14 ; ◁.. ; 1 ; 0..* ; route_t_r_realization_rl ; arrow
+    AR_S01;AR_T01;--;1;0..*;route_l_t_assoc;arrow
+    AR_S02;AR_T02;-->;1;0..*;route_l_b_assoc_dir_lr;arrow
+    AR_S03;AR_T03;<--;1;0..*;route_r_t_assoc_dir_rl;arrow
+    AR_S04;AR_T04;<-->;1;0..*;route_r_b_assoc_bi;arrow
+    AR_S05;AR_T05;--▷;1;0..*;route_t_l_generalization_lr;arrow
+    AR_S06;AR_T06;◁--;1;0..*;route_t_r_generalization_rl;arrow
+    AR_S07;AR_T07;--◆;1;0..*;route_b_l_composition_lr;arrow
+    AR_S08;AR_T08;◆--;1;0..*;route_b_r_composition_rl;arrow
+    AR_S09;AR_T09;--◇;1;0..*;route_l_t_aggregation_lr;arrow
+    AR_S10;AR_T10;◇--;1;0..*;route_l_b_aggregation_rl;arrow
+    AR_S11;AR_T11;..>;1;0..*;route_r_t_dependency_lr;arrow
+    AR_S12;AR_T12;<..;1;0..*;route_r_b_dependency_rl;arrow
+    AR_S13;AR_T13;..▷;1;0..*;route_t_l_realization_lr;arrow
+    AR_S14;AR_T14;◁..;1;0..*;route_t_r_realization_rl;arrow

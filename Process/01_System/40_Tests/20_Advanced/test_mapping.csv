@@ -1,31 +1,31 @@
-TestFile ; RequirementID ; Description
-test_notes.csv ; Rendering_0011 ; Render notes as UML boxes with folded corner
-test_notes.csv ; Rendering_0012 ; Apply distinct colors: Info blue ; Warning orange ; Error red
-test_notes.csv ; Rendering_0013 ; Display note content via hover tooltip
-test_notes.csv ; Rendering_0014 ; Position lane notes below state boxes with spacing to next function
-test_notes.csv ; Rendering_0015 ; Position function notes right of parameter text without overlapping
-test_notes.csv ; Rendering_0016 ; Hide notes in Low and Normal verbosity ; show only in High verbosity
-test_notes.csv ; Rendering_0017 ; Never display note text inline         ; use hover tooltip only for content
-test_notes.csv ; Parser_0006    ; Parse note syntax @Type                ; Description format
-test_notes.csv ; Note_0001      ; Implement note system with Info  ; Warning        ; Error types
-test_states.csv ; State_0001     ; Implement UML state machine support with visual rendering
-test_states.csv ; Rendering_0007 ; Render UML state boxes with rounded corners and light grey fill
-test_states.csv ; Rendering_0008 ; Display initial states below participant names
-test_states.csv ; Rendering_0009 ; Display state transitions after sequence steps
-test_states.csv ; Rendering_0010 ; Add state descriptions as hover tooltips
-test_states.csv ; Parser_0004    ; Parse StateMachine definitions with hierarchical indentation
-test_states.csv ; Parser_0005    ; Parse State definitions nested within StateMachine
-test_verbosity.csv ; UserInterface_0003 ; Implement verbosity level selector with Low ; Normal ; High options
-test_verbosity.csv ; Rendering_0005 ; Add parameter and return descriptions as tooltips
-test_verbosity.csv ; Rendering_0006 ; Add participant descriptions as tooltips
-test_parameters.csv ; Parser_0002 ; Extract sequence steps with source ; destination ; function name ; return value ; parameters
-test_parameters.csv ; Parser_0003    ; Support function calls with parameters and return values
-test_parameters.csv ; Rendering_0001 ; Render sequence diagrams as SVG with lanes and arrows
-test_parameters.csv ; Rendering_0002 ; Display function calls with solid arrows and labels
-test_parameters.csv ; Rendering_0003 ; Display return values with dashed arrows and labels
-test_parameters.csv ; Rendering_0005 ; Add parameter and return descriptions as tooltips
-test_layers.csv ; UserInterface_0004 ; Implement layer filtering checkboxes to show/hide participants
-test_layers.csv ; Rendering_0001     ; Render sequence diagrams as SVG with lanes and arrows
-test_layers.csv ; Rendering_0002     ; Display function calls with solid arrows and labels
-test_multirow.csv ; Rendering_0004 ; Support multiple sequence steps on same row
-test_multirow.csv ; Rendering_0003 ; Display return values with dashed arrows and labels
+TestFile;RequirementID;Description
+test_notes.csv;Rendering_0011;Render notes as UML boxes with folded corner
+test_notes.csv;Rendering_0012;Apply distinct colors: Info blue;Warning orange;Error red
+test_notes.csv;Rendering_0013;Display note content via hover tooltip
+test_notes.csv;Rendering_0014;Position lane notes below state boxes with spacing to next function
+test_notes.csv;Rendering_0015;Position function notes right of parameter text without overlapping
+test_notes.csv;Rendering_0016;Hide notes in Low and Normal verbosity;show only in High verbosity
+test_notes.csv;Rendering_0017;Never display note text inline;use hover tooltip only for content
+test_notes.csv;Parser_0006;Parse note syntax @Type;Description format
+test_notes.csv;Note_0001;Implement note system with Info;Warning;Error types
+test_states.csv;State_0001;Implement UML state machine support with visual rendering
+test_states.csv;Rendering_0007;Render UML state boxes with rounded corners and light grey fill
+test_states.csv;Rendering_0008;Display initial states below participant names
+test_states.csv;Rendering_0009;Display state transitions after sequence steps
+test_states.csv;Rendering_0010;Add state descriptions as hover tooltips
+test_states.csv;Parser_0004;Parse StateMachine definitions with hierarchical indentation
+test_states.csv;Parser_0005;Parse State definitions nested within StateMachine
+test_verbosity.csv;UserInterface_0003;Implement verbosity level selector with Low;Normal;High options
+test_verbosity.csv;Rendering_0005;Add parameter and return descriptions as tooltips
+test_verbosity.csv;Rendering_0006;Add participant descriptions as tooltips
+test_parameters.csv;Parser_0002;Extract sequence steps with source;destination;function name;return value;parameters
+test_parameters.csv;Parser_0003;Support function calls with parameters and return values
+test_parameters.csv;Rendering_0001;Render sequence diagrams as SVG with lanes and arrows
+test_parameters.csv;Rendering_0002;Display function calls with solid arrows and labels
+test_parameters.csv;Rendering_0003;Display return values with dashed arrows and labels
+test_parameters.csv;Rendering_0005;Add parameter and return descriptions as tooltips
+test_layers.csv;UserInterface_0004;Implement layer filtering checkboxes to show/hide participants
+test_layers.csv;Rendering_0001;Render sequence diagrams as SVG with lanes and arrows
+test_layers.csv;Rendering_0002;Display function calls with solid arrows and labels
+test_multirow.csv;Rendering_0004;Support multiple sequence steps on same row
+test_multirow.csv;Rendering_0003;Display return values with dashed arrows and labels

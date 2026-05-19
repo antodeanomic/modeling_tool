@@ -1,8 +1,8 @@
-Include ; ../20_Definitions/actors.csv ; Import reusable actor definitions
-Include ; ../20_Definitions/packages.csv ; Import reusable system package definitions
+Include;../20_Definitions/actors.csv;Import reusable actor definitions
+Include;../20_Definitions/packages.csv;Import reusable system package definitions
 
-ClassDiagram ; UserInteraction ; Users interact with the system through the web UI
-    User ; WebBrowser    ; --> ; 1 ; 1 ; views   ; UI
-    WebBrowser ; DiagramViewer ; --> ; 1 ; 1 ; displays ; UI
-    User ; DiagramPicker ; --> ; 1 ; 1 ; selects ; UI
-    DiagramPicker ; DiagramViewer ; --> ; 1 ; 1 ; controls ; UI
+ClassDiagram;UserInteraction;Users interact with the system through the web UI
+    User;WebBrowser;-->;1;1;views;UI
+    WebBrowser;DiagramViewer;-->;1;1;displays;UI
+    User;DiagramPicker;-->;1;1;selects;UI
+    DiagramPicker;DiagramViewer;-->;1;1;controls;UI

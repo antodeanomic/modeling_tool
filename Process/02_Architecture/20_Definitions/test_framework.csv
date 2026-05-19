@@ -1,16 +1,16 @@
-Class ; TestRunner      ; Single test runner — module-level functions in run_test.py
-    Function ; +run_test               ; Run a specific test case by name — parses CSV and renders SVG output
-        Param ; test_name ; Test name (e.g. test_notes)
-        ReturnVal ; success    ; True if test passed — False on error
-    Function ; +main                   ; CLI entry point — reads test name from argv and runs it
-Class ; TestSuiteRunner ; All-tests orchestrator — module-level functions in run_all_tests_and_view.py
-    Function ; +run_all_tests          ; Run all registered test cases via subprocess
-        ReturnVal ; all_passed ; True if all tests pass — False on first failure
-    Function ; +launch_server          ; Launch the interactive diagram server on port 8000
-        ReturnVal ; success    ; True if server started successfully
-    Function ; +find_vscode_executable ; Find VS Code executable path on Windows
-        ReturnVal ; path       ; Path to code.cmd or None if not found
-    Function ; +open_browser           ; Open browser to localhost:8000 — prefers VS Code Simple Browser
-        ReturnVal ; success    ; True
-    Function ; +cleanup                ; Terminate server process gracefully on exit
-    Function ; +main                   ; Orchestrate test run then launch server and open browser
+Class;TestRunner;Single test runner — module-level functions in run_test.py
+    Function;+run_test;Run a specific test case by name — parses CSV and renders SVG output
+        Param;test_name;Test name (e.g. test_notes)
+        ReturnVal;success;True if test passed — False on error
+    Function;+main;CLI entry point — reads test name from argv and runs it
+Class;TestSuiteRunner;All-tests orchestrator — module-level functions in run_all_tests_and_view.py
+    Function;+run_all_tests;Run all registered test cases via subprocess
+        ReturnVal;all_passed;True if all tests pass — False on first failure
+    Function;+launch_server;Launch the interactive diagram server on port 8000
+        ReturnVal;success;True if server started successfully
+    Function;+find_vscode_executable;Find VS Code executable path on Windows
+        ReturnVal;path;Path to code.cmd or None if not found
+    Function;+open_browser;Open browser to localhost:8000 — prefers VS Code Simple Browser
+        ReturnVal;success;True
+    Function;+cleanup;Terminate server process gracefully on exit
+    Function;+main;Orchestrate test run then launch server and open browser

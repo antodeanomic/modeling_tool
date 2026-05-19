@@ -1,52 +1,52 @@
-﻿Type ; Name ; Description
-Class ; Client            ; Client app
-    Function ; Authenticate    ; Send auth
-        Param ; token  ; Auth token
-        ReturnVal ; token    ; Auth token
-Class ; APIGateway        ; API router
-    Function ; ValidateToken   ; Validate token
-        Param ; token  ; Token to check
-        ReturnVal ; valid    ; Valid or not
-    Function ; FetchUsers      ; Get users
-        Param ; filter ; Search filter
-        ReturnVal ; userList ; List of users
-Class ; AuthService       ; Auth service
-    Function ; ValidateToken   ; Validate
-        Param ; token  ; Token
-        ReturnVal ; valid    ; Is valid
-    Function ; CheckPermission ; Check access
-        Param ; user   ; User ID
-        Param ; action ; Action
-        ReturnVal ; allowed  ; Is allowed
-Class ; UserService       ; User data
-    Function ; FetchUsers      ; Fetch users
-        Param ; filter ; Filter criteria
-        ReturnVal ; userList ; User list
-Class ; PermissionService ; Permissions
-    Function ; CheckPermission ; Check
-        Param ; user   ; User ID
-        Param ; action ; Action
-        ReturnVal ; allowed  ; Allowed
-Class ; AuditLog          ; Audit logger
-    Function ; LogAccess       ; Log access
-        Param ; user   ; User ID
-        Param ; action ; Action
-        ReturnVal ; logged   ; Logged
-    Function ; LogQuery        ; Log query
-        Param ; user   ; User ID
-        Param ; query  ; Query type
-        ReturnVal ; logged   ; Logged
-Sequence ; SoftReq_TEST_005 ; Multi-lane filtering
-    Client            ; APIGateway        ; Authenticate    ; token123 ; token123 ; @Info ; Request received
-    APIGateway        ; AuthService       ; ValidateToken   ; token123 ; valid
-    AuthService       ; PermissionService ; CheckPermission ; user123  ; read     ; allowed
-    PermissionService ; AuthService       ; CheckPermission ; allowed
-    AuthService ; @Info ; Permissions verified
-    AuthService       ; AuditLog          ; LogAccess       ; user123  ; read     ; logged
-    AuditLog    ; @Info ; Audit recorded
-    AuthService       ; APIGateway        ; ValidateToken   ; valid
-    APIGateway        ; UserService       ; FetchUsers      ; -        ; userList
-    UserService       ; AuditLog          ; LogQuery        ; user123  ; fetch    ; logged
-    AuditLog    ; @Info ; Query logged
-    UserService       ; APIGateway        ; FetchUsers      ; userList
-    APIGateway        ; Client            ; Authenticate    ; userList
+Type;Name;Description
+Class;Client;Client app
+    Function;Authenticate;Send auth
+        Param;token;Auth token
+        ReturnVal;token;Auth token
+Class;APIGateway;API router
+    Function;ValidateToken;Validate token
+        Param;token;Token to check
+        ReturnVal;valid;Valid or not
+    Function;FetchUsers;Get users
+        Param;filter;Search filter
+        ReturnVal;userList;List of users
+Class;AuthService;Auth service
+    Function;ValidateToken;Validate
+        Param;token;Token
+        ReturnVal;valid;Is valid
+    Function;CheckPermission;Check access
+        Param;user;User ID
+        Param;action;Action
+        ReturnVal;allowed;Is allowed
+Class;UserService;User data
+    Function;FetchUsers;Fetch users
+        Param;filter;Filter criteria
+        ReturnVal;userList;User list
+Class;PermissionService;Permissions
+    Function;CheckPermission;Check
+        Param;user;User ID
+        Param;action;Action
+        ReturnVal;allowed;Allowed
+Class;AuditLog;Audit logger
+    Function;LogAccess;Log access
+        Param;user;User ID
+        Param;action;Action
+        ReturnVal;logged;Logged
+    Function;LogQuery;Log query
+        Param;user;User ID
+        Param;query;Query type
+        ReturnVal;logged;Logged
+Sequence;SoftReq_TEST_005;Multi-lane filtering
+    Client;APIGateway;Authenticate;token123;token123;@Info;Request received
+    APIGateway;AuthService;ValidateToken;token123;valid
+    AuthService;PermissionService;CheckPermission;user123;read;allowed
+    PermissionService;AuthService;CheckPermission;allowed
+    AuthService;@Info;Permissions verified
+    AuthService;AuditLog;LogAccess;user123;read;logged
+    AuditLog;@Info;Audit recorded
+    AuthService;APIGateway;ValidateToken;valid
+    APIGateway;UserService;FetchUsers;-;userList
+    UserService;AuditLog;LogQuery;user123;fetch;logged
+    AuditLog;@Info;Query logged
+    UserService;APIGateway;FetchUsers;userList
+    APIGateway;Client;Authenticate;userList

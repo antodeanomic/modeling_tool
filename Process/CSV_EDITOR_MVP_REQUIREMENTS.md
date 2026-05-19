@@ -229,6 +229,28 @@ Improve clarity and traceability between CSV content and diagram visual represen
 5. ✓ Existing edit, save, and navigation workflows unaffected
 
 ## Testing Completed
+---
+
+# v0.3 CSV Editor Format Button
+
+## Requirement
+The **Format** button in the CSV editor must always produce columnar-aligned output. It must never condense the content.
+
+### Rationale
+The formatter operates as a display aid. A CSV file authored or saved with space-style separators (` ; `) is indistinguishable from formatter output by text pattern alone. A toggle that condenses on first click produces unexpected behavior whenever the loaded file was stored with spaces around semicolons.
+
+### Specified Behavior
+- Clicking **Format** always runs `formatCsvColumnar()` regardless of the current format state.
+- If the content is already correctly column-aligned, the output is identical (idempotent).
+- Condensing is not a responsibility of the Format button. If a separate condense action is needed it must be a distinct control.
+
+### Acceptance Criteria
+1. A CSV file stored with ` ; ` separators (single-space style) produces columnar-aligned output on the first Format click.
+2. Clicking Format twice on the same content produces the same result both times.
+3. A freshly loaded condensed CSV (`;` only) also produces columnar-aligned output on Format click.
+
+---
+
 - ✓ Manual testing with Calculator diagram
 - ✓ CSV→Diagram hover verified (Display class highlights in diagram)
 - ✓ Diagram→CSV hover verified (Display element scrolls CSV to matching row)
