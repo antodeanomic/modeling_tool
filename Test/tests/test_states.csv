@@ -1,33 +1,33 @@
-﻿Type ; Name    ; Description
-Class ; Account ; Account system
+﻿Type ; Name ; Description
+Class ; Account     ; Account system
     StateMachine ; AccountLifecycle ; Account states
-    State        ; Inactive         ; Not verified
-    State        ; Active           ; In use
-    State        ; Suspended        ; Locked
-    State        ; Closed           ; Deleted
-    Function     ; VerifyEmail      ; Verify email
-    Param        ; Email            ; Email address
-    ReturnVal    ; Status           ; Verified
-    Function     ; SuspendAccount   ; Suspend
-    Param        ; Reason           ; Why suspended
-    ReturnVal    ; Status           ; Done
-    Function     ; Reactivate       ; Reactivate
-    Param        ; Token            ; Auth token
-    ReturnVal    ; Status           ; Done
-    Function     ; CloseAccount     ; Close
-    Param        ; Reason           ; Reason
-    ReturnVal    ; Status           ; Closed
+        State ; Inactive  ; Not verified
+        State ; Active    ; In use
+        State ; Suspended ; Locked
+        State ; Closed    ; Deleted
+    Function ; VerifyEmail    ; Verify email
+        Param ; Email     ; Email address
+        ReturnVal ; Status ; Verified
+    Function ; SuspendAccount ; Suspend
+        Param ; Reason    ; Why suspended
+        ReturnVal ; Status ; Done
+    Function ; Reactivate     ; Reactivate
+        Param ; Token     ; Auth token
+        ReturnVal ; Status ; Done
+    Function ; CloseAccount   ; Close
+        Param ; Reason    ; Reason
+        ReturnVal ; Status ; Closed
 Class ; AuthService ; Authentication
-    Function  ; CheckStatus ; Check status
-    Param     ; AccountID   ; Account ID
-    ReturnVal ; Status      ; Current status
+    Function ; CheckStatus    ; Check status
+        Param ; AccountID ; Account ID
+        ReturnVal ; Status ; Current status
 Sequence ; SoftReq_TEST_002 ; State transitions
-    AuthService ; Account ; VerifyEmail ; user@test.com ; verified ; <AccountLifecycle ; Inactive>Active
-    Account ; @Info ; Email verified
-    Account ; AuthService ; CheckStatus ; ACC123 ; active
-    AuthService ; Account ; SuspendAccount ; Suspicious ; suspended ; <AccountLifecycle ; Active>Suspended
+    AuthService ; Account     ; VerifyEmail    ; user@test.com ; verified  ; <AccountLifecycle ; Inactive>Active
+    Account ; @Info    ; Email verified
+    Account     ; AuthService ; CheckStatus    ; ACC123        ; active
+    AuthService ; Account     ; SuspendAccount ; Suspicious    ; suspended ; <AccountLifecycle ; Active>Suspended
     Account ; @Warning ; Suspicious activity
-    AuthService ; Account ; Reactivate ; token123 ; active ; <AccountLifecycle ; Suspended>Active
-    Account ; @Info ; Reactivated
-    AuthService ; Account ; CloseAccount ; User ; closed ; <AccountLifecycle ; Active>Closed
-    Account ; @Error ; Account closed
+    AuthService ; Account     ; Reactivate     ; token123      ; active    ; <AccountLifecycle ; Suspended>Active
+    Account ; @Info    ; Reactivated
+    AuthService ; Account     ; CloseAccount   ; User          ; closed    ; <AccountLifecycle ; Active>Closed
+    Account ; @Error   ; Account closed

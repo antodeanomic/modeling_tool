@@ -1,17 +1,17 @@
-Class ; code(Logger) ; Logging service
-    Function  ; LogEvent ; code(Log event to database)
-    Param     ; eventID  ; code(123)
-    Param     ; level    ; code(INFO)
-    ReturnVal ; logged   ; code(true)
-Class ; code(Monitor) ; Monitoring service
-    Function  ; SendNotification ; code(Send alert notification)
-    Param     ; message          ; code(System offline)
-    Param     ; priority         ; code(HIGH)
-    ReturnVal ; sent             ; code(success)
+Class ; code(Logger)   ; Logging service
+    Function ; LogEvent         ; code(Log event to database)
+        Param ; eventID  ; code(123)
+        Param ; level    ; code(INFO)
+        ReturnVal ; logged  ; code(true)
+Class ; code(Monitor)  ; Monitoring service
+    Function ; SendNotification ; code(Send alert notification)
+        Param ; message  ; code(System offline)
+        Param ; priority ; code(HIGH)
+        ReturnVal ; sent    ; code(success)
 Class ; code(Database) ; Data persistence
-    Function  ; SaveLog   ; Persist to storage
-    Param     ; data      ; code(event_data)
-    ReturnVal ; saved     ; code(rowID)
-    Function  ; QueryLogs ; Fetch records
-    Param     ; filter    ; code(WHERE timestamp > X)
-    ReturnVal ; records   ; code(Array<LogRecord>)
+    Function ; SaveLog          ; Persist to storage
+        Param ; data     ; code(event_data)
+        ReturnVal ; saved   ; code(rowID)
+    Function ; QueryLogs        ; Fetch records
+        Param ; filter   ; code(WHERE timestamp > X)
+        ReturnVal ; records ; code(Array<LogRecord>)

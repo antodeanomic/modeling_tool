@@ -1,48 +1,48 @@
-Class ; Client ; Web application
-    Function  ; Login    ; User authentication
-    Param     ; username ; User identifier
-    Param     ; password ; Secret credential
-    ReturnVal ; token    ; Session token
-    Function  ; Logout   ; End session
-    ReturnVal ; status   ; Success indicator
-Class ; AuthService ; Authentication backend
-    Function  ; ValidateCredentials ; Check user identity
-    Param     ; user                ; Username to verify
-    Param     ; pass                ; Password to check
-    ReturnVal ; valid               ; True if authenticated
-    Function  ; CreateSession       ; Generate token
-    Param     ; userId              ; User identifier
-    ReturnVal ; sessionToken        ; New token
+Class ; Client         ; Web application
+    Function ; Login               ; User authentication
+        Param ; username  ; User identifier
+        Param ; password  ; Secret credential
+        ReturnVal ; token        ; Session token
+    Function ; Logout              ; End session
+        ReturnVal ; status       ; Success indicator
+Class ; AuthService    ; Authentication backend
+    Function ; ValidateCredentials ; Check user identity
+        Param ; user      ; Username to verify
+        Param ; pass      ; Password to check
+        ReturnVal ; valid        ; True if authenticated
+    Function ; CreateSession       ; Generate token
+        Param ; userId    ; User identifier
+        ReturnVal ; sessionToken ; New token
 Class ; SessionManager ; Manages active sessions
-    Function  ; StoreSession  ; Persist session
-    Param     ; token         ; Session token
-    Param     ; userData      ; User information
-    ReturnVal ; stored        ; Confirmation
-    Function  ; ValidateToken ; Check if token exists
-    Param     ; token         ; Token to verify
-    ReturnVal ; isValid       ; Token validity
-Class ; AuditLog ; Records user actions
-    Function  ; RecordLogin  ; Log authentication
-    Param     ; userId       ; User identifier
-    Param     ; timestamp    ; Event time
-    ReturnVal ; recorded     ; Confirmation
-    Function  ; RecordLogout ; Log session end
-    Param     ; userId       ; User identifier
-    ReturnVal ; recorded     ; Confirmation
+    Function ; StoreSession        ; Persist session
+        Param ; token     ; Session token
+        Param ; userData  ; User information
+        ReturnVal ; stored       ; Confirmation
+    Function ; ValidateToken       ; Check if token exists
+        Param ; token     ; Token to verify
+        ReturnVal ; isValid      ; Token validity
+Class ; AuditLog       ; Records user actions
+    Function ; RecordLogin         ; Log authentication
+        Param ; userId    ; User identifier
+        Param ; timestamp ; Event time
+        ReturnVal ; recorded     ; Confirmation
+    Function ; RecordLogout        ; Log session end
+        Param ; userId    ; User identifier
+        ReturnVal ; recorded     ; Confirmation
 Sequence ; SoftReq_TEST_UI_001 ; Complete login flow with notifications
-    Client ; AuthService ; ValidateCredentials ; user1 ; pass123 ; valid ; @Info ; Credentials validated
-    AuthService ; @Info ; Checking credentials in database
-    AuthService ; SessionManager ; StoreSession ; token_abc ; user1_data ; stored ; @Warning ; Session cache full
-    SessionManager ; @Info ; Session persisted to disk
-    Client ; Client ; Login ; user1 ; pass123 ; token_abc ; @Success ; Token acquired
-    Client ; @Info ; Storing token in localStorage
-    Client ; AuditLog ; RecordLogin ; user1 ; 2026-02-24_15:05:50 ; recorded ; @Info ; Audit entry created
-    AuditLog ; @Info ; Login event recorded successfully
-    AuthService ; SessionManager ; ValidateToken ; token_abc ; isValid ; @Success ; Token valid
+    Client      ; AuthService    ; ValidateCredentials ; user1     ; pass123             ; valid     ; @Info    ; Credentials validated
+    AuthService    ; @Info    ; Checking credentials in database
+    AuthService ; SessionManager ; StoreSession        ; token_abc ; user1_data          ; stored    ; @Warning ; Session cache full
+    SessionManager ; @Info    ; Session persisted to disk
+    Client      ; Client         ; Login               ; user1     ; pass123             ; token_abc ; @Success ; Token acquired
+    Client         ; @Info    ; Storing token in localStorage
+    Client      ; AuditLog       ; RecordLogin         ; user1     ; 2026-02-24_15:05:50 ; recorded  ; @Info    ; Audit entry created
+    AuditLog       ; @Info    ; Login event recorded successfully
+    AuthService ; SessionManager ; ValidateToken       ; token_abc ; isValid             ; @Success ; Token valid
     SessionManager ; @Warning ; Token expiry approaching soon
-    Client ; AuthService ; ValidateCredentials ; user1 ; pass123 ; valid ; @Error ; Rate limit exceeded
-    AuthService ; @Error ; Too many validation requests
-    Client ; Client ; Logout ; @Info ; Session cleanup started
-    Client ; @Info ; Clearing local storage
-    Client ; AuditLog ; RecordLogout ; user1 ; recorded ; @Warning ; Logout delayed
-    AuditLog ; @Error ; Failed to write audit log to database
+    Client      ; AuthService    ; ValidateCredentials ; user1     ; pass123             ; valid     ; @Error   ; Rate limit exceeded
+    AuthService    ; @Error   ; Too many validation requests
+    Client      ; Client         ; Logout              ; @Info ; Session cleanup started
+    Client         ; @Info    ; Clearing local storage
+    Client      ; AuditLog       ; RecordLogout        ; user1     ; recorded            ; @Warning ; Logout delayed
+    AuditLog       ; @Error   ; Failed to write audit log to database

@@ -3,18 +3,18 @@
 # Routing: orthogonal
 # Status: Test case for multi-connector right-angle rendering
 
-Class        ; CentralHub         ; Central hub for connections
-Class        ; Target1            ; Target 1
-Class        ; Target2            ; Target 2
-Class        ; Target3            ; Target 3
-Class        ; Target4            ; Target 4
-Class        ; Target5            ; Target 5
-Class        ; Target6            ; Target 6
-Class        ; Target7            ; Target 7
-Class        ; Target8            ; Target 8
-Class        ; Target9            ; Target 9
-Class        ; Target10           ; Target 10
-Class        ; Target11           ; Target 11
+Class ; CentralHub ; Central hub for connections
+Class ; Target1    ; Target 1
+Class ; Target2    ; Target 2
+Class ; Target3    ; Target 3
+Class ; Target4    ; Target 4
+Class ; Target5    ; Target 5
+Class ; Target6    ; Target 6
+Class ; Target7    ; Target 7
+Class ; Target8    ; Target 8
+Class ; Target9    ; Target 9
+Class ; Target10   ; Target 10
+Class ; Target11   ; Target 11
 ClassDiagram ; MultiConnectorTest ; 11 Symmetrical Right-Angle Connectors
     CentralHub ; Target1  ; --> ;  ; 1 ; Connector 1
     CentralHub ; Target2  ; --> ;  ; 1 ; Connector 2

@@ -1,18 +1,18 @@
 Type,Name,Description
 Class,Logger,Logging service
     Function,LogEvent,Log event to database
-    Param,eventID,Event ID
-    Param,level,Log level
-    ReturnVal,logged,Result status
+        Param,eventID,Event ID
+        Param,level,Log level
+        ReturnVal,logged,Result status
 Class,Monitor,Monitoring service
     Function,SendNotification,Send alert notification
-    Param,message,Alert message
-    Param,priority,Priority level
-    ReturnVal,sent,Delivery status
+        Param,message,Alert message
+        Param,priority,Priority level
+        ReturnVal,sent,Delivery status
 Class,Database,Data persistence
     Function,SaveLog,Persist to storage
-    Param,data,Event data
-    ReturnVal,saved,Saved status
+        Param,data,Event data
+        ReturnVal,saved,Saved status
 Sequence,CodeSyntax_TEST,Testing backtick code syntax
     Logger,Monitor,LogEvent,123,INFO,true
     Monitor,Database,SendNotification,System offline,HIGH,success

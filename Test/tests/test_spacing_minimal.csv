@@ -11,5 +11,5 @@ Class ; ServiceD ; Fourth service
 ClassDiagram ; SimpleFourBox ; Four-box simple spacing test
     ServiceA ; ServiceB ; --> ; 1 ; 1 ; depends_on ; core
     ServiceA ; ServiceC ; --> ; 1 ; 1 ; uses       ; core
-    ServiceB ; ServiceD ; --> ; 1 ; 1 ; calls      ; core
-    ServiceC ; ServiceD ; --> ; 1 ; 1 ; relates    ; core
+    ServiceB ; ServiceD ; --> ; 1 ; 1 ; calls ; core
+    ServiceC ; ServiceD ; --> ; 1 ; 1 ; relates ; core
