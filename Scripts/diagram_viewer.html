@@ -1800,22 +1800,41 @@
 
             // Pre-analyze which rows are part of table groups vs standalone arrays
             const isTableRow = new Array(lines.length).fill(false);
+
+            // First pass: mark rows that have indented children, or are themselves indented.
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 const indent = line.match(/^(\s*)/)[1].length;
-
-                // A row is "table-like" if it's followed by indented rows (has children)
-                // or if it's indented and part of a parent's children group
-                if (i + 1 < lines.length) {
-                    const nextLine = lines[i + 1];
-                    const nextIndent = nextLine.match(/^(\s*)/)[1].length;
-                    if (nextIndent > indent) {
-                        isTableRow[i] = true;  // This row has children
-                    }
-                }
-                // If this row is indented, it's part of a table group
                 if (indent > 0) {
                     isTableRow[i] = true;
+                    continue;
+                }
+                // Skip to first non-empty following row to test indentation.
+                for (let j = i + 1; j < lines.length; j++) {
+                    if (!lines[j].trim()) continue;
+                    const nextIndent = lines[j].match(/^(\s*)/)[1].length;
+                    if (nextIndent > indent) isTableRow[i] = true;
+                    break;
+                }
+            }
+
+            // Second pass: propagate table-row status across all peers in the same
+            // contiguous block (same indent level, no blank-line boundary between them).
+            // This ensures that e.g. "Class ; Caller" and "Class ; Obj1" get the same
+            // colour even when only Obj1 is immediately followed by indented children.
+            for (let i = 0; i < lines.length; i++) {
+                if (!isTableRow[i] || !lines[i].trim()) continue;
+                const indent = lines[i].match(/^(\s*)/)[1].length;
+                // Find contiguous block start.
+                let start = i;
+                while (start > 0 && lines[start - 1].trim() &&
+                       lines[start - 1].match(/^(\s*)/)[1].length === indent) start--;
+                // Find contiguous block end.
+                let end = i;
+                while (end < lines.length - 1 && lines[end + 1].trim() &&
+                       lines[end + 1].match(/^(\s*)/)[1].length === indent) end++;
+                for (let k = start; k <= end; k++) {
+                    if (lines[k].trim()) isTableRow[k] = true;
                 }
             }
 
