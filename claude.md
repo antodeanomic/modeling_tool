@@ -66,9 +66,11 @@ This is a Sequence Diagram modeling tool that:
 
 1. Make changes to code or CSV test files
 2. Run `refresh.bat` to reset the environment (cleanup only)
-3. Start server manually when needed: `.\.venv\Scripts\python.exe Scripts\server.py 8000`
+3. **After any code change** (`.py`, `.html`, `.js`): restart the server so the new code is active.
+   - Run `refresh.bat`, then immediately start the server: `.\.venv\Scripts\python.exe Scripts\server.py 8000`
+   - Do NOT leave the server stopped after a code change — always restart it so the viewer reflects the latest code.
 4. Open VS Code browser to `http://localhost:8000`
-5. Server automatically reloads CSV files on each request (no restart needed for CSV changes)
+5. Server automatically reloads CSV files on each request (no restart needed for CSV-only changes)
 6. **Before every commit**: Run ALL tests with `cd Test; python run_all_tests_and_view.py` and verify exit code 0. Do not commit if tests fail.
 
 ## Renderer Change Policy (Generic-First)
