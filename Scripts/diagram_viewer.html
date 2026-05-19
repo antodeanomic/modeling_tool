@@ -2438,14 +2438,19 @@
                     if (getFieldCount(nextLine) !== fieldCount) {
                         break;
                     }
+                    // Don't mix non-indented header rows with their indented child rows.
+                    // Each block header starts its own independent formatting table.
+                    if (isIndentedRow(nextLine) !== isIndentedRow(group[0])) {
+                        break;
+                    }
                     group.push(nextLine);
                     i++;
                 }
 
-                const keepTableFormat = getTypeName(group[0]) === 'ClassDiagram';
+                const keepTableFormat = ['ClassDiagram', 'Sequence'].includes(getTypeName(group[0]));
 
-                // Keep single-row items condensed except ClassDiagram rows and
-                // sequence-step rows, which should retain table-style separators.
+                // Keep single-row items condensed except block headers (ClassDiagram, Sequence)
+                // and sequence-step rows, which should retain table-style separators.
                 if (group.length === 1 && !keepTableFormat) {
                     result.push(toCondensedLine(group[0]));
                 } else {
