@@ -1,10 +1,10 @@
-Class;A;First actor
-Class;B;Second actor
-Class;C;Third actor
-Sequence;NoteOrderTest;Test note rendering order
-    A;B;Msg1;data1;result1;@Info;This is message 1
-    B;@Info;Lane note for B from step 1
-    B;C;Msg2;data2;result2;@Warning;This is message 2
-    C;@Error;Lane note for C from step 2 - should appear after Msg2 note
-    A;A;Msg3;@Success;This is message 3 - should appear last
-    A;@Info;Final note on A - should appear last
+Class    ; A             ; First actor
+Class    ; B             ; Second actor
+Class    ; C             ; Third actor
+Sequence ; NoteOrderTest ; Test note rendering order
+    A ; B ; Msg1 ; data1 ; result1 ; @Info ; This is message 1
+    B ; @Info ; Lane note for B from step 1
+    B ; C ; Msg2 ; data2 ; result2 ; @Warning ; This is message 2
+    C ; @Error ; Lane note for C from step 2 - should appear after Msg2 note
+    A ; A ; Msg3 ; @Success ; This is message 3 - should appear last
+    A ; @Info ; Final note on A - should appear last

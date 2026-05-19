@@ -1,26 +1,26 @@
-Class;MainEntryPoint;CLI entry point — module-level functions in main.py
-    Function;+main;Parse sample_model.csv and render first sequence as SVG to Process/diagram.svg
-Class;InteractiveUiGenerator;UI data generator — module-level functions in interactive_ui.py
-    Function;+generate_ui_data;Generate model data and SVG strings as JSON for all verbosity levels
-Class;TestCoverageGenerator;Test-to-requirement coverage generator — module-level functions in generate_test_coverage.py
-    Function;+read_test_mapping;Read test mapping CSV and build test-to-requirement associations
-        Param;csv_file;Path to test_mapping.csv
-        ReturnVal;tests_by_file;Dict mapping test file to list of requirement dicts
-        ReturnVal;requirements_coverage;Dict mapping req_id to list of test files
-    Function;+read_requirements;Read requirements from CSV with BOM handling
-        Param;csv_file;Path to requirements.csv
-        ReturnVal;requirements;Dict mapping req_id to description
-    Function;+generate_test_coverage_markdown;Generate full markdown document with coverage tables and statistics
-        Param;tests_by_file;Test to requirements mapping
-        Param;requirements_coverage;Requirement to tests mapping
-        Param;requirements;Requirement definitions dict
-        ReturnVal;markdown;Complete markdown document string
-    Function;+main;Entry point — reads mappings and generates TEST_COVERAGE.md
-Class;RequirementsConverter;Requirements CSV-to-markdown converter — module-level functions in convert_requirements.py
-    Function;+read_requirements;Read requirements from CSV file with BOM handling
-        Param;csv_file;Path to requirements CSV
-        ReturnVal;requirements;List of requirement row dicts
-    Function;+generate_markdown_table;Generate markdown tables grouped by requirement type
-        Param;requirements;List of requirement dicts
-        ReturnVal;markdown;Complete markdown document string
-    Function;+main;Entry point — reads requirements.csv and generates REQUIREMENTS.md
+Class ; MainEntryPoint ; CLI entry point — module-level functions in main.py
+    Function ; +main ; Parse sample_model.csv and render first sequence as SVG to Process/diagram.svg
+Class ; InteractiveUiGenerator ; UI data generator — module-level functions in interactive_ui.py
+    Function ; +generate_ui_data ; Generate model data and SVG strings as JSON for all verbosity levels
+Class ; TestCoverageGenerator ; Test-to-requirement coverage generator — module-level functions in generate_test_coverage.py
+    Function  ; +read_test_mapping               ; Read test mapping CSV and build test-to-requirement associations
+    Param     ; csv_file                         ; Path to test_mapping.csv
+    ReturnVal ; tests_by_file                    ; Dict mapping test file to list of requirement dicts
+    ReturnVal ; requirements_coverage            ; Dict mapping req_id to list of test files
+    Function  ; +read_requirements               ; Read requirements from CSV with BOM handling
+    Param     ; csv_file                         ; Path to requirements.csv
+    ReturnVal ; requirements                     ; Dict mapping req_id to description
+    Function  ; +generate_test_coverage_markdown ; Generate full markdown document with coverage tables and statistics
+    Param     ; tests_by_file                    ; Test to requirements mapping
+    Param     ; requirements_coverage            ; Requirement to tests mapping
+    Param     ; requirements                     ; Requirement definitions dict
+    ReturnVal ; markdown                         ; Complete markdown document string
+    Function  ; +main                            ; Entry point — reads mappings and generates TEST_COVERAGE.md
+Class ; RequirementsConverter ; Requirements CSV-to-markdown converter — module-level functions in convert_requirements.py
+    Function  ; +read_requirements       ; Read requirements from CSV file with BOM handling
+    Param     ; csv_file                 ; Path to requirements CSV
+    ReturnVal ; requirements             ; List of requirement row dicts
+    Function  ; +generate_markdown_table ; Generate markdown tables grouped by requirement type
+    Param     ; requirements             ; List of requirement dicts
+    ReturnVal ; markdown                 ; Complete markdown document string
+    Function  ; +main                    ; Entry point — reads requirements.csv and generates REQUIREMENTS.md

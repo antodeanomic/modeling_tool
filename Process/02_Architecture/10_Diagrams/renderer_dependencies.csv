@@ -1,8 +1,8 @@
-Include;../20_Definitions/svg_renderer.csv;Import renderer functions
-Include;../20_Definitions/data_model.csv;Import all model dataclasses
+Include ; ../20_Definitions/svg_renderer.csv ; Import renderer functions
+Include ; ../20_Definitions/data_model.csv   ; Import all model dataclasses
 
-ClassDiagram;RendererDependencies;Renderer reads Model to produce SVG
-    SvgRenderer;Model;..>;;;reads
-    SvgRenderer;SequenceDef;..>;;;reads
-    SvgRenderer;ClassDef;..>;;;reads
-    SvgRenderer;NoteDef;..>;;;reads
+ClassDiagram ; RendererDependencies ; Renderer reads Model to produce SVG
+    SvgRenderer ; Model       ; ..> ;  ;  ; reads
+    SvgRenderer ; SequenceDef ; ..> ;  ;  ; reads
+    SvgRenderer ; ClassDef    ; ..> ;  ;  ; reads
+    SvgRenderer ; NoteDef     ; ..> ;  ;  ; reads

@@ -234,20 +234,19 @@ Improve clarity and traceability between CSV content and diagram visual represen
 # v0.3 CSV Editor Format Button
 
 ## Requirement
-The **Format** button in the CSV editor must always produce columnar-aligned output. It must never condense the content.
-
-### Rationale
-The formatter operates as a display aid. A CSV file authored or saved with space-style separators (` ; `) is indistinguishable from formatter output by text pattern alone. A toggle that condenses on first click produces unexpected behavior whenever the loaded file was stored with spaces around semicolons.
+The **Format** button in the CSV editor must toggle between columnar-aligned and condensed output on each click.
 
 ### Specified Behavior
-- Clicking **Format** always runs `formatCsvColumnar()` regardless of the current format state.
-- If the content is already correctly column-aligned, the output is identical (idempotent).
-- Condensing is not a responsibility of the Format button. If a separate condense action is needed it must be a distinct control.
+- If the current content is condensed (no ` ; ` separators), clicking **Format** expands it to columnar-aligned output.
+- If the current content is already columnar-aligned (contains ` ; ` separators), clicking **Format** condenses it (removes padding, produces `;` delimiters with no surrounding spaces).
+- Each block header (e.g. `ClassDiagram`, `Sequence`) starts an independent formatting table — column widths are computed per-block, not across blocks.
+- Indented child rows are never grouped with their parent header row for column-width computation.
 
 ### Acceptance Criteria
-1. A CSV file stored with ` ; ` separators (single-space style) produces columnar-aligned output on the first Format click.
-2. Clicking Format twice on the same content produces the same result both times.
-3. A freshly loaded condensed CSV (`;` only) also produces columnar-aligned output on Format click.
+1. A condensed CSV (`;` only) produces columnar-aligned output after one Format click.
+2. A columnar CSV (` ; ` separators) produces condensed output after one Format click.
+3. Clicking Format twice on the same content returns it to the original format (round-trip stable).
+4. A `Sequence` header row and its indented step rows are formatted as independent tables — the step columns are not padded to the header's field widths.
 
 ---
 

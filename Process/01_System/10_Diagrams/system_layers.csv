@@ -1,9 +1,9 @@
-Include;../20_Definitions/actors.csv;Import reusable actor definitions
-Include;../20_Definitions/packages.csv;Import reusable system package definitions
+Include ; ../20_Definitions/actors.csv   ; Import reusable actor definitions
+Include ; ../20_Definitions/packages.csv ; Import reusable system package definitions
 
-ClassDiagram;SystemLayers;Architectural layers of the system
-    User;UILayer;-->;1;1;interacts with;UI
-    UILayer;APISLayer;-->;1;1;calls;API
-    APISLayer;ProcessingLayer;-->;1;1;delegates to;Processing
-    ProcessingLayer;StorageLayer;-->;1;1;accesses;Storage
-    StorageLayer;FileSystem;-->;1;1;backed by;Storage
+ClassDiagram ; SystemLayers ; Architectural layers of the system
+    User            ; UILayer         ; --> ; 1 ; 1 ; interacts with ; UI
+    UILayer         ; APISLayer       ; --> ; 1 ; 1 ; calls          ; API
+    APISLayer       ; ProcessingLayer ; --> ; 1 ; 1 ; delegates to   ; Processing
+    ProcessingLayer ; StorageLayer    ; --> ; 1 ; 1 ; accesses       ; Storage
+    StorageLayer    ; FileSystem      ; --> ; 1 ; 1 ; backed by      ; Storage

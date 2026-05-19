@@ -1,22 +1,22 @@
-Class;User;User interface
-    Function;LogEvent;Logs events
-        Param;EventID;Event ID
-        ReturnVal;Status;Logged
-Class;Logger;System logger
-    Function;SendNotification;Send alert
-        Param;EventID;Event ID
-        ReturnVal;Queued;In queue
-Class;NotificationService;Notification handler
-    Function;Notify;Alert user
-        Param;EventID;event
-        ReturnVal;Sent;Delivered
-Sequence;SoftReq_TEST_001;Test note types
-    User;Logger;LogEvent;123;logged;@Info;Login successful
-    User;@Warning;Session timeout approaching
-    Logger;NotificationService;SendNotification;123;queued;@Warning;Queue full
-    User;@Info;Backup complete
-    User;@Success;Backup verified
-    NotificationService;User;Notify;123;sent;@Error;Alert delivery failed
-    Logger;@Error;Database offline
-    User;@Info;Long note with `code` segments that exceeds eighty characters maximum width and should wrap to demonstrate text wrapping and code styling together
+Class ; User ; User interface
+    Function  ; LogEvent ; Logs events
+    Param     ; EventID  ; Event ID
+    ReturnVal ; Status   ; Logged
+Class ; Logger ; System logger
+    Function  ; SendNotification ; Send alert
+    Param     ; EventID          ; Event ID
+    ReturnVal ; Queued           ; In queue
+Class ; NotificationService ; Notification handler
+    Function  ; Notify  ; Alert user
+    Param     ; EventID ; event
+    ReturnVal ; Sent    ; Delivered
+Sequence ; SoftReq_TEST_001 ; Test note types
+    User ; Logger ; LogEvent ; 123 ; logged ; @Info ; Login successful
+    User ; @Warning ; Session timeout approaching
+    Logger ; NotificationService ; SendNotification ; 123 ; queued ; @Warning ; Queue full
+    User ; @Info    ; Backup complete
+    User ; @Success ; Backup verified
+    NotificationService ; User ; Notify ; 123 ; sent ; @Error ; Alert delivery failed
+    Logger ; @Error ; Database offline
+    User   ; @Info  ; Long note with `code` segments that exceeds eighty characters maximum width and should wrap to demonstrate text wrapping and code styling together
 

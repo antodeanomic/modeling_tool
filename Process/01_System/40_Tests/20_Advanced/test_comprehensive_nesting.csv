@@ -1,164 +1,164 @@
-Class;Caller;External system initiating the sequence
-Class;Obj1;Main orchestrator and controller
-    Function;ProcessOrder;High-level order processing
-        ReturnVal;orderId;Unique order identifier
-    Function;ValidateOrder() : isValid;Check order validity
-        ReturnVal;isValid;Validation result
-    Function;CalculatePrice(items) : total;Compute total with tax
-        Param;items;Order items
-        ReturnVal;total;Final price
-    Function;AdjustInventory(itemIds) : success;Update stock levels
-        Param;itemIds;Items to adjust
-        ReturnVal;success;Operation status
-    Function;CleanupResources(resourceIds) : cleaned;Release temporary resources
-        Param;resourceIds;Resource identifiers
-        ReturnVal;cleaned;Cleanup status
-    Function;DeepFunc1(nesting_level) : result1;Level 1 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result1;Result from level 1
-    Function;DeepFunc2(nesting_level) : result2;Level 2 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result2;Result from level 2
-    Function;DeepFunc3(nesting_level) : result3;Level 3 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result3;Result from level 3
-    Function;DeepFunc4(nesting_level) : result4;Level 4 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result4;Result from level 4
-    Function;DeepFunc5(nesting_level) : result5;Level 5 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result5;Result from level 5
-    Function;DeepFunc6(nesting_level) : result6;Level 6 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result6;Result from level 6
-    Function;DeepFunc7(nesting_level) : result7;Level 7 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result7;Result from level 7
-    Function;DeepFunc8(nesting_level) : result8;Level 8 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result8;Result from level 8
-    Function;DeepFunc9(nesting_level) : result9;Level 9 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result9;Result from level 9
-    Function;DeepFunc10(nesting_level) : result10;Level 10 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result10;Result from level 10
-    Function;DeepFunc11(nesting_level) : result11;Level 11 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result11;Result from level 11
-    Function;DeepFunc12(nesting_level) : result12;Level 12 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result12;Result from level 12
-    Function;DeepFunc13(nesting_level) : result13;Level 13 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result13;Result from level 13
-    Function;DeepFunc14(nesting_level) : result14;Level 14 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result14;Result from level 14
-    Function;DeepFunc15(nesting_level) : result15;Level 15 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result15;Result from level 15
-    Function;DeepFunc16(nesting_level) : result16;Level 16 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result16;Result from level 16
-    Function;DeepFunc17(nesting_level) : result17;Level 17 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result17;Result from level 17
-    Function;DeepFunc18(nesting_level) : result18;Level 18 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result18;Result from level 18
-    Function;DeepFunc19(nesting_level) : result19;Level 19 self-call
-        Param;nesting_level;(Deep)
-        ReturnVal;result19;Result from level 19
-    Function;DeepFunc20(nesting_level) : result20;Level 20 self-call (deepest nesting)
-        Param;nesting_level;(Deep)
-        ReturnVal;result20;Result from level 20
-Class;Obj2;Business logic service layer
-    Function;CheckInventory;Query stock availability
-        Param;itemId;Item to check
-        ReturnVal;available;Units in stock
-    Function;ApplyDiscount;Calculate discount
-        Param;basePrice;Original price
-        ReturnVal;discountedPrice;Reduced price
-    Function;NotifyCustomer;Send order confirmation
-        Param;orderId;Order identifier
-        ReturnVal;notificationId;Notification ID
-    Function;LoadUserPreferences;Retrieve user settings
-        Param;userId;User identifier
-        ReturnVal;preferences;User preferences
-Class;Obj3;Data access and persistence layer
-    Function;QueryDatabase;Execute database query
-        Param;query;SQL query string
-        ReturnVal;result;Query result set
-    Function;SaveOrder;Persist order to storage
-        Param;orderData;Order details
-        ReturnVal;orderId;Database ID
-Class;Obj4;Utility and helper functions
-    Function;EncryptQuery;Secure the query string
-        Param;queryStr;Plain query
-        ReturnVal;encrypted;Encrypted query
-    Function;FormatAmount;Format currency amount
-        Param;amount;Numeric amount
-        ReturnVal;formatted;Formatted string
-    Function;RenderTemplate;Generate response template
-        Param;templateId;Template identifier
-        ReturnVal;html;Rendered HTML
-Class;Obj5;External system integration
-    Function;SecureTransmit;Send data securely
-        Param;data;Data to transmit
-        ReturnVal;receipt;Transmission receipt
-    Function;AuditLog;Log order to audit trail
-        Param;orderId;Order identifier
-        ReturnVal;logId;Audit log ID
-    Function;GenerateInvoice;Create invoice document
-        Param;orderId;Order identifier
-        ReturnVal;invoiceUrl;Invoice download link
-    Function;PostToLedger;Record in accounting system
-        Param;amount;Transaction amount
-        ReturnVal;ledgerId;Ledger entry ID
-Sequence;SoftReq_COMPREHENSIVE_TEST;Comprehensive multi-level nesting test with auto-numbered rows based on indentation
-    Caller;Obj1;ProcessOrder;orderId
-        Obj1;Obj1;ValidateOrder;isValid
-            Obj1;Obj2;CheckInventory;itemId;available
-            Obj2;Obj3;QueryDatabase;query;result
-            Obj3;Obj4;EncryptQuery;queryStr;encrypted
-            Obj4;Obj5;SecureTransmit;data;receipt
-        Obj1;Obj1;CalculatePrice;items;total
-            Obj1;Obj2;ApplyDiscount;basePrice;discountedPrice
-                Obj2;Obj4;FormatAmount;amount;formatted
-        Obj1;Obj1;AdjustInventory;itemIds;success
-            Obj1;Obj2;CheckInventory;itemId;available
-                Obj2;Obj3;QueryDatabase;query;result
-        Obj1;Obj3;SaveOrder;orderData;orderId
-            Obj3;Obj5;AuditLog;orderId;logId
-        Obj1;Obj1;CalculatePrice;items;total
-        Obj1;Obj4;FormatAmount;amount;formatted
-            Obj4;Obj5;PostToLedger;amount;ledgerId
-        Obj1;Obj2;NotifyCustomer;orderId;notificationId
-            Obj2;Obj5;GenerateInvoice;orderId;invoiceUrl
-                Obj5;Obj4;RenderTemplate;templateId;html
-        Obj1;Obj3;LoadUserPreferences;userId;preferences
-            Obj3;Obj4;FormatAmount;amount;formatted
-                Obj4;Obj5;RenderTemplate;templateId;html
-        Obj1;Obj1;CleanupResources;resourceIds;cleaned
+Class ; Caller ; External system initiating the sequence
+Class ; Obj1   ; Main orchestrator and controller
+    Function  ; ProcessOrder                            ; High-level order processing
+    ReturnVal ; orderId                                 ; Unique order identifier
+    Function  ; ValidateOrder() : isValid               ; Check order validity
+    ReturnVal ; isValid                                 ; Validation result
+    Function  ; CalculatePrice(items) : total           ; Compute total with tax
+    Param     ; items                                   ; Order items
+    ReturnVal ; total                                   ; Final price
+    Function  ; AdjustInventory(itemIds) : success      ; Update stock levels
+    Param     ; itemIds                                 ; Items to adjust
+    ReturnVal ; success                                 ; Operation status
+    Function  ; CleanupResources(resourceIds) : cleaned ; Release temporary resources
+    Param     ; resourceIds                             ; Resource identifiers
+    ReturnVal ; cleaned                                 ; Cleanup status
+    Function  ; DeepFunc1(nesting_level) : result1      ; Level 1 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result1                                 ; Result from level 1
+    Function  ; DeepFunc2(nesting_level) : result2      ; Level 2 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result2                                 ; Result from level 2
+    Function  ; DeepFunc3(nesting_level) : result3      ; Level 3 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result3                                 ; Result from level 3
+    Function  ; DeepFunc4(nesting_level) : result4      ; Level 4 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result4                                 ; Result from level 4
+    Function  ; DeepFunc5(nesting_level) : result5      ; Level 5 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result5                                 ; Result from level 5
+    Function  ; DeepFunc6(nesting_level) : result6      ; Level 6 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result6                                 ; Result from level 6
+    Function  ; DeepFunc7(nesting_level) : result7      ; Level 7 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result7                                 ; Result from level 7
+    Function  ; DeepFunc8(nesting_level) : result8      ; Level 8 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result8                                 ; Result from level 8
+    Function  ; DeepFunc9(nesting_level) : result9      ; Level 9 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result9                                 ; Result from level 9
+    Function  ; DeepFunc10(nesting_level) : result10    ; Level 10 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result10                                ; Result from level 10
+    Function  ; DeepFunc11(nesting_level) : result11    ; Level 11 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result11                                ; Result from level 11
+    Function  ; DeepFunc12(nesting_level) : result12    ; Level 12 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result12                                ; Result from level 12
+    Function  ; DeepFunc13(nesting_level) : result13    ; Level 13 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result13                                ; Result from level 13
+    Function  ; DeepFunc14(nesting_level) : result14    ; Level 14 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result14                                ; Result from level 14
+    Function  ; DeepFunc15(nesting_level) : result15    ; Level 15 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result15                                ; Result from level 15
+    Function  ; DeepFunc16(nesting_level) : result16    ; Level 16 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result16                                ; Result from level 16
+    Function  ; DeepFunc17(nesting_level) : result17    ; Level 17 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result17                                ; Result from level 17
+    Function  ; DeepFunc18(nesting_level) : result18    ; Level 18 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result18                                ; Result from level 18
+    Function  ; DeepFunc19(nesting_level) : result19    ; Level 19 self-call
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result19                                ; Result from level 19
+    Function  ; DeepFunc20(nesting_level) : result20    ; Level 20 self-call (deepest nesting)
+    Param     ; nesting_level                           ; (Deep)
+    ReturnVal ; result20                                ; Result from level 20
+Class ; Obj2 ; Business logic service layer
+    Function  ; CheckInventory      ; Query stock availability
+    Param     ; itemId              ; Item to check
+    ReturnVal ; available           ; Units in stock
+    Function  ; ApplyDiscount       ; Calculate discount
+    Param     ; basePrice           ; Original price
+    ReturnVal ; discountedPrice     ; Reduced price
+    Function  ; NotifyCustomer      ; Send order confirmation
+    Param     ; orderId             ; Order identifier
+    ReturnVal ; notificationId      ; Notification ID
+    Function  ; LoadUserPreferences ; Retrieve user settings
+    Param     ; userId              ; User identifier
+    ReturnVal ; preferences         ; User preferences
+Class ; Obj3 ; Data access and persistence layer
+    Function  ; QueryDatabase ; Execute database query
+    Param     ; query         ; SQL query string
+    ReturnVal ; result        ; Query result set
+    Function  ; SaveOrder     ; Persist order to storage
+    Param     ; orderData     ; Order details
+    ReturnVal ; orderId       ; Database ID
+Class ; Obj4 ; Utility and helper functions
+    Function  ; EncryptQuery   ; Secure the query string
+    Param     ; queryStr       ; Plain query
+    ReturnVal ; encrypted      ; Encrypted query
+    Function  ; FormatAmount   ; Format currency amount
+    Param     ; amount         ; Numeric amount
+    ReturnVal ; formatted      ; Formatted string
+    Function  ; RenderTemplate ; Generate response template
+    Param     ; templateId     ; Template identifier
+    ReturnVal ; html           ; Rendered HTML
+Class ; Obj5 ; External system integration
+    Function  ; SecureTransmit  ; Send data securely
+    Param     ; data            ; Data to transmit
+    ReturnVal ; receipt         ; Transmission receipt
+    Function  ; AuditLog        ; Log order to audit trail
+    Param     ; orderId         ; Order identifier
+    ReturnVal ; logId           ; Audit log ID
+    Function  ; GenerateInvoice ; Create invoice document
+    Param     ; orderId         ; Order identifier
+    ReturnVal ; invoiceUrl      ; Invoice download link
+    Function  ; PostToLedger    ; Record in accounting system
+    Param     ; amount          ; Transaction amount
+    ReturnVal ; ledgerId        ; Ledger entry ID
+Sequence ; SoftReq_COMPREHENSIVE_TEST ; Comprehensive multi-level nesting test with auto-numbered rows based on indentation
+    Caller ; Obj1 ; ProcessOrder  ; orderId
+    Obj1   ; Obj1 ; ValidateOrder ; isValid
+    Obj1 ; Obj2 ; CheckInventory      ; itemId      ; available
+    Obj2 ; Obj3 ; QueryDatabase       ; query       ; result
+    Obj3 ; Obj4 ; EncryptQuery        ; queryStr    ; encrypted
+    Obj4 ; Obj5 ; SecureTransmit      ; data        ; receipt
+    Obj1 ; Obj1 ; CalculatePrice      ; items       ; total
+    Obj1 ; Obj2 ; ApplyDiscount       ; basePrice   ; discountedPrice
+    Obj2 ; Obj4 ; FormatAmount        ; amount      ; formatted
+    Obj1 ; Obj1 ; AdjustInventory     ; itemIds     ; success
+    Obj1 ; Obj2 ; CheckInventory      ; itemId      ; available
+    Obj2 ; Obj3 ; QueryDatabase       ; query       ; result
+    Obj1 ; Obj3 ; SaveOrder           ; orderData   ; orderId
+    Obj3 ; Obj5 ; AuditLog            ; orderId     ; logId
+    Obj1 ; Obj1 ; CalculatePrice      ; items       ; total
+    Obj1 ; Obj4 ; FormatAmount        ; amount      ; formatted
+    Obj4 ; Obj5 ; PostToLedger        ; amount      ; ledgerId
+    Obj1 ; Obj2 ; NotifyCustomer      ; orderId     ; notificationId
+    Obj2 ; Obj5 ; GenerateInvoice     ; orderId     ; invoiceUrl
+    Obj5 ; Obj4 ; RenderTemplate      ; templateId  ; html
+    Obj1 ; Obj3 ; LoadUserPreferences ; userId      ; preferences
+    Obj3 ; Obj4 ; FormatAmount        ; amount      ; formatted
+    Obj4 ; Obj5 ; RenderTemplate      ; templateId  ; html
+    Obj1 ; Obj1 ; CleanupResources    ; resourceIds ; cleaned
         
-        Obj1;Obj1;DeepFunc1;1;result1
-            Obj1;Obj1;DeepFunc2;2;result2
-                Obj1;Obj1;DeepFunc3;3;result3
-                    Obj1;Obj1;DeepFunc4;4;result4
-                        Obj1;Obj1;DeepFunc5;5;result5
-                            Obj1;Obj1;DeepFunc6;6;result6
-                                Obj1;Obj1;DeepFunc7;7;result7
-                                    Obj1;Obj1;DeepFunc8;8;result8
-                                        Obj1;Obj1;DeepFunc9;9;result9
-                                            Obj1;Obj1;DeepFunc10;10;result10
-                                                Obj1;Obj1;DeepFunc11;11;result11
-                                                    Obj1;Obj1;DeepFunc12;12;result12
-                                                        Obj1;Obj1;DeepFunc13;13;result13
-                                                            Obj1;Obj1;DeepFunc14;14;result14
-                                                                Obj1;Obj1;DeepFunc15;15;result15
-                                                                    Obj1;Obj1;DeepFunc16;16;result16
-                                                                        Obj1;Obj1;DeepFunc17;17;result17
-                                                                            Obj1;Obj1;DeepFunc18;18;result18
-                                                                                Obj1;Obj1;DeepFunc19;19;result19
-                                                                                    Obj1;Obj1;DeepFunc20;20;result20
+    Obj1 ; Obj1 ; DeepFunc1  ; 1  ; result1
+    Obj1 ; Obj1 ; DeepFunc2  ; 2  ; result2
+    Obj1 ; Obj1 ; DeepFunc3  ; 3  ; result3
+    Obj1 ; Obj1 ; DeepFunc4  ; 4  ; result4
+    Obj1 ; Obj1 ; DeepFunc5  ; 5  ; result5
+    Obj1 ; Obj1 ; DeepFunc6  ; 6  ; result6
+    Obj1 ; Obj1 ; DeepFunc7  ; 7  ; result7
+    Obj1 ; Obj1 ; DeepFunc8  ; 8  ; result8
+    Obj1 ; Obj1 ; DeepFunc9  ; 9  ; result9
+    Obj1 ; Obj1 ; DeepFunc10 ; 10 ; result10
+    Obj1 ; Obj1 ; DeepFunc11 ; 11 ; result11
+    Obj1 ; Obj1 ; DeepFunc12 ; 12 ; result12
+    Obj1 ; Obj1 ; DeepFunc13 ; 13 ; result13
+    Obj1 ; Obj1 ; DeepFunc14 ; 14 ; result14
+    Obj1 ; Obj1 ; DeepFunc15 ; 15 ; result15
+    Obj1 ; Obj1 ; DeepFunc16 ; 16 ; result16
+    Obj1 ; Obj1 ; DeepFunc17 ; 17 ; result17
+    Obj1 ; Obj1 ; DeepFunc18 ; 18 ; result18
+    Obj1 ; Obj1 ; DeepFunc19 ; 19 ; result19
+    Obj1 ; Obj1 ; DeepFunc20 ; 20 ; result20

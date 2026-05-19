@@ -1,33 +1,33 @@
-Type;Name;Description
-Class;UserSvc;User service
-    Function;CreateUser;Create user
-        Param;name;Full name
-        Param;email;Email address
-        Param;role;User role
-        ReturnVal;userID;New ID
-        ReturnVal;status;Status
-    Function;UpdateProfile;Update profile
-        Param;userID;User ID
-        Param;email;New email
-        Param;phone;Phone number
-        ReturnVal;confirmed;Confirmed
-Class;Database;Data store
-    Function;Insert;Insert record
-        Param;userID;ID
-        Param;data;User data
-        ReturnVal;status;Success
-Class;EmailSvc;Email service
-    Function;SendVerification;Send email
-        Param;userID;User ID
-        Param;email;Email address
-        ReturnVal;sent;Sent status
-        ReturnVal;confirmed;Confirmed
-Sequence;SoftReq_TEST_004;Parameters and returns
-    UserSvc;Database;Insert;USR001;john@test.com;USR001;created
-    UserSvc;@Info;Creating user
-    Database;UserSvc;Insert;USR001;created
-    UserSvc;EmailSvc;SendVerification;USR001;john@test.com;sent;confirmed
-    EmailSvc;UserSvc;SendVerification;sent;confirmed
-    UserSvc;Database;Insert;USR001;john.new@test.com;success
-    UserSvc;@Info;Profile updated
-    Database;UserSvc;Insert;success
+Type  ; Name    ; Description
+Class ; UserSvc ; User service
+    Function  ; CreateUser    ; Create user
+    Param     ; name          ; Full name
+    Param     ; email         ; Email address
+    Param     ; role          ; User role
+    ReturnVal ; userID        ; New ID
+    ReturnVal ; status        ; Status
+    Function  ; UpdateProfile ; Update profile
+    Param     ; userID        ; User ID
+    Param     ; email         ; New email
+    Param     ; phone         ; Phone number
+    ReturnVal ; confirmed     ; Confirmed
+Class ; Database ; Data store
+    Function  ; Insert ; Insert record
+    Param     ; userID ; ID
+    Param     ; data   ; User data
+    ReturnVal ; status ; Success
+Class ; EmailSvc ; Email service
+    Function  ; SendVerification ; Send email
+    Param     ; userID           ; User ID
+    Param     ; email            ; Email address
+    ReturnVal ; sent             ; Sent status
+    ReturnVal ; confirmed        ; Confirmed
+Sequence ; SoftReq_TEST_004 ; Parameters and returns
+    UserSvc ; Database ; Insert ; USR001 ; john@test.com ; USR001 ; created
+    UserSvc ; @Info ; Creating user
+    Database ; UserSvc ; Insert ; USR001 ; created
+    UserSvc ; EmailSvc ; SendVerification ; USR001 ; john@test.com ; sent ; confirmed
+    EmailSvc ; UserSvc ; SendVerification ; sent ; confirmed
+    UserSvc ; Database ; Insert ; USR001 ; john.new@test.com ; success
+    UserSvc ; @Info ; Profile updated
+    Database ; UserSvc ; Insert ; success

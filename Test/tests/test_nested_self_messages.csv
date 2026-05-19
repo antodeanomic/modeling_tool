@@ -1,16 +1,16 @@
 Class ; Obj1 ; First object
-    Function ; Msg1  ; Send message to self
-        ReturnVal ; result1    ; Result
-    Function ; Msg1a ; Nested self call
-        ReturnVal ; result1a   ; Inner result
-    Function ; Msg1b ; Call to other object
-        Param ; data ; Some data
-        ReturnVal ; response1b ; Response
+    Function  ; Msg1       ; Send message to self
+    ReturnVal ; result1    ; Result
+    Function  ; Msg1a      ; Nested self call
+    ReturnVal ; result1a   ; Inner result
+    Function  ; Msg1b      ; Call to other object
+    Param     ; data       ; Some data
+    ReturnVal ; response1b ; Response
 Class ; Obj2 ; Second object
-    Function ; Msg1b ; Receive message from Obj1
-        Param ; data ; Data parameter
-        ReturnVal ; response   ; Response value
+    Function  ; Msg1b    ; Receive message from Obj1
+    Param     ; data     ; Data parameter
+    ReturnVal ; response ; Response value
 Sequence ; SoftReq_TEST_NESTED ; Nested self-messages with stacking
     Obj1 ; Obj1 ; Msg1  ; result1
-        Obj1 ; Obj1 ; Msg1a ; result1a
-        Obj1 ; Obj2 ; Msg1b ; data ; response1b
+    Obj1 ; Obj1 ; Msg1a ; result1a
+    Obj1 ; Obj2 ; Msg1b ; data ; response1b

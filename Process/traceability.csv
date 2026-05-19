@@ -1,21 +1,21 @@
-Requirement_ID;Requirement_Type;Customer_Req_ID;User_Story_ID;Feature_ID;Feature_Status;Test_Case_ID;Description
-TRACE-001;Customer Requirement;CREQ-001;;;N/A;N/A;Defined process re-uses existing software processes (meta-requirement for project structure)
-TRACE-002;Customer Requirement;CREQ-002;US-001;FEAT-001;In Progress;test_parser_001;CSV Parser - fundamental to all diagram types
-TRACE-003;Customer Requirement;CREQ-002;US-001;FEAT-002;In Progress;test_render_001;Sequence Diagram Rendering - core feature
-TRACE-004;Customer Requirement;CREQ-002;US-002;FEAT-002;In Progress;test_render_001;Sequence Diagram Rendering - supports AI output
-TRACE-005;Customer Requirement;CREQ-002;US-002;FEAT-008;In Progress;test_interactive_001;Interactive SVG Output - enables collaboration
-TRACE-006;Customer Requirement;CREQ-002;US-003;FEAT-007;In Progress;test_verbosity_001;Verbosity Level Filtering - supports complexity reduction
-TRACE-007;Customer Requirement;CREQ-002;US-004;FEAT-009;In Progress;test_specs_001;Test Specifications - enables traceability
-TRACE-008;Customer Requirement;CREQ-003;;;N/A;N/A;High-level project guide (this document)
-TRACE-009;Customer Requirement;CREQ-004;US-003;FEAT-006;In Progress;test_preview_001;Web-Based Preview Viewer - instant updates
-TRACE-010;Customer Requirement;CREQ-004;US-003;FEAT-007;In Progress;test_verbosity_001;Verbosity Level Filtering - part of preview
-TRACE-011;Feature Implementation;CREQ-002;US-001;FEAT-003;In Progress;test_function_notes_001;Function Notes - detailed message documentation
-TRACE-012;Feature Implementation;CREQ-002;US-002;FEAT-004;In Progress;test_lane_notes_001;Lane Notes - participant documentation
-TRACE-013;Feature Implementation;CREQ-002;US-002;FEAT-005;In Progress;test_spanning_brackets_001;Spanning Brackets - visual scope indicators
-TRACE-014;Phase 2 Enhancement;CREQ-002;US-003;FEAT-010;Planned;test_class_diagrams_001;Class/Component Diagrams - expand to new diagram types
-TRACE-015;Phase 2 Enhancement;CREQ-002;US-003;FEAT-011;Planned;test_state_diagrams_001;State Diagrams - expand to new diagram types
-TRACE-016;Phase 2 Enhancement;CREQ-002;US-003;FEAT-012;Planned;test_layer_filtering_001;Layer Filtering - advanced complexity filtering
-TRACE-017;Phase 2 Enhancement;CREQ-002;US-004;FEAT-013;Planned;test_requirement_traceability_001;Requirement Traceability - full feature linking
-TRACE-018;Phase 2 Enhancement;CREQ-004;;FEAT-014;Planned;test_export_001;Export Features - multiple output formats
-TRACE-019;Phase 2 Enhancement;CREQ-002;;FEAT-015;Planned;test_spreadsheet_integration_001;Spreadsheet Integration - enhanced CSV editing
-TRACE-020;Phase 2 Enhancement;;;FEAT-016;Planned;test_collaborative_comments_001;Collaborative Comments - team design discussion
+Requirement_ID ; Requirement_Type       ; Customer_Req_ID ; User_Story_ID ; Feature_ID ; Feature_Status ; Test_Case_ID                      ; Description
+TRACE-001      ; Customer Requirement   ; CREQ-001        ;               ;            ; N/A            ; N/A                               ; Defined process re-uses existing software processes (meta-requirement for project structure)
+TRACE-002      ; Customer Requirement   ; CREQ-002        ; US-001        ; FEAT-001   ; In Progress    ; test_parser_001                   ; CSV Parser - fundamental to all diagram types
+TRACE-003      ; Customer Requirement   ; CREQ-002        ; US-001        ; FEAT-002   ; In Progress    ; test_render_001                   ; Sequence Diagram Rendering - core feature
+TRACE-004      ; Customer Requirement   ; CREQ-002        ; US-002        ; FEAT-002   ; In Progress    ; test_render_001                   ; Sequence Diagram Rendering - supports AI output
+TRACE-005      ; Customer Requirement   ; CREQ-002        ; US-002        ; FEAT-008   ; In Progress    ; test_interactive_001              ; Interactive SVG Output - enables collaboration
+TRACE-006      ; Customer Requirement   ; CREQ-002        ; US-003        ; FEAT-007   ; In Progress    ; test_verbosity_001                ; Verbosity Level Filtering - supports complexity reduction
+TRACE-007      ; Customer Requirement   ; CREQ-002        ; US-004        ; FEAT-009   ; In Progress    ; test_specs_001                    ; Test Specifications - enables traceability
+TRACE-008      ; Customer Requirement   ; CREQ-003        ;               ;            ; N/A            ; N/A                               ; High-level project guide (this document)
+TRACE-009      ; Customer Requirement   ; CREQ-004        ; US-003        ; FEAT-006   ; In Progress    ; test_preview_001                  ; Web-Based Preview Viewer - instant updates
+TRACE-010      ; Customer Requirement   ; CREQ-004        ; US-003        ; FEAT-007   ; In Progress    ; test_verbosity_001                ; Verbosity Level Filtering - part of preview
+TRACE-011      ; Feature Implementation ; CREQ-002        ; US-001        ; FEAT-003   ; In Progress    ; test_function_notes_001           ; Function Notes - detailed message documentation
+TRACE-012      ; Feature Implementation ; CREQ-002        ; US-002        ; FEAT-004   ; In Progress    ; test_lane_notes_001               ; Lane Notes - participant documentation
+TRACE-013      ; Feature Implementation ; CREQ-002        ; US-002        ; FEAT-005   ; In Progress    ; test_spanning_brackets_001        ; Spanning Brackets - visual scope indicators
+TRACE-014      ; Phase 2 Enhancement    ; CREQ-002        ; US-003        ; FEAT-010   ; Planned        ; test_class_diagrams_001           ; Class/Component Diagrams - expand to new diagram types
+TRACE-015      ; Phase 2 Enhancement    ; CREQ-002        ; US-003        ; FEAT-011   ; Planned        ; test_state_diagrams_001           ; State Diagrams - expand to new diagram types
+TRACE-016      ; Phase 2 Enhancement    ; CREQ-002        ; US-003        ; FEAT-012   ; Planned        ; test_layer_filtering_001          ; Layer Filtering - advanced complexity filtering
+TRACE-017      ; Phase 2 Enhancement    ; CREQ-002        ; US-004        ; FEAT-013   ; Planned        ; test_requirement_traceability_001 ; Requirement Traceability - full feature linking
+TRACE-018      ; Phase 2 Enhancement    ; CREQ-004        ;               ; FEAT-014   ; Planned        ; test_export_001                   ; Export Features - multiple output formats
+TRACE-019      ; Phase 2 Enhancement    ; CREQ-002        ;               ; FEAT-015   ; Planned        ; test_spreadsheet_integration_001  ; Spreadsheet Integration - enhanced CSV editing
+TRACE-020      ; Phase 2 Enhancement    ;                 ;               ; FEAT-016   ; Planned        ; test_collaborative_comments_001   ; Collaborative Comments - team design discussion

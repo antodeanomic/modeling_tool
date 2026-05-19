@@ -1,3 +1,3 @@
-Class;User;End user interacting with the system;UI
-Class;Client;Web browser client;UI
-Class;WebBrowser;Browser runtime and presentation surface;UI
+Class ; User       ; End user interacting with the system     ; UI
+Class ; Client     ; Web browser client                       ; UI
+Class ; WebBrowser ; Browser runtime and presentation surface ; UI

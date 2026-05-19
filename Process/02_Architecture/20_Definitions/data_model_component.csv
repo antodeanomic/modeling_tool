@@ -1,79 +1,79 @@
-Class;Model;Top-level container holding all parsed model data
-    MemberVar;classes;List of ClassDef objects
-    MemberVar;sequences;List of SequenceDef objects
-    MemberVar;warnings;List of validation warning strings
-    Function;+get_sequence;Find sequence by ID
-        Param;seq_id;Sequence identifier string
-        ReturnVal;sequence;SequenceDef or None
-    Function;+get_function;Find function by class and function name
-        Param;class_name;Class to search in
-        Param;func_name;Function name (handles FuncName() : RetVal format)
-        ReturnVal;function;FunctionDef or None
-    Function;+get_class;Find class by name
-        Param;class_name;Class name to look up
-        ReturnVal;class_def;ClassDef or None
-    Function;+get_state_machine;Get state machine from a class
-        Param;class_name;Class containing the state machine
-        Param;sm_name;State machine name (None returns first)
-        ReturnVal;state_machine;StateMachineDef or None
-Class;ClassDef;Represents a class or participant in the model
-    MemberVar;name;Class name
-    MemberVar;description;Class description
-    MemberVar;members;List of MemberVar objects
-    MemberVar;functions;List of FunctionDef objects
-    MemberVar;state_machines;List of StateMachineDef objects
-Class;FunctionDef;Represents a function or method on a class
-    MemberVar;visibility;Access modifier (+ public or - private)
-    MemberVar;name;Function name or signature
-    MemberVar;description;Function description
-    MemberVar;params;List of ParamDef objects
-    MemberVar;returns;List of ReturnDef objects
-Class;ParamDef;Represents a function parameter definition
-    MemberVar;name;Parameter name
-    MemberVar;description;Parameter description
-Class;ReturnDef;Represents a function return value definition
-    MemberVar;name;Return value name
-    MemberVar;description;Return value description
-Class;MemberVar;Represents a member variable of a class
-    MemberVar;name;Variable name
-    MemberVar;description;Variable description
-Class;SequenceDef;Represents a complete sequence diagram definition
-    MemberVar;seq_id;Sequence identifier
-    MemberVar;headline;Sequence title/headline
-    MemberVar;description;Sequence description
-    MemberVar;steps;List of SequenceStep objects
-    Function;+get_lanes;Extract unique participant names in order of first appearance
-        ReturnVal;lanes;List of participant name strings
-Class;SequenceStep;Represents a single step in a sequence diagram
-    MemberVar;depth;Indentation nesting level (0 = top level)
-    MemberVar;src_obj;Source participant name
-    MemberVar;function;Function name being called
-    MemberVar;dst_obj;Destination participant name
-    MemberVar;description;Step description
-    MemberVar;row;Row number for Y positioning (same row = same Y)
-    MemberVar;return_value;Actual return value to display
-    MemberVar;param_values;List of actual parameter values
-    MemberVar;state_changes;Dict mapping lane_name → state_name
-    MemberVar;lane_notes;Dict mapping lane_name → NoteDef
-    MemberVar;function_note;Optional NoteDef for the function call
-Class;NoteDef;Represents an annotation note (Info/Warning/Error/Success)
-    MemberVar;note_type;Note type: Info or Warning or Error or Success
-    MemberVar;content;Text content of the note
-Class;StateMachineDef;Represents a state machine attached to a class
-    MemberVar;name;State machine name
-    MemberVar;description;State machine description
-    MemberVar;states;List of StateDef objects
-Class;StateDef;Represents a state within a state machine
-    MemberVar;name;State name
-    MemberVar;description;State description
-Class;ClassRelationship;A relationship between two classes in a class diagram
-    MemberVar;source;Source class name
-    MemberVar;target;Target class name
-    MemberVar;arrow;UML arrow type (e.g. --> or ◇-- or ..>)
-    MemberVar;src_mult;Multiplicity at source side (e.g. 1 or 0..*)
-    MemberVar;tgt_mult;Multiplicity at target side
-    MemberVar;label;Optional text label on the relationship
-Class;ClassDiagramDef;Defines a class diagram with relationships between classes
-    MemberVar;diagram_id;Unique diagram identifier
-    MemberVar;description;Diagram description
-    MemberVar;relationships;List of ClassRelationship objects
+Class ; Model ; Top-level container holding all parsed model data
+    MemberVar ; classes            ; List of ClassDef objects
+    MemberVar ; sequences          ; List of SequenceDef objects
+    MemberVar ; warnings           ; List of validation warning strings
+    Function  ; +get_sequence      ; Find sequence by ID
+    Param     ; seq_id             ; Sequence identifier string
+    ReturnVal ; sequence           ; SequenceDef or None
+    Function  ; +get_function      ; Find function by class and function name
+    Param     ; class_name         ; Class to search in
+    Param     ; func_name          ; Function name (handles FuncName() : RetVal format)
+    ReturnVal ; function           ; FunctionDef or None
+    Function  ; +get_class         ; Find class by name
+    Param     ; class_name         ; Class name to look up
+    ReturnVal ; class_def          ; ClassDef or None
+    Function  ; +get_state_machine ; Get state machine from a class
+    Param     ; class_name         ; Class containing the state machine
+    Param     ; sm_name            ; State machine name (None returns first)
+    ReturnVal ; state_machine      ; StateMachineDef or None
+Class ; ClassDef ; Represents a class or participant in the model
+    MemberVar ; name           ; Class name
+    MemberVar ; description    ; Class description
+    MemberVar ; members        ; List of MemberVar objects
+    MemberVar ; functions      ; List of FunctionDef objects
+    MemberVar ; state_machines ; List of StateMachineDef objects
+Class ; FunctionDef ; Represents a function or method on a class
+    MemberVar ; visibility  ; Access modifier (+ public or - private)
+    MemberVar ; name        ; Function name or signature
+    MemberVar ; description ; Function description
+    MemberVar ; params      ; List of ParamDef objects
+    MemberVar ; returns     ; List of ReturnDef objects
+Class ; ParamDef ; Represents a function parameter definition
+    MemberVar ; name        ; Parameter name
+    MemberVar ; description ; Parameter description
+Class ; ReturnDef ; Represents a function return value definition
+    MemberVar ; name        ; Return value name
+    MemberVar ; description ; Return value description
+Class ; MemberVar ; Represents a member variable of a class
+    MemberVar ; name        ; Variable name
+    MemberVar ; description ; Variable description
+Class ; SequenceDef ; Represents a complete sequence diagram definition
+    MemberVar ; seq_id      ; Sequence identifier
+    MemberVar ; headline    ; Sequence title/headline
+    MemberVar ; description ; Sequence description
+    MemberVar ; steps       ; List of SequenceStep objects
+    Function  ; +get_lanes  ; Extract unique participant names in order of first appearance
+    ReturnVal ; lanes       ; List of participant name strings
+Class ; SequenceStep ; Represents a single step in a sequence diagram
+    MemberVar ; depth         ; Indentation nesting level (0 = top level)
+    MemberVar ; src_obj       ; Source participant name
+    MemberVar ; function      ; Function name being called
+    MemberVar ; dst_obj       ; Destination participant name
+    MemberVar ; description   ; Step description
+    MemberVar ; row           ; Row number for Y positioning (same row = same Y)
+    MemberVar ; return_value  ; Actual return value to display
+    MemberVar ; param_values  ; List of actual parameter values
+    MemberVar ; state_changes ; Dict mapping lane_name → state_name
+    MemberVar ; lane_notes    ; Dict mapping lane_name → NoteDef
+    MemberVar ; function_note ; Optional NoteDef for the function call
+Class ; NoteDef ; Represents an annotation note (Info/Warning/Error/Success)
+    MemberVar ; note_type ; Note type: Info or Warning or Error or Success
+    MemberVar ; content   ; Text content of the note
+Class ; StateMachineDef ; Represents a state machine attached to a class
+    MemberVar ; name        ; State machine name
+    MemberVar ; description ; State machine description
+    MemberVar ; states      ; List of StateDef objects
+Class ; StateDef ; Represents a state within a state machine
+    MemberVar ; name        ; State name
+    MemberVar ; description ; State description
+Class ; ClassRelationship ; A relationship between two classes in a class diagram
+    MemberVar ; source   ; Source class name
+    MemberVar ; target   ; Target class name
+    MemberVar ; arrow    ; UML arrow type (e.g. --> or ◇-- or ..>)
+    MemberVar ; src_mult ; Multiplicity at source side (e.g. 1 or 0..*)
+    MemberVar ; tgt_mult ; Multiplicity at target side
+    MemberVar ; label    ; Optional text label on the relationship
+Class ; ClassDiagramDef ; Defines a class diagram with relationships between classes
+    MemberVar ; diagram_id    ; Unique diagram identifier
+    MemberVar ; description   ; Diagram description
+    MemberVar ; relationships ; List of ClassRelationship objects

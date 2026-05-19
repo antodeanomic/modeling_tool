@@ -1,10 +1,10 @@
-Class;User;User interface
-    Function;DoSomething;Does something
-        Param;input;Some input
-        ReturnVal;result;Some result
-Class;Logger;System logger
-    Function;Log;Log it
-        Param;msg;Message
-        ReturnVal;logged;Success
-Sequence;TEST_SUCCESS_ONLY;Test Success note only
-    User;Logger;DoSomething;test;ok;@Success;success
+Class ; User ; User interface
+    Function  ; DoSomething ; Does something
+    Param     ; input       ; Some input
+    ReturnVal ; result      ; Some result
+Class ; Logger ; System logger
+    Function  ; Log    ; Log it
+    Param     ; msg    ; Message
+    ReturnVal ; logged ; Success
+Sequence ; TEST_SUCCESS_ONLY ; Test Success note only
+    User ; Logger ; DoSomething ; test ; ok ; @Success ; success

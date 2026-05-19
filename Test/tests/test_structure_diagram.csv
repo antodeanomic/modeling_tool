@@ -1,44 +1,44 @@
 # Test structure diagram features: element types, routing, layers
-Class ; WebApp      ; Web application component
-    MemberVar ; port              ; Server port number
-    Function ; +start()        ; Start the server
-Class ; Database    ; Database service
+Class ; WebApp ; Web application component
+    MemberVar ; port     ; Server port number
+    Function  ; +start() ; Start the server
+Class ; Database ; Database service
     MemberVar ; connection_string ; DB connection
-    Function ; +query()        ; Execute a query
-Class ; Cache       ; In-memory cache
-    MemberVar ; max_size          ; Maximum cache size
-    Function ; +get()          ; Get cached item
-    Function ; +set()          ; Set cached item
+    Function  ; +query()          ; Execute a query
+Class ; Cache ; In-memory cache
+    MemberVar ; max_size ; Maximum cache size
+    Function  ; +get()   ; Get cached item
+    Function  ; +set()   ; Set cached item
 Class ; AuthService ; Authentication service
     Function ; +authenticate() ; Verify user credentials
-Class ; Logger      ; Logging utility
-    Function ; +log()          ; Write log entry
+Class ; Logger ; Logging utility
+    Function ; +log() ; Write log entry
 
 # Basic class diagram with diagonal routing (default)
-ClassDiagram ; BasicRelationships  ; Basic class relationships
-    WebApp ; Database    ; --> ; 1 ; 1 ; uses         ; core
-    WebApp ; Cache       ; --> ; 1 ; 1 ; uses         ; core
-    WebApp ; AuthService ; ..> ;   ;   ; depends      ; security
-    AuthService ; Database ; ..> ;  ;  ; queries ; security
-    Cache ; Logger   ; ..> ;  ;  ; logs  ; infrastructure
+ClassDiagram ; BasicRelationships ; Basic class relationships
+    WebApp      ; Database    ; --> ; 1 ; 1 ; uses    ; core
+    WebApp      ; Cache       ; --> ; 1 ; 1 ; uses    ; core
+    WebApp      ; AuthService ; ..> ;   ;   ; depends ; security
+    AuthService ; Database    ; ..> ;   ;   ; queries ; security
+    Cache       ; Logger      ; ..> ;   ;   ; logs    ; infrastructure
 
 # Orthogonal routing diagram
 ClassDiagram ; OrthogonalLayout ; Orthogonal connector routing ; 
-    WebApp ; Database ; --> ; 1 ; 1    ; uses
-    WebApp ; Cache    ; ◇-- ; 1 ; 1    ; has
-    Database ; Logger ; ..> ;  ;  ; logs
+    WebApp   ; Database ; --> ; 1 ; 1 ; uses
+    WebApp   ; Cache    ; ◇-- ; 1 ; 1 ; has
+    Database ; Logger   ; ..> ;   ;   ; logs
 
 # Mixed routing diagram with element types
 ClassDiagram ; MixedElements ; Mixed element types ;  ; routing=mixed ; element_type=WebApp:component,Database:component,Cache:package,Logger:object
     WebApp ; Database ; --> ; 1 ; 1    ; uses
     WebApp ; Cache    ; ◇-- ; 1 ; 0..1 ; has
-    Cache ; Logger ; ..> ;  ;  ; logs
+    Cache  ; Logger   ; ..> ;   ;      ; logs
 
 # Diagram with layers for filtering
 ClassDiagram ; LayeredArchitecture ; Layered architecture view
-    WebApp ; AuthService ; ..> ;   ;   ; authenticate ; presentation
-    WebApp ; Cache       ; --> ; 1 ; 1 ; uses         ; presentation
-    AuthService ; Database ; ..> ;  ;  ; queries ; business
-    Cache ; Database ; ..> ;  ;  ; syncs ; business
-    Database ; Logger ; ..> ;  ;  ; logs ; infrastructure
-    Cache ; Logger   ; ..> ;  ;  ; logs  ; infrastructure
+    WebApp      ; AuthService ; ..> ;   ;   ; authenticate ; presentation
+    WebApp      ; Cache       ; --> ; 1 ; 1 ; uses         ; presentation
+    AuthService ; Database    ; ..> ;   ;   ; queries      ; business
+    Cache       ; Database    ; ..> ;   ;   ; syncs        ; business
+    Database    ; Logger      ; ..> ;   ;   ; logs         ; infrastructure
+    Cache       ; Logger      ; ..> ;   ;   ; logs         ; infrastructure

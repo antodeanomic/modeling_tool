@@ -1,11 +1,11 @@
-Include;../20_Definitions/actors.csv;Import reusable actor definitions
-Include;../20_Definitions/packages.csv;Import reusable system package definitions
+Include ; ../20_Definitions/actors.csv   ; Import reusable actor definitions
+Include ; ../20_Definitions/packages.csv ; Import reusable system package definitions
 
-ClassDiagram;SystemMain;Main entry diagram for system-level navigation
-    User;DiagramViewer;-->;1;1;views diagrams in;UI
-    DiagramViewer;APIGateway;-->;1;1;requests data from;API
-    APIGateway;DiagramProcessor;-->;1;1;orchestrates;Processing
-    DiagramProcessor;CsvParser;-->;1;1;parses models with;Processing
-    DiagramProcessor;SvgRenderer;-->;1;1;renders through;Processing
-    CsvParser;DiagramModel;-->;1;1;builds;Processing
-    DiagramModel;FileSystem;-->;1;1;persists in;Storage
+ClassDiagram ; SystemMain ; Main entry diagram for system-level navigation
+    User             ; DiagramViewer    ; --> ; 1 ; 1 ; views diagrams in  ; UI
+    DiagramViewer    ; APIGateway       ; --> ; 1 ; 1 ; requests data from ; API
+    APIGateway       ; DiagramProcessor ; --> ; 1 ; 1 ; orchestrates       ; Processing
+    DiagramProcessor ; CsvParser        ; --> ; 1 ; 1 ; parses models with ; Processing
+    DiagramProcessor ; SvgRenderer      ; --> ; 1 ; 1 ; renders through    ; Processing
+    CsvParser        ; DiagramModel     ; --> ; 1 ; 1 ; builds             ; Processing
+    DiagramModel     ; FileSystem       ; --> ; 1 ; 1 ; persists in        ; Storage

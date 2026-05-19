@@ -1,19 +1,19 @@
 # Orthogonal routing test diagram
 
-Class;WebApp;Web application component
-    MemberVar;port;Server port number
-    Function;+start();Start the server
-Class;Database;Database service
-    MemberVar;connection_string;DB connection
-    Function;+query();Execute a query
-Class;Cache;In-memory cache
-    MemberVar;max_size;Maximum cache size
-    Function;+get();Get cached item
-    Function;+set();Set cached item
-Class;Logger;Logging utility
-    Function;+log();Write log entry
+Class ; WebApp ; Web application component
+    MemberVar ; port     ; Server port number
+    Function  ; +start() ; Start the server
+Class ; Database ; Database service
+    MemberVar ; connection_string ; DB connection
+    Function  ; +query()          ; Execute a query
+Class ; Cache ; In-memory cache
+    MemberVar ; max_size ; Maximum cache size
+    Function  ; +get()   ; Get cached item
+    Function  ; +set()   ; Set cached item
+Class ; Logger ; Logging utility
+    Function ; +log() ; Write log entry
 
-ClassDiagram;OrthogonalLayout;Orthogonal connector routing
-    WebApp;Database;-->;1;1;uses
-    WebApp;Cache;◇--;1;1;has
-    Database;Logger;..>;;;logs
+ClassDiagram ; OrthogonalLayout ; Orthogonal connector routing
+    WebApp   ; Database ; --> ; 1 ; 1 ; uses
+    WebApp   ; Cache    ; ◇-- ; 1 ; 1 ; has
+    Database ; Logger   ; ..> ;   ;   ; logs
