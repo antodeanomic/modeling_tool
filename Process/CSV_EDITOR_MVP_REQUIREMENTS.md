@@ -79,6 +79,13 @@ Add endpoints in `Scripts/server.py`:
 - Keep UTF-8 handling consistent with existing parser behavior.
 - Preserve semicolon delimiter expectation.
 
+## CSV Formatting Rules (Hierarchy-Safe)
+- Hierarchy files may persist in columnar form using ` ; ` separators when format is applied.
+- Alignment must be scoped by hierarchy level and row type.
+- Top-level `Class` rows align only with other top-level `Class` rows.
+- Nested rows (`Function`, `ReturnVal`, `Param`, etc.) align within their own level/type group and must not influence top-level `Class` column widths.
+- Structural hierarchy remains defined by indentation; delimiter spacing is for readability only.
+
 ## Error Handling Requirements
 - Parse error message must surface in the editor status area.
 - Save failure must not clear dirty state.
@@ -191,12 +198,15 @@ Improve clarity and traceability between CSV content and diagram visual represen
   - Border: `2px solid rgba(37, 99, 235, 0.6)` (medium blue)
   - Absolute positioned overlay element (`csvRowHighlight`)
 
-### Removed Features
-- **Syntax Highlighting (colored text)**: Implemented but hidden after testing
-  - Colored spans in overlay created visual clutter and overlapping text
-  - Decision: Focus on functional cross-linking instead of decorative coloring
-  - HTML/CSS infrastructure left in place for future re-enablement if needed
+### Current Syntax Highlighting Behavior
+- **Syntax Highlighting (colored text)**: Enabled in the CSV editor overlay
+  - Uses semantic colors for key row types (for example: `Class`, `Function`, `Sequence`, `ClassDiagram`)
+  - Uses distinct per-column colors for table-style rows
+  - Uses distinct per-column colors for standalone/array-style rows
+  - Preserves comment and decorator token visibility with dedicated colors
+  - Uses synchronized overlay rendering so caret/edit behavior remains stable
 
+### Deferred Features
 - **Line Numbers**: Deferred (out of scope for v0.2)
   - Can be added in future iteration if requested
 
@@ -227,12 +237,12 @@ Improve clarity and traceability between CSV content and diagram visual represen
 ## Known Limitations
 - Cross-linking matches by exact Name field value (case-sensitive)
 - Does not yet handle connector labels (future enhancement)
-- Syntax highlighting overlay disabled due to visual clutter (can be re-enabled)
+- Syntax highlighting currently uses fixed palettes and does not yet expose a user-configurable theme toggle
 
 ## Future Enhancements (v0.3+)
 - Click to select (vs hover): "Sticky" selection mode
 - Property inspector: Show CSV row properties in side panel
 - Edit in context: Double-click diagram object to edit CSV properties inline
-- Syntax highlighting: Re-enable with improved visual separation
+- Syntax highlighting: Add user-selectable palettes/theme controls and optional intensity settings
 - Connector labels: Add cross-linking for connector arrows and labels
 

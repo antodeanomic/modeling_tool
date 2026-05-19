@@ -23,6 +23,14 @@ This file focuses on specific rules and constraints. The guide covers the broade
     - `.\.venv\Scripts\python.exe Scripts\server.py 8000`
     - Open VS Code browser to `http://localhost:8000`
 
+## Requirement Authority Rule
+
+- Requirements are the source of truth.
+- Chat messages may clarify requirements, but they do not override them.
+- If a chat request conflicts with an existing requirement, stop and explicitly surface the conflict before making changes.
+- In that situation, call out the conflict in red bold text and identify the requirement by name or ID, for example: <strong><span style="color:red">Proposed change conflicts with requirement XXXX.</span></strong>
+- The correct path is to discuss the change, then update the requirement first, then implement the code.
+
 ## CSV File Rules
 
 - **CRITICAL**: Do NOT modify any `.csv` test files unless explicitly instructed by the user

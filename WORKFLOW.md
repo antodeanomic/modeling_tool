@@ -93,6 +93,12 @@ When tradeoffs occur, prioritize in this order:
 3. Diagram readability and maintainability
 4. Speed of delivery
 
+## Conflict Handling
+- Treat requirements as the authority over chat when they disagree.
+- Do not let a chat request silently override an existing requirement.
+- If a conflict appears, stop and surface it explicitly in the response using red bold text, then update the requirement before implementing the change.
+- Follow the sequence: discuss the change, revise the requirement artifact, then modify code.
+
 ## Repository-Specific Constraints
 - Run `refresh.bat` after each response cycle involving repository work.
 - Before any commit, run full tests via `Test/run_all_tests_and_view.py` and verify success.
