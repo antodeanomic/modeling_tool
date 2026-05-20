@@ -55,7 +55,7 @@ ClassDiagram ; FanoutTop    ; Fanout Scen2: Up-sideways-up
     HubTop ; Top_dir    ; --> ;  ; 1    ; T_dir
     HubTop ; Top_R_near ; --> ;  ; 1..* ; R_near
     HubTop ; Top_R_mid  ; --> ;  ; 1..* ; R_mid
-    HubTop ; Top_R_far  ; --> ;  ; 5    ; R_far
+    HubTop ; Top_R_far  ; ◆-- ;  ; 5    ; R_far
 
 ClassDiagram ; FanoutBottom ; Fanout Scen2 Mirror: Down-sideways-down
     HubBottom ; Bottom_L_far  ; --> ;  ; 5    ; L_far

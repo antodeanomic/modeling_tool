@@ -665,18 +665,13 @@ class ConnectorPlanner:
         return min(usable, key=lambda pt: abs(pt.index - mid))
 
     def _is_hierarchy_connector(self, connector: ConnectorPath) -> bool:
-        """Return True for ownership/composition relationships in downward hierarchy."""
-        if '◆' not in connector.arrow_type and '◇' not in connector.arrow_type:
-            return False
+        """Return True for ownership/composition relationships in downward hierarchy.
 
-        src_grid = self.grids.get(connector.source_name)
-        tgt_grid = self.grids.get(connector.target_name)
-        if not src_grid or not tgt_grid:
-            return False
-
-        src_cx, src_cy = src_grid.get_center()
-        tgt_cx, tgt_cy = tgt_grid.get_center()
-        return tgt_cy > src_cy + 5
+        Disabled: diamond connectors now use the standard fanout routing path,
+        which produces better results than the legacy hierarchy-specific routing.
+        Kept here as a future routing option (e.g. a 'hierarchy' routing mode).
+        """
+        return False
 
     def _ordered_hierarchy_connectors(self) -> Dict[int, Tuple[int, int]]:
         """Return left-to-right sibling order metadata keyed by connector id.
