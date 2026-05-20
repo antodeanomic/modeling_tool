@@ -33,7 +33,7 @@ Follow `WORKFLOW.md` as the default operating workflow for all non-trivial tasks
 ## Execution Rules
 - After each response cycle involving repository work, execute `refresh.bat`.
 - **After any code change** (`.py`, `.html`, `.js`): always restart the server immediately after `refresh.bat`. Never leave the server stopped after a code change.
-- Before commit-oriented milestones, run all tests.
+- Before commit-oriented milestones, run ALL tests with `cd Test; python run_all_tests_and_view.py` and verify exit code 0. Do not commit if tests fail.
 
 ## Reporting Rules
 In final responses, include:

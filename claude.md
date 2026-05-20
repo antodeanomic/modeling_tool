@@ -12,7 +12,7 @@ This file focuses on specific rules and constraints. The guide covers the broade
 
 ## Execution Rules
 
-- **After every chat message**: Execute `refresh.bat` to reset the local development environment.
+- **After each response cycle involving repository work**: Execute `refresh.bat` to reset the local development environment.
   - Command: `.\refresh.bat`
   - This will:
     - Stop any existing Python server processes
@@ -33,12 +33,11 @@ This file focuses on specific rules and constraints. The guide covers the broade
 
 ## CSV File Rules
 
-- **CRITICAL**: Do NOT modify any `.csv` test files unless explicitly instructed by the user
+- **CRITICAL**: Do NOT modify CSV files under `Test/tests/` unless explicitly instructed by the user. These are regression fixtures — they define what correct output looks like.
+- CSV files under `Process/` and `Source/` are formattable documents and may be edited freely.
 - **Delimiter**: All CSV files use **semicolons (`;`)** as delimiters, NOT commas. This avoids conflicts with commas in description text.
 - When creating or editing CSV files, always use semicolon delimiters
-- CSV files define the requirements/specifications for the tool
-- Modifying CSV files changes the requirements themselves, not the implementation
-- If a test doesn't pass with the current CSV, fix the CODE, not the CSV
+- If a test doesn't pass with the current `Test/tests/` CSV, fix the CODE, not the CSV
 - Never change test cases to match code behavior - change code to match test cases
 
 ## Console Output Rules
@@ -49,8 +48,8 @@ This file focuses on specific rules and constraints. The guide covers the broade
 
 ## Project Overview
 
-This is a Sequence Diagram modeling tool that:
-- Parses sequence diagram models from CSV files
+This is a UML modeling tool (Class Diagrams and Sequence Diagrams) that:
+- Parses UML model definitions from CSV files
 - Renders them as interactive SVG diagrams
 - Provides a web-based UI for viewing and editing
 
@@ -80,6 +79,14 @@ This is a Sequence Diagram modeling tool that:
 - If an exception is unavoidable, document the reason in code comments and add regression coverage for:
   - the exceptional diagram, and
   - at least one non-exception diagram to confirm no collateral behavior change.
+
+## Visual Acceptance Rules
+
+See the full rules in [copilot-instructions.md](.github/copilot-instructions.md). Summary:
+- For visual layout/routing/spacing tasks, request a current screenshot and any reference image early in the task.
+- Treat reference images and ASCII layout examples as normative visual intent when consistent with requirements.
+- Do not treat file hashes, coordinate diffs, or SVG regeneration alone as sufficient verification — compare the rendered result against the visual reference.
+- When visual output differs from the reference, describe visible differences explicitly before proposing further changes.
 
 ## Troubleshooting Agent Behavior
 
