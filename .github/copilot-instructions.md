@@ -7,9 +7,12 @@ Follow `WORKFLOW.md` as the default operating workflow for all non-trivial tasks
 - Maintain traceability from user intent -> Markdown artifacts -> CSV model -> code.
 - Keep changes small and explain mapping between artifacts and implementation.
 - Ask for confirmation only when blocked or when requirement ambiguity prevents safe progress.
-- Requirements outrank chat when they conflict. Chat may clarify or revise intent, but it does not silently override an existing requirement.
-- If a chat request conflicts with a requirement, stop and surface the conflict before implementing anything. Use red bold text in the response, for example: <strong><span style="color:red">Proposed change conflicts with requirement XXXX.</span></strong>
-- The resolution sequence is: discuss the change, update the requirement artifact, then implement the code.
+- Requirement documents in `Process/` outrank chat at all times. Chat may clarify or revise intent, but it never silently overrides a documented requirement.
+- **Before starting any non-trivial task**: review the applicable requirement documents in `Process/` and identify any way the chat direction diverges from, extends beyond, or contradicts documented requirements.
+- Report ALL detected divergences in bold red text **before writing any code** — even when the chat direction seems like a helpful improvement. The threshold is *any* divergence, not just outright contradiction.
+- Identify the specific requirement by name or ID: <strong><span style="color:red">Chat direction diverges from requirement XXXX: [specific difference].</span></strong>
+- The resolution sequence is: surface the divergence → discuss → update the requirement artifact → then implement the code.
+- **Never implement a change that silently passes a documented requirement.** Silent requirement drift is the primary cause of functional regressions in this project.
 - For connector routing changes, always validate both `diagonal` and `orthogonal` modes in the same response cycle.
 - Treat `mixed` routing mode as optional and out of scope unless the user explicitly requests it.
 

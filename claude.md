@@ -25,11 +25,12 @@ This file focuses on specific rules and constraints. The guide covers the broade
 
 ## Requirement Authority Rule
 
-- Requirements are the source of truth.
-- Chat messages may clarify requirements, but they do not override them.
-- If a chat request conflicts with an existing requirement, stop and explicitly surface the conflict before making changes.
-- In that situation, call out the conflict in red bold text and identify the requirement by name or ID, for example: <strong><span style="color:red">Proposed change conflicts with requirement XXXX.</span></strong>
-- The correct path is to discuss the change, then update the requirement first, then implement the code.
+- Requirement documents in `Process/` are the source of truth for all behavior. Chat messages may clarify requirements but never override them.
+- **Before starting any non-trivial task**: review the applicable requirement documents in `Process/` and identify any way the chat direction diverges from, extends beyond, or contradicts documented requirements.
+- Report ALL detected divergences in bold red text **before writing any code** — even when the chat direction seems like a helpful improvement. The threshold is *any* divergence, not just outright contradiction.
+- Identify the specific requirement by name or ID: <strong><span style="color:red">Chat direction diverges from requirement XXXX: [specific difference].</span></strong>
+- The correct path is: surface the divergence → discuss → update the requirement document → then implement the code.
+- **Never implement a change that silently passes a documented requirement.** Silent requirement drift is the primary cause of functional regressions in this project.
 
 ## CSV File Rules
 
