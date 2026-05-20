@@ -28,6 +28,21 @@ Each domain uses diagram composition plus reusable definitions:
 
 Diagram CSVs in this hierarchy are kept comment-free. Use `Include` lines first (when needed), then a blank line, then diagram definitions.
 
+## Requirements Document Index
+
+Before starting any non-trivial implementation task, check the applicable documents below for requirements governing the change. When a chat request touches one of these domains, read the corresponding document before implementing.
+
+| Document | Domain | Requirement ID Prefixes |
+|:---------|:-------|:------------------------|
+| `_REQUIREMENTS.md` | Sequence Diagrams, State Machines, Parser, UI, Class Diagrams | `Architecture_*`, `Infrastructure_*`, `Note_*`, `Parser_*`, `Rendering_*`, `Sequence_*`, `State_*`, `UserInterface_*`, `ClassRouting_*`, `ClassUI_*`, `Structure_*` |
+| `CLASS_DIAGRAM_LAYOUT_REQUIREMENTS.md` | Class Diagram Layout & Routing | `Structure_0007–0009`, `ClassRouting_0001–0012`, `Rendering_0020–0023` |
+| `CONNECTOR_TEXT_LAYOUT.md` | Connector Text Positioning (all diagrams) | (inline text placement rules — no formal IDs) |
+| `CSV_EDITOR_MVP_REQUIREMENTS.md` | CSV Editor UI | CSV Editor MVP v0.1–v0.3 acceptance criteria |
+| `_ADR.md` | Architecture Decision Records | (rationale records — no formal IDs) |
+| `_TEST_COVERAGE.md` | Test Traceability | Requirement-to-test mapping |
+
+> **Note**: Root-level `*.md` files in the repository (e.g., `CONNECTOR_ARCHITECTURE.md`, `ROUTING_FIX_SUMMARY.md`) are historical implementation notes, not requirements. Requirements are defined exclusively in the `Process/` documents above.
+
 ## Configuration and Requirements Files
 
 - `_REQUIREMENTS.md` - customer and functional requirements with traceability

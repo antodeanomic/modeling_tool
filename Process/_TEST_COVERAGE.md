@@ -17,6 +17,25 @@ Each test case validates one or more specific requirements from the system speci
 | test_states.csv | State_0001; Rendering_0007; Rendering_0008; Rendering_0009; Rendering_0010; Parser_0004; Parser_0005 | State machine definition and transitions |
 | test_verbosity.csv | UserInterface_0003; Rendering_0005; Rendering_0006 | Verbosity level effects on display |
 
+### Python Unit Tests
+
+| Test File | Requirements Tested | Test Focus |
+|:---|:---|:---|
+| test_class_diagram_connector_routing.py | ClassRouting_0001; ClassRouting_0002 | Connector edge selection and overlap avoidance |
+| test_class_diagram_midpoint_simplicity.py | ClassRouting_0001; ClassRouting_0002 | Midpoint defaults and simple-route preference |
+| test_class_diagram_multiplicity_guardrails.py | ClassRouting_0007; ClassRouting_0009; Rendering_0022 | Multiplicity placement on connectors |
+| test_class_diagram_routing_guardrails.py | ClassRouting_0001; Structure_0009; Rendering_0020 | Orthogonal routing guardrails across all diagrams |
+| test_class_diagram_svg_golden.py | Structure_0007; Structure_0008; Structure_0009 | Golden SVG regression for critical scenarios |
+| test_class_diagram_title_and_endpoints.py | Structure_0008; Structure_0009 | Title placement and endpoint directions |
+| test_class_diagram_two_segment_matrix.py | ClassRouting_0001; ClassRouting_0002 | Two-segment orthogonal elbow routing matrix |
+| test_class_diagram_two_segment_orthogonality.py | ClassRouting_0001; ClassRouting_0002 | Two-segment orthogonality guardrails |
+| test_class_metadata_traceability.py | Architecture_0001; Parser_0001 | Class traceability and diagram hierarchy parsing |
+| test_csv_editor_api.py | UserInterface_0001 | CSV editor API helper functions |
+| test_fanout.py | ClassRouting_0005; ClassRouting_0006; ClassRouting_0007; ClassRouting_0009; Rendering_0022; Rendering_0023 | Fanout routing (top/bottom/left/right sides) |
+| test_grid_coordinates.py | Structure_0007; Structure_0008 | Grid coordinate validation and overlap detection |
+| test_layout_modes.py | Structure_0008; ClassRouting_0001 | Routing-aware layout verification |
+| test_verbosity.py | UserInterface_0003; Rendering_0005; Rendering_0006 | Verbosity level display (Python equivalent of test_verbosity.csv) |
+
 ## Requirement Coverage Map
 
 | Requirement ID | Tested By | Status |
@@ -50,10 +69,10 @@ Each test case validates one or more specific requirements from the system speci
 
 ## Coverage Statistics
 
-- **Total Requirements**: 45
-- **Tested Requirements**: 26
-- **Coverage**: 57.8%
-- **Total Test Cases**: 6
+- **Total Requirements**: 67 (includes Class Diagram requirements added 2026-04)
+- **Tested Requirements**: 39
+- **Coverage**: 58.2%
+- **Total Test Cases**: 20 (6 CSV + 14 Python unit tests)
 
 ## Test Execution Guide
 
@@ -150,9 +169,45 @@ Each test generates a `test_[name]_output.svg` file that can be inspected for co
 
 | ID | Tested By | Description |
 |:---|:---|:---|
-| UserInterface_0001 | Not tested | Provide interactive web-based viewer |
+| UserInterface_0001 | test_csv_editor_api.py | Provide interactive web-based viewer |
 | UserInterface_0002 | Not tested | Create menu button with ellipsis in upper-right |
-| UserInterface_0003 | test_verbosity.csv | Implement verbosity selector Low/Normal/High |
+| UserInterface_0003 | test_verbosity.csv; test_verbosity.py | Implement verbosity selector Low/Normal/High |
 | UserInterface_0004 | test_layers.csv | Implement layer filtering checkboxes |
 | UserInterface_0005 | Not tested | Enable live CSV reloading without restart |
 | UserInterface_0006 | Not tested | Add cache-busting headers to prevent caching |
+| UserInterface_0007 | Not tested | Hover highlighting is non-destructive (no click/persist state) |
+| UserInterface_0008 | Not tested | Settings (verbosity, routing, catalog scope) retained across refreshes via localStorage |
+
+### Class Diagram Structure Requirements
+
+| ID | Tested By | Description |
+|:---|:---|:---|
+| Structure_0007 | test_class_diagram_svg_golden.py; test_grid_coordinates.py | Fixed 20px x 20px grid cell rule for all class diagram objects |
+| Structure_0008 | test_class_diagram_svg_golden.py; test_grid_coordinates.py; test_layout_modes.py; test_class_diagram_title_and_endpoints.py | Top-left anchored tree-view layout |
+| Structure_0009 | test_class_diagram_routing_guardrails.py; test_class_diagram_svg_golden.py; test_class_diagram_title_and_endpoints.py | Hierarchy connectors vertically aligned at matching X coordinates |
+
+### Class Diagram Routing Requirements
+
+| ID | Tested By | Description |
+|:---|:---|:---|
+| ClassRouting_0001 | test_class_diagram_connector_routing.py; test_class_diagram_midpoint_simplicity.py; test_class_diagram_routing_guardrails.py; test_class_diagram_two_segment_matrix.py; test_class_diagram_two_segment_orthogonality.py; test_layout_modes.py | Orthogonal-only routing for class diagrams |
+| ClassRouting_0002 | test_class_diagram_connector_routing.py; test_class_diagram_midpoint_simplicity.py; test_class_diagram_two_segment_matrix.py; test_class_diagram_two_segment_orthogonality.py | Simple elbow preference, no diagonal fallbacks |
+| ClassRouting_0003 | Not tested | Domain-layer dense fan-out uses increased vertical spacing |
+| ClassRouting_0004 | Not tested | Occupancy-aware lane nudging for connector text |
+| ClassRouting_0005 | test_fanout.py | Mode 2 fanout only — shared trunk disallowed |
+| ClassRouting_0006 | test_fanout.py | Mandatory fanout geometry order |
+| ClassRouting_0007 | test_class_diagram_multiplicity_guardrails.py; test_fanout.py | Fanout visually explicit for all four source sides |
+| ClassRouting_0008 | Not tested | Reject non-fanout patterns (shared trunk, micro-offset, etc.) |
+| ClassRouting_0009 | test_class_diagram_multiplicity_guardrails.py; test_fanout.py | Fanout defined from all four source sides |
+| ClassRouting_0010 | Not tested | Left/right fanout horizontal-first; top/bottom vertical-first |
+| ClassRouting_0011 | Not tested | Side-wall capacity extended for left/right fanout |
+| ClassRouting_0012 | Not tested | Direct connectors prioritized and perpendicular to source side |
+
+### Class Diagram Rendering Requirements
+
+| ID | Tested By | Description |
+|:---|:---|:---|
+| Rendering_0020 | test_class_diagram_routing_guardrails.py | Orthogonal segments axis-aligned in class diagrams |
+| Rendering_0021 | Not tested | Collision-aware connector text placement |
+| Rendering_0022 | test_class_diagram_multiplicity_guardrails.py; test_fanout.py | Fanout lane spacing — distinct start slots and text bands |
+| Rendering_0023 | test_fanout.py | Fanout orientation-specific first-segment and side-point alignment |

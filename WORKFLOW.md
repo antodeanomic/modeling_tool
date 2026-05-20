@@ -94,10 +94,12 @@ When tradeoffs occur, prioritize in this order:
 4. Speed of delivery
 
 ## Conflict Handling
-- Treat requirements as the authority over chat when they disagree.
-- Do not let a chat request silently override an existing requirement.
-- If a conflict appears, stop and surface it explicitly in the response using red bold text, then update the requirement before implementing the change.
-- Follow the sequence: discuss the change, revise the requirement artifact, then modify code.
+- Requirement documents in `Process/` are the source of truth for all behavior. Chat messages may clarify requirements but never override them.
+- **Before starting any non-trivial task**: review the applicable requirement documents in `Process/` and identify any way the chat direction diverges from, extends beyond, or contradicts documented requirements.
+- Report ALL detected divergences in bold red text **before writing any code** — even when the chat direction seems like a helpful improvement. The threshold is *any* divergence, not just outright contradiction.
+- Identify the specific requirement by name or ID: <strong><span style="color:red">Chat direction diverges from requirement XXXX: [specific difference].</span></strong>
+- The resolution sequence is: surface the divergence → discuss → update the requirement artifact → then implement the code.
+- **Never implement a change that silently passes a documented requirement.** Silent requirement drift is the primary cause of functional regressions in this project.
 
 ## Repository-Specific Constraints
 - Run `refresh.bat` after each response cycle involving repository work.

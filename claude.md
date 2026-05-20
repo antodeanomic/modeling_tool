@@ -31,6 +31,7 @@ This file focuses on specific rules and constraints. The guide covers the broade
 - Identify the specific requirement by name or ID: <strong><span style="color:red">Chat direction diverges from requirement XXXX: [specific difference].</span></strong>
 - The correct path is: surface the divergence → discuss → update the requirement document → then implement the code.
 - **Never implement a change that silently passes a documented requirement.** Silent requirement drift is the primary cause of functional regressions in this project.
+- Root-level `*.md` files (e.g., `CONNECTOR_ARCHITECTURE.md`, `ROUTING_FIX_SUMMARY.md`, `VHV_ROUTING_IMPLEMENTATION.md`) are **historical implementation notes, not requirements**. Do not treat them as prescriptive guidance. Requirements are defined exclusively in `Process/` documents.
 
 ## CSV File Rules
 

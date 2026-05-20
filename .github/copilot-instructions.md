@@ -13,6 +13,7 @@ Follow `WORKFLOW.md` as the default operating workflow for all non-trivial tasks
 - Identify the specific requirement by name or ID: <strong><span style="color:red">Chat direction diverges from requirement XXXX: [specific difference].</span></strong>
 - The resolution sequence is: surface the divergence → discuss → update the requirement artifact → then implement the code.
 - **Never implement a change that silently passes a documented requirement.** Silent requirement drift is the primary cause of functional regressions in this project.
+- Root-level `*.md` files (e.g., `CONNECTOR_ARCHITECTURE.md`, `ROUTING_FIX_SUMMARY.md`, `VHV_ROUTING_IMPLEMENTATION.md`) are **historical implementation notes, not requirements**. Do not apply them as authoritative guidance. Requirements are defined exclusively in `Process/` documents.
 - For connector routing changes, always validate both `diagonal` and `orthogonal` modes in the same response cycle.
 - Treat `mixed` routing mode as optional and out of scope unless the user explicitly requests it.
 

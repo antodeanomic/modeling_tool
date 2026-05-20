@@ -69,6 +69,16 @@ Requirements are organized by type and linked to related artifacts.
 
 ## Class Diagram Requirements (2026-04 Update)
 
+### Class Diagram Structure
+
+| ID | Description | Linked From | Linked To | Status |
+|:---|:---|:---|:---|:---|
+| Structure_0007 | Every class diagram object's grid must use fixed-size 20px × 20px cells; box width and height must be exact multiples of 20 | UserStory_0004 | ClassRouting_0001 | Implemented |
+| Structure_0008 | Class diagram layout uses top-left anchoring with hierarchical tree-view positioning; root at (40px, 40px); objects never centered | UserStory_0004 | Structure_0009 | Implemented |
+| Structure_0009 | Connectors between hierarchically-related objects must be vertically aligned at matching X coordinates; hierarchy connectors avoid corner grid cells | Structure_0008 | ClassRouting_0001 | Implemented |
+
+### Class Diagram Routing
+
 | ID | Description | Linked From | Linked To | Status |
 |:---|:---|:---|:---|:---|
 | ClassRouting_0001 | Class diagrams are rendered with orthogonal routing only | UserStory_0004 | Rendering_0020 | Implemented |
