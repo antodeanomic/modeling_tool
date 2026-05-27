@@ -27,7 +27,7 @@ def _source_edge_from_first_segment(points):
 
 
 def _assert_title_above_diagram_body() -> None:
-    csv_path = os.path.join(REPO_ROOT, "Process", "02_Architecture", "arch_parser_to_model.csv")
+    csv_path = os.path.join(REPO_ROOT, "Process", "02_Architecture", "10_Diagrams", "parser_to_model.csv")
     model = parse_csv(csv_path)
     diagram = model.get_class_diagram("ParserToModel")
     if diagram is None:
@@ -179,7 +179,7 @@ def _segment_overlap_span(seg_a, seg_b):
 
 
 def _assert_parser_to_model_fanout_guardrails() -> None:
-    csv_path = os.path.join(REPO_ROOT, "Process", "02_Architecture", "arch_parser_to_model.csv")
+    csv_path = os.path.join(REPO_ROOT, "Process", "02_Architecture", "10_Diagrams", "parser_to_model.csv")
     model = parse_csv(csv_path)
     diagram = model.get_class_diagram("ParserToModel")
     if diagram is None:

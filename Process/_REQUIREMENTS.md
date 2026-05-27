@@ -92,7 +92,7 @@ Requirements are organized by type and linked to related artifacts.
 | ClassRouting_0009 | Fanout must be defined and validated from all four source sides (top, bottom, left, right) using mirrored lane behavior where applicable | ClassRouting_0005 | Rendering_0022;Rendering_0023 | Required |
 | ClassRouting_0010 | Left/right fanout branches must start with a horizontal first segment from side-wall connection points; top/bottom fanout branches start with a vertical first segment | ClassRouting_0006;ClassRouting_0009 | Rendering_0023 | Required |
 | ClassRouting_0011 | Side-wall fanout capacity is provided by extending vertical object edges and adding additional side connection points at 2-character spacing | ClassRouting_0009 | Rendering_0023 | Required |
-| ClassRouting_0012 | Direct fanout connectors are prioritized ahead of non-direct branches and always remain perpendicular to the source object side | ClassRouting_0009;ClassRouting_0010 | Rendering_0023 | Required |
+| ClassRouting_0012 | Direct fanout connectors, including inferred natural direct branches for top/bottom fanout when no explicit direct target is designated, are prioritized ahead of non-direct branches and always remain perpendicular to the source object side | ClassRouting_0009;ClassRouting_0010 | Rendering_0023 | Required |
 | ClassUI_0001 | Hovering a class object highlights directly connected connectors and connector text while fading unrelated links | UserInterface_0001 | UserInterface_0007 | Implemented |
 
 ## Class Diagram Constraints (2026-04 Update)

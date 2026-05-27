@@ -22,6 +22,8 @@ Each test case validates one or more specific requirements from the system speci
 | Test File | Requirements Tested | Test Focus |
 |:---|:---|:---|
 | test_class_diagram_connector_routing.py | ClassRouting_0001; ClassRouting_0002 | Connector edge selection and overlap avoidance |
+| test_class_diagram_direct_eligibility.py | ClassRouting_0001; ClassRouting_0012; Structure_0009 | Direct-route eligibility against shared columns and blocked corridors |
+| test_class_diagram_layout_architecture.py | Structure_0008; Structure_0009; ClassRouting_0001; ClassRouting_0012 | Column-allocation precedence and guardrail acceptance cases |
 | test_class_diagram_midpoint_simplicity.py | ClassRouting_0001; ClassRouting_0002 | Midpoint defaults and simple-route preference |
 | test_class_diagram_multiplicity_guardrails.py | ClassRouting_0007; ClassRouting_0009; Rendering_0022 | Multiplicity placement on connectors |
 | test_class_diagram_routing_guardrails.py | ClassRouting_0001; Structure_0009; Rendering_0020 | Orthogonal routing guardrails across all diagrams |
@@ -70,9 +72,9 @@ Each test case validates one or more specific requirements from the system speci
 ## Coverage Statistics
 
 - **Total Requirements**: 67 (includes Class Diagram requirements added 2026-04)
-- **Tested Requirements**: 39
-- **Coverage**: 58.2%
-- **Total Test Cases**: 20 (6 CSV + 14 Python unit tests)
+- **Tested Requirements**: 40
+- **Coverage**: 59.7%
+- **Total Test Cases**: 22 (6 CSV + 16 Python unit tests)
 
 ## Test Execution Guide
 
@@ -184,7 +186,7 @@ Each test generates a `test_[name]_output.svg` file that can be inspected for co
 |:---|:---|:---|
 | Structure_0007 | test_class_diagram_svg_golden.py; test_grid_coordinates.py | Fixed 20px x 20px grid cell rule for all class diagram objects |
 | Structure_0008 | test_class_diagram_svg_golden.py; test_grid_coordinates.py; test_layout_modes.py; test_class_diagram_title_and_endpoints.py | Top-left anchored tree-view layout |
-| Structure_0009 | test_class_diagram_routing_guardrails.py; test_class_diagram_svg_golden.py; test_class_diagram_title_and_endpoints.py | Hierarchy connectors vertically aligned at matching X coordinates |
+| Structure_0009 | test_class_diagram_direct_eligibility.py; test_class_diagram_layout_architecture.py; test_class_diagram_routing_guardrails.py; test_class_diagram_svg_golden.py; test_class_diagram_title_and_endpoints.py | Hierarchy connectors vertically aligned at matching X coordinates |
 
 ### Class Diagram Routing Requirements
 
@@ -201,7 +203,7 @@ Each test generates a `test_[name]_output.svg` file that can be inspected for co
 | ClassRouting_0009 | test_class_diagram_multiplicity_guardrails.py; test_fanout.py | Fanout defined from all four source sides |
 | ClassRouting_0010 | Not tested | Left/right fanout horizontal-first; top/bottom vertical-first |
 | ClassRouting_0011 | Not tested | Side-wall capacity extended for left/right fanout |
-| ClassRouting_0012 | Not tested | Direct connectors prioritized and perpendicular to source side |
+| ClassRouting_0012 | test_class_diagram_direct_eligibility.py; test_class_diagram_layout_architecture.py | Direct connectors prioritized and perpendicular to source side |
 
 ### Class Diagram Rendering Requirements
 

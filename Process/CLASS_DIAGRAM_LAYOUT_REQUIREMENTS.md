@@ -223,6 +223,8 @@ Each branch must follow this order:
 1. Direct connectors (`T_dir`, `B_dir`, `L_dir`, `R_dir`) are prioritized ahead of non-direct fanout branches.
 2. This direct-connector priority applies even if pure distance ordering would place them elsewhere.
 3. Direct connectors occupy the center slots for the active fanout side when that side includes designated direct targets.
+4. For top/bottom fanout groups that do not include an explicit designated direct target, routing may infer one natural direct branch from a target that is already center-aligned with the source, or otherwise from the connector whose target center is closest to the source center.
+5. An inferred natural direct branch must still remain perpendicular to the source side and use the center slot for that fanout side.
 
 ### 7.6 Symmetry Rules
 

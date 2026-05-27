@@ -36,6 +36,7 @@ Before starting any non-trivial implementation task, check the applicable docume
 |:---------|:-------|:------------------------|
 | `_REQUIREMENTS.md` | Sequence Diagrams, State Machines, Parser, UI, Class Diagrams | `Architecture_*`, `Infrastructure_*`, `Note_*`, `Parser_*`, `Rendering_*`, `Sequence_*`, `State_*`, `UserInterface_*`, `ClassRouting_*`, `ClassUI_*`, `Structure_*` |
 | `CLASS_DIAGRAM_LAYOUT_REQUIREMENTS.md` | Class Diagram Layout & Routing | `Structure_0007–0009`, `ClassRouting_0001–0012`, `Rendering_0020–0023` |
+| `CLASS_DIAGRAM_LAYOUT_ARCHITECTURE_REQUIREMENTS.md` | Class Diagram Layout/Routing Ownership, Column Allocation, Guardrail Precedence | Architectural ownership and precedence rules supplementing `Structure_*`, `ClassRouting_*`, and `Rendering_*` |
 | `CONNECTOR_TEXT_LAYOUT.md` | Connector Text Positioning (all diagrams) | (inline text placement rules — no formal IDs) |
 | `CSV_EDITOR_MVP_REQUIREMENTS.md` | CSV Editor UI | CSV Editor MVP v0.1–v0.3 acceptance criteria |
 | `_ADR.md` | Architecture Decision Records | (rationale records — no formal IDs) |
