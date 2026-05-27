@@ -40,27 +40,27 @@ All objects in the diagram must satisfy:
 
 ---
 
-## 2. Top-Left Anchored Tree-View Layout
+## 2. Top-Left Anchored Hierarchy-Aware Orthogonal Layout
 
 **Requirement ID**: Structure_0008
 
-Class diagram layout must use **top-left anchoring** with hierarchical tree-view positioning (not centered).
+Class diagram layout must use **top-left anchoring** with hierarchy-aware orthogonal placement (not centered).
 
 ### Constraints
 1. **Root object** positioned at `(40px, 40px)` (top-left + margin)
-2. **Parent-child relationships** arranged vertically (children below parents)
-3. **Horizontal alignment** within hierarchy levels via left-anchor spacing
+2. **Hierarchy-related relationships** may be arranged vertically when abstraction levels indicate parent/child placement
+3. **Horizontal alignment** within abstraction levels via left-anchor spacing
 4. **Never center** objects in the diagram
 
 ### Rationale
-- Tree-view format naturally represents class hierarchies and ownership relationships
+- A top-left orthogonal layout keeps hierarchy-related objects visually legible without requiring a separate tree-view mode
 - Top-left anchoring provides predictable, consistent positioning
-- Simplifies connector alignment when all objects are vertically stacked
+- Simplifies connector alignment when related objects share level bands and vertical alignment
 - Makes diagram layout independent of container size (responsive-friendly)
 
 ---
 
-## 3. Hierarchy Connector Alignment
+## 3. Hierarchy-Aware Connector Alignment
 
 **Requirement ID**: Structure_0009
 
@@ -81,7 +81,7 @@ Source point (bottom edge) and target point (top edge) must have same X coordina
 
 ### Rationale
 - Prevents visual ambiguity about which objects are connected to which
-- Vertical alignment is a UML convention for hierarchy display
+- Vertical alignment remains the clearest way to show hierarchy-related relationships in orthogonal layouts
 - Clear visual flow improves diagram readability
 
 ---
@@ -123,7 +123,7 @@ Old approach attempted to center parent objects over child groups. This was aban
 2. Made hierarchy connector alignment impossible
 3. Conflicted with grid cell sizing rule
 
-**Current approach**: Left-anchor all objects with hierarchical vertical stacking.
+**Current approach**: Left-anchor all objects with hierarchy-aware level bands and orthogonal routing.
 
 ---
 

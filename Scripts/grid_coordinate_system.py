@@ -331,7 +331,7 @@ class GridAnalyzer:
 def test_level_based_layout_grid():
     """Test that level-based layout aligns to grid correctly."""
     from Scripts.model import Model
-    from Scripts.class_diagram_renderer import ClassDiagramRenderer
+    from Scripts.class_diagram_renderer import _layout_classes_orthogonal
     
     # Load diagram
     model = Model()
@@ -342,8 +342,7 @@ def test_level_based_layout_grid():
         return False
     
     diagram = model.class_diagrams[0]
-    renderer = ClassDiagramRenderer()
-    positions = renderer._layout_classes_tree_based(diagram, model, "High")
+    positions = _layout_classes_orthogonal(diagram, model, "High")
     
     # Analyze grid
     analyzer = GridAnalyzer(margin=20)

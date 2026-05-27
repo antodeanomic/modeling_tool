@@ -10,10 +10,12 @@ Validates that:
 import sys
 sys.path.insert(0, 'Scripts')
 
+CSV_PATH = 'Source/sample_model.csv'
+
 from parser import parse_csv
 from class_diagram_renderer import (
     _calculate_abstraction_level,
-    _layout_classes_tree_based,
+    _layout_classes_orthogonal,
     render_class_diagram_svg
 )
 from grid_coordinate_system import GridAnalyzer, GridCoordinateSystem
@@ -25,7 +27,7 @@ def test_grid_alignment():
     print("TEST: Grid Alignment")
     print("="*70)
     
-    model = parse_csv('Process/02_Architecture/class_diagrams.csv')
+    model = parse_csv(CSV_PATH)
     
     if not model.class_diagrams:
         print("SKIP: No diagrams found")
@@ -35,7 +37,7 @@ def test_grid_alignment():
     coord_system = analyzer.coord_system
     
     diagram = model.class_diagrams[0]
-    positions = _layout_classes_tree_based(diagram, model, "High")
+    positions = _layout_classes_orthogonal(diagram, model, "High")
     
     # Check each object's alignment
     misaligned = []
@@ -69,14 +71,14 @@ def test_level_segregation():
     print("TEST: Level Segregation (Y Coordinates)")
     print("="*70)
     
-    model = parse_csv('Process/02_Architecture/class_diagrams.csv')
+    model = parse_csv(CSV_PATH)
     
     if not model.class_diagrams:
         print("SKIP: No diagrams found")
         return True
     
     diagram = model.class_diagrams[0]
-    positions = _layout_classes_tree_based(diagram, model, "High")
+    positions = _layout_classes_orthogonal(diagram, model, "High")
     levels = _calculate_abstraction_level(diagram)
     
     # Group by level
@@ -125,7 +127,7 @@ def test_no_overlaps():
     print("TEST: No Overlaps (Collision Detection)")
     print("="*70)
     
-    model = parse_csv('Process/02_Architecture/class_diagrams.csv')
+    model = parse_csv(CSV_PATH)
     
     if not model.class_diagrams:
         print("SKIP: No diagrams found")
@@ -133,7 +135,7 @@ def test_no_overlaps():
     
     analyzer = GridAnalyzer(margin=20)
     diagram = model.class_diagrams[0]
-    positions = _layout_classes_tree_based(diagram, model, "High")
+    positions = _layout_classes_orthogonal(diagram, model, "High")
     
     # Analyze
     results = analyzer.analyze_diagram(positions, diagram.diagram_id)

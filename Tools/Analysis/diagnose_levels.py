@@ -6,7 +6,7 @@ sys.path.insert(0, 'Scripts')
 
 try:
     from model import Model
-    from class_diagram_renderer import ClassDiagramRenderer
+    from class_diagram_renderer import _calculate_abstraction_level, _layout_classes_orthogonal
     
     print("Imported modules successfully")
     
@@ -26,17 +26,15 @@ try:
         print(f"Description: {diagram.description}")
         print()
         
-        renderer = ClassDiagramRenderer()
-        
         # Get level calculations
-        levels = renderer._calculate_abstraction_level(diagram)
+        levels = _calculate_abstraction_level(diagram)
         print("Abstraction Levels:")
         for cls in sorted(levels.keys(), key=lambda x: levels[x]):
             print(f"  Level {levels[cls]:2d}: {cls}")
         print()
         
         # Get layout positions  
-        positions = renderer._layout_classes_tree_based(diagram, model, "High")
+        positions = _layout_classes_orthogonal(diagram, model, "High")
         print("Positions (Y coordinate indicates vertical position in SVG):")
         print("(Lower Y = Top of diagram, Higher Y = Bottom of diagram)")
         print()

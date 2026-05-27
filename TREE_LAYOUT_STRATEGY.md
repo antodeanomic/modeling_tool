@@ -302,9 +302,9 @@ y_level_n = MARGIN + Σ(height_of_level_i) + level_spacing * n
 - **File**: [Scripts/class_diagram_renderer.py](Scripts/class_diagram_renderer.py)
 - **New Functions**:
   - `_calculate_abstraction_level()` - Topological sort for level assignment
-  - `_layout_classes_tree_based()` - Level-based position calculation
+  - `_layout_classes_tree_based()` - Legacy compatibility shim; active layout now flows through `_layout_classes_orthogonal()`
 - **Modified Functions**:
-  - `_layout_classes_uml_standard()` - Alias to tree_based layout
+  - `_layout_classes_uml_standard()` - Selects the hierarchy-aware orthogonal layout path
 
 ## Performance
 

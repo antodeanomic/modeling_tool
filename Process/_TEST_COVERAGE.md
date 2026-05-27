@@ -185,8 +185,8 @@ Each test generates a `test_[name]_output.svg` file that can be inspected for co
 | ID | Tested By | Description |
 |:---|:---|:---|
 | Structure_0007 | test_class_diagram_svg_golden.py; test_grid_coordinates.py | Fixed 20px x 20px grid cell rule for all class diagram objects |
-| Structure_0008 | test_class_diagram_svg_golden.py; test_grid_coordinates.py; test_layout_modes.py; test_class_diagram_title_and_endpoints.py | Top-left anchored tree-view layout |
-| Structure_0009 | test_class_diagram_direct_eligibility.py; test_class_diagram_layout_architecture.py; test_class_diagram_routing_guardrails.py; test_class_diagram_svg_golden.py; test_class_diagram_title_and_endpoints.py | Hierarchy connectors vertically aligned at matching X coordinates |
+| Structure_0008 | test_class_diagram_svg_golden.py; test_grid_coordinates.py; test_layout_modes.py; test_class_diagram_title_and_endpoints.py | Top-left anchored hierarchy-aware orthogonal layout |
+| Structure_0009 | test_class_diagram_direct_eligibility.py; test_class_diagram_layout_architecture.py; test_class_diagram_routing_guardrails.py; test_class_diagram_svg_golden.py; test_class_diagram_title_and_endpoints.py | Hierarchy-aware connectors vertically aligned at matching X coordinates |
 
 ### Class Diagram Routing Requirements
 
