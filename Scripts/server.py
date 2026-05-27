@@ -555,7 +555,7 @@ class DiagramHandler(SimpleHTTPRequestHandler):
 
                 if routing:
                     routing_value = routing.strip().lower()
-                    if routing_value in ('auto', 'diagonal', 'orthogonal', 'mixed'):
+                    if routing_value == 'orthogonal':
                         class_diagram.routing = routing_value
                 
                 # Handle layers filter: if 'lanes' parameter is present (even if empty),

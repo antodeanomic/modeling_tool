@@ -1,5 +1,7 @@
 # Multi-Segment Connector Routing & Test Diagram Access
 
+Historical note: this document predates the May 2026 routing-scope change. Any references below to diagonal or mixed class-diagram routing describe removed legacy behavior; current class-diagram routing is orthogonal-only.
+
 ## V-H-V Routing Implementation ✅
 
 **Status**: COMPLETE and TESTED

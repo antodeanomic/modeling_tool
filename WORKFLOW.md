@@ -83,8 +83,9 @@ Definition of done for this step:
 For each new request:
 1. Clarify the intent and expected artifact(s).
 2. Decide whether this is documentation-first, model-first, or code-first.
-3. Execute the core loop with short progress updates.
-4. End with a concise verification summary.
+3. If the request involves a complex Diagram Viewer router problem, apply `Process/ROUTER_INCIDENT_WORKFLOW.md` before implementation-heavy changes.
+4. Execute the core loop with short progress updates.
+5. End with a concise verification summary.
 
 ## Priority Rules
 When tradeoffs occur, prioritize in this order:
@@ -105,6 +106,10 @@ When tradeoffs occur, prioritize in this order:
 - Run `refresh.bat` after each response cycle involving repository work.
 - Before any commit, run full tests via `Test/run_all_tests_and_view.py` and verify success.
 - Use ASCII-only console symbols in Python print output.
+
+## Router Incident Rule
+- For complex Diagram Viewer routing problems, create the required routing sequence analysis artifact defined in `Process/ROUTER_INCIDENT_WORKFLOW.md` before broad code changes.
+- The analysis artifact must preserve green, orange, red, and blue note semantics, even if some colors are carried in companion Markdown rather than the live viewer renderer.
 
 ## Workflow Compliance Statement
 Unless explicitly overridden by the user, this workflow is the default process the agent must follow in this repository.

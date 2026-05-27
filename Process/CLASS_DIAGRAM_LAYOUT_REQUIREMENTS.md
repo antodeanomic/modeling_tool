@@ -11,7 +11,7 @@ The current implementation applies the following additional policy constraints:
 3. Connector text placement may trade perfect geometric centering for readability via occupancy-aware nudging.
 4. Viewer hover interaction highlights related connectors/text using SVG metadata on objects/connectors.
 
-This addendum supersedes older assumptions that diagonal and orthogonal modes are equally active for class-diagram readability tuning.
+This addendum supersedes older assumptions that multiple class-diagram routing modes remain active in production.
 
 ---
 
@@ -67,7 +67,7 @@ Class diagram layout must use **top-left anchoring** with hierarchical tree-view
 Connectors between hierarchically-related objects (Model→ClassDef→FunctionDef) must be **vertically aligned at matching X coordinates**.
 
 ### Constraints
-1. Both diagonal and orthogonal routing modes must preserve vertical alignment
+1. Orthogonal routing must preserve vertical alignment
 2. Connectors use **non-corner grid cells** for exit/entry points:
    - Avoid grid index 1 (top-left corner area)
    - Avoid grid index N (top-right corner area)  

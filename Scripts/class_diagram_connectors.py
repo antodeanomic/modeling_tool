@@ -2670,21 +2670,8 @@ class ConnectorPlanner:
         return best_segments
     
     def _route_connector(self, connector: ConnectorPath):
-        """Calculate the path for a connector based on routing mode.
-        
-        Routing modes:
-        - DIAGONAL: Uses simplified paths (Direct -> 2-Segment -> 3-Segment -> N-Segment)
-          Allows multi-segment bending for obstacle avoidance
-        - ORTHOGONAL: Only horizontal/vertical lines, requires objects pre-aligned
-          Only uses direct H or V connections
-        - MIXED: Uses diagonal when aligned, orthogonal when offset
-        """
-        if self.routing_mode == "diagonal":
-            self._route_connector_diagonal(connector)
-        elif self.routing_mode == "orthogonal":
-            self._route_connector_orthogonal(connector)
-        else:  # "mixed"
-            self._route_connector_mixed(connector)
+                """Calculate the path for a connector using orthogonal class-diagram routing."""
+                self._route_connector_orthogonal(connector)
 
     def _build_edge_compliant_fallback_segments(self, connector: ConnectorPath) -> List[Tuple[float, float]]:
         """Build a simple orthogonal fallback that honors source/target edges.
@@ -2735,61 +2722,6 @@ class ConnectorPlanner:
             segments.append((x2, y2))
 
         return segments
-    
-    def _route_connector_diagonal(self, connector: ConnectorPath):
-        """Route diagonal connectors: Direct -> 2-Segment -> 3-Segment -> N-Segment.
-        
-        Uses preference cascade to favor simpler paths.
-        """
-        # Get source and target grids
-        src_grid = self.grids[connector.source_name]
-        tgt_grid = self.grids[connector.target_name]
-        
-        x1, y1 = connector.source_x, connector.source_y
-        x2, y2 = connector.target_x, connector.target_y
-        
-        # Step 1: Try direct line routing
-        direct_path = [(x1, y1), (x2, y2)]
-        obstacles = self._detect_obstacles_on_path(connector.source_name, connector.target_name, direct_path)
-        
-        if obstacles == 0:
-            # Direct line is clear - use it
-            connector.path_type = "direct"
-        else:
-            # Step 2: Try 2-segment routing (V-H or H-V)
-            two_segment_vh = self._try_two_segment_vh(src_grid, tgt_grid)
-            two_segment_hv = self._try_two_segment_hv(src_grid, tgt_grid)
-            
-            obstacles_vh = self._detect_obstacles_on_path(connector.source_name, connector.target_name, two_segment_vh)
-            obstacles_hv = self._detect_obstacles_on_path(connector.source_name, connector.target_name, two_segment_hv)
-            
-            best_2seg = two_segment_vh if obstacles_vh <= obstacles_hv else two_segment_hv
-            best_2seg_obstacles = min(obstacles_vh, obstacles_hv)
-            
-            if best_2seg_obstacles == 0 or best_2seg_obstacles <= obstacles:
-                # 2-segment is clear or equal/better than direct
-                connector.path_type = "multi_segment"
-                connector.segments = best_2seg
-            else:
-                # Step 3: Try 3-segment V-H-V routing
-                self._route_multi_segment(connector)
-                
-                if connector.segments:
-                    path_points = [(connector.source_x, connector.source_y)] + connector.segments
-                    obstacles_3seg = self._detect_obstacles_on_path(connector.source_name, connector.target_name, path_points)
-                    
-                    if obstacles_3seg <= best_2seg_obstacles:
-                        # 3-segment is as good or better
-                        connector.path_type = "multi_segment"
-                    else:
-                        # Use best 2-segment
-                        connector.segments = best_2seg
-                        connector.path_type = "multi_segment"
-                else:
-                    # Step 4: Fallback to best alternative routing
-                    best_path = self._find_best_path(connector.source_name, connector.target_name, src_grid, tgt_grid)
-                    connector.segments = best_path
-                    connector.path_type = "multi_segment"
     
     def _route_connector_orthogonal(self, connector: ConnectorPath):
         """Route orthogonal connectors: Only horizontal or vertical lines with right angles.
@@ -3059,68 +2991,6 @@ class ConnectorPlanner:
         if not self._path_respects_connector_edges(connector, final_points):
             connector.segments = self._build_edge_compliant_fallback_segments(connector)
         connector.path_type = "multi_segment"
-    
-    def _route_connector_mixed(self, connector: ConnectorPath):
-        """Route mixed connectors: Diagonal when aligned, orthogonal otherwise."""
-        # For now, treat mixed like diagonal (use preference cascade)
-        self._route_connector_diagonal(connector)
-    
-    def _route_multi_segment(self, connector: ConnectorPath):
-        """Create a multi-segment path (DOWN → RIGHT → UP → RIGHT or equivalent)."""
-        connector.path_type = "multi_segment"
-        connector.segments = []
-        
-        x1, y1 = connector.source_x, connector.source_y
-        x2, y2 = connector.target_x, connector.target_y
-        
-        # Determine routing based on exit/entry edges
-        src_edge = connector.source_edge
-        tgt_edge = connector.target_edge
-        
-        # Multi-segment should have 4 segments: exit vertical, horizontal, entry vertical, final horizontal
-        # Or: exit horizontal, vertical, entry horizontal, final vertical
-        
-        margin = 30  # Space to route outside the boxes
-        
-        if src_edge in ['top', 'bottom']:
-            # Exiting horizontally, need vertical at mid-point
-            mid_y = (y1 + y2) / 2
-            
-            if tgt_edge in ['left', 'right']:
-                # Entering vertically
-                mid_x = x2
-                connector.segments = [
-                    (x1, y1 + (margin if src_edge == 'bottom' else -margin)),
-                    (mid_x, y1 + (margin if src_edge == 'bottom' else -margin)),
-                    (mid_x, y2),
-                    (x2, y2)
-                ]
-            else:
-                # Entering horizontally
-                connector.segments = [
-                    (x1, mid_y),
-                    (x2, mid_y),
-                    (x2, y2)
-                ]
-        else:
-            # Exiting vertically
-            mid_x = (x1 + x2) / 2
-            
-            if tgt_edge in ['top', 'bottom']:
-                # Entering vertically (same direction)
-                mid_y = y2
-                connector.segments = [
-                    (x1 + (margin if src_edge == 'right' else -margin), y1),
-                    (x1 + (margin if src_edge == 'right' else -margin), mid_y),
-                    (x2, mid_y)
-                ]
-            else:
-                # Entering horizontally
-                connector.segments = [
-                    (mid_x, y1),
-                    (mid_x, y2),
-                    (x2, y2)
-                ]
     
     def _point_in_box(self, point_x: float, point_y: float, box_grid: RectangleGrid) -> bool:
         """Check if a point (x, y) is inside a box (not including edges).

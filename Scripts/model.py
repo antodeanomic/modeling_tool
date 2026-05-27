@@ -81,15 +81,15 @@ class ClassRelationship:
 # Valid element types for structure diagrams
 ELEMENT_TYPES = {"class", "component", "package", "object"}
 
-# Valid connector routing modes
-ROUTING_MODES = {"auto", "diagonal", "orthogonal", "mixed"}
+# Valid connector routing modes for class diagrams
+ROUTING_MODES = {"orthogonal"}
 
 @dataclass
 class ClassDiagramDef:
     diagram_id: str
     description: str
     relationships: List[ClassRelationship] = field(default_factory=list)
-    routing: str = "auto"  # auto, diagonal, orthogonal, or mixed
+    routing: str = "orthogonal"
     element_types: dict = field(default_factory=dict)  # Maps element_name -> type (class/component/package/object)
     parent_diagram: str = ""
     child_diagrams: List[str] = field(default_factory=list)

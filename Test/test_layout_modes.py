@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Quick verification that routing-aware layout works."""
+"""Quick verification that orthogonal class-diagram layout works."""
 
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'Scripts'))
 
 from parser import parse_csv
-from class_diagram_renderer import _layout_classes_orthogonal, _layout_classes_tree_based
+from class_diagram_renderer import _layout_classes_orthogonal
 
-csv_path = '../Process/02_Architecture/class_diagrams.csv'
+csv_path = os.path.join(os.path.dirname(__file__), '..', 'Source', 'sample_model.csv')
 model = parse_csv(csv_path)
 
 output = []
@@ -19,7 +19,7 @@ if not model.class_diagrams:
 
 diagram = model.class_diagrams[0]
 
-output.append("Testing routing-aware layout selection...")
+output.append("Testing orthogonal layout selection...")
 output.append(f"Diagram: {diagram.diagram_id}")
 output.append(f"Routing mode: {diagram.routing}")
 output.append("")
@@ -43,18 +43,8 @@ except Exception as e:
     output.append(f"   [FAIL] {e}")
     sys.exit(1)
 
-# Test diagonal layout
 output.append("")
-output.append("2. Testing diagonal layout...")
-try:
-    layout = _layout_classes_tree_based(diagram, model, "High")
-    output.append(f"   [OK] Diagonal layout produced {len(layout)} objects")
-except Exception as e:
-    output.append(f"   [FAIL] {e}")
-    sys.exit(1)
-
-output.append("")
-output.append("[SUCCESS] Routing-aware layout working!")
+output.append("[SUCCESS] Orthogonal layout working!")
 
 result = '\n'.join(output)
 print(result)

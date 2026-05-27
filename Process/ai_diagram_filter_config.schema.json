@@ -105,9 +105,7 @@
         "routing": {
           "type": "string",
           "enum": [
-            "orthogonal",
-            "diagonal",
-            "mixed"
+            "orthogonal"
           ]
         },
         "showTestDiagrams": {
@@ -181,9 +179,7 @@
           "routing": {
             "type": "string",
             "enum": [
-              "orthogonal",
-              "diagonal",
-              "mixed"
+              "orthogonal"
             ]
           }
         }

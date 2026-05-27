@@ -342,8 +342,8 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                     stack.append(seq)
 
                 elif type_name == "ClassDiagram":
-                    # Parse optional parameters from remaining columns
-                    routing = "auto"
+                    # Class diagrams are orthogonal-only.
+                    routing = "orthogonal"
                     element_types = {}
                     parent_diagram, child_diagrams = parse_diagram_relationship_params(row, 3)
                     for col_idx in range(3, len(row)):
@@ -351,8 +351,8 @@ def parse_csv(path: str, _included_paths: set = None) -> Model:
                         if param.startswith("routing="):
                             routing = param.split("=", 1)[1].strip().lower()
                             if routing not in ROUTING_MODES:
-                                model.warnings.append(f"Unknown routing mode '{routing}', using 'auto'")
-                                routing = "auto"
+                                model.warnings.append(f"Unknown routing mode '{routing}', using 'orthogonal'")
+                                routing = "orthogonal"
                         elif param.startswith("element_type="):
                             # Format: element_type=Name:type,Name:type
                             pairs = param.split("=", 1)[1].strip()

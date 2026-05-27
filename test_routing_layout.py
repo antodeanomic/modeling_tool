@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick test of routing-aware layout."""
+"""Quick test of orthogonal class-diagram rendering."""
 
 import sys
 import os
@@ -8,14 +8,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'Scripts'))
 from parser import parse_csv
 from class_diagram_renderer import render_class_diagram_svg
 
-csv_path = 'Process/02_Architecture/class_diagrams.csv'
+csv_path = 'Source/sample_model.csv'
 model = parse_csv(csv_path)
 
 if model.class_diagrams:
     diagram = model.class_diagrams[0]
     
-    # Test both routing modes
-    for routing_mode in ["diagonal", "orthogonal"]:
+    for routing_mode in ["orthogonal"]:
         diagram.routing = routing_mode
         try:
             svg = render_class_diagram_svg(model, diagram, verbosity_level="High")
@@ -28,4 +27,4 @@ else:
     print("[FAIL] No class diagrams found")
     sys.exit(1)
 
-print("\n[SUCCESS] Routing-aware layout working!")
+print("\n[SUCCESS] Orthogonal layout working!")

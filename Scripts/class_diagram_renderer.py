@@ -2,7 +2,7 @@
 """SVG renderer for UML class/structure diagrams.
 
 Supports element types: class, component, package, object.
-Supports connector routing: diagonal, orthogonal, mixed.
+Supports orthogonal connector routing for class diagrams.
 Supports verbosity: Low (name only), Normal (+members), High (+operations).
 Supports layer filtering to show subsets of relationships.
 """
@@ -1715,12 +1715,12 @@ def _aligned_tree_layout(class_names, boxes, levels, parent_children,
 
 
 def _layout_classes_tree_based(diagram, model, verbosity="High"):
-    """Tree-centered layout for diagonal/mixed routing.
+    """Tree-centered helper layout retained for orthogonal box placement.
 
     Parents are centred directly above their children subtrees so that
-    hierarchy connectors run in straight vertical (or near-vertical) lines
-    instead of long diagonals.  An iterative spacing pass widens the layout
-    when connectors would otherwise route through other boxes.
+    hierarchy connectors can use clean vertical alignment. An iterative
+    spacing pass widens the layout when connectors would otherwise route
+    through other boxes.
     """
     class_names, boxes = _collect_and_size_classes(diagram, model, verbosity)
     if not class_names:
@@ -1931,14 +1931,14 @@ def _layout_fanout_verification(diagram, model, verbosity="High"):
     return boxes
 
 
-def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="diagonal"):
+def _layout_classes_uml_standard(diagram, model, verbosity="High", routing="orthogonal"):
     """Select layout strategy based on routing mode.
     
     Args:
         diagram: ClassDiagramDef with relationships
         model: Model with class definitions
         verbosity: Verbosity level for box sizing
-        routing: Routing mode - "diagonal", "orthogonal", or "mixed"
+        routing: Orthogonal-only routing mode for class diagrams
     
     Returns:
         Dictionary of class positions
@@ -3446,19 +3446,14 @@ def _render_multiplicity_at_grid_cells(rel, sx, sy, tx, ty, parts):
                      f'{_escape_xml(rel.tgt_mult)}</text>')
 
 
-def _render_relationship(rel, boxes, routing="diagonal", verbosity_level="High", 
+def _render_relationship(rel, boxes, routing="orthogonal", verbosity_level="High", 
                          connector_offsets=None):
     """Render a single relationship line between two class boxes.
-    
-    Routing modes:
-      diagonal: straight line between connection points
-      orthogonal: right-angle paths (horizontal-vertical-horizontal)
-      mixed: use orthogonal for same-row, diagonal for different-row
     
     Args:
         rel: ClassRelationship to render
         boxes: Dictionary of class box positions and dimensions
-        routing: Connection routing style
+                routing: Connection routing style for class diagrams
         verbosity_level: "Low", "Normal", or "High" - multiplicity only shown on High
         connector_offsets: Optional dict mapping id(rel) -> (src_offset_y, tgt_offset_y)
     """
@@ -3791,43 +3786,7 @@ def render_class_diagram_svg(model, diagram, verbosity_level="High", layers_filt
     if not filtered_diagram.relationships:
         return _empty_svg(diagram.description or diagram.diagram_id)
     
-    def _auto_select_routing(diagram_def: ClassDiagramDef) -> str:
-        rels = diagram_def.relationships
-        if not rels:
-            return "orthogonal"
-
-        source_counts: Dict[str, int] = {}
-        has_text_or_multiplicity = False
-        has_dependency = False
-        has_structural = False
-
-        for rel in rels:
-            source_counts[rel.source] = source_counts.get(rel.source, 0) + 1
-            if rel.src_mult or rel.tgt_mult or rel.label:
-                has_text_or_multiplicity = True
-            if '..' in (rel.arrow or ''):
-                has_dependency = True
-            else:
-                has_structural = True
-
-        has_fanout = any(count >= 3 for count in source_counts.values())
-
-        # Fanout and dense labelled diagrams are easier to read with
-        # right-angle routing and dedicated lane spacing.
-        if has_fanout or has_text_or_multiplicity or len(rels) >= 4:
-            return "orthogonal"
-
-        # Pure lightweight dependency maps stay cleaner with diagonals.
-        if has_dependency and not has_structural:
-            return "diagonal"
-
-        return "diagonal"
-
-    configured_routing = (filtered_diagram.routing or "").strip().lower()
-    if configured_routing in ("diagonal", "orthogonal", "mixed"):
-        effective_routing = configured_routing
-    else:
-        effective_routing = _auto_select_routing(filtered_diagram)
+    effective_routing = "orthogonal"
 
     # Layout class boxes using routing-aware positioning.
     boxes = _layout_classes_uml_standard(filtered_diagram, model, verbosity_level, routing=effective_routing)

@@ -1,5 +1,7 @@
 # Multi-Connector Right-Angle Implementation Summary
 
+Historical note: this document predates the May 2026 routing-scope change. Any references below to diagonal or mixed class-diagram routing describe removed legacy behavior; current class-diagram routing is orthogonal-only.
+
 **Status**: ✅ COMPLETE & TESTED  
 **Date**: March 13, 2025  
 **Commits**: 3 (analysis, test CSV fixes, documentation)  

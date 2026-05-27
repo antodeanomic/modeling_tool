@@ -940,11 +940,6 @@
         </div>
         
         <div class="menu-section">
-            <div class="menu-section-title">Connector Routing</div>
-            <div class="routing-options" id="routingOptions"></div>
-        </div>
-
-        <div class="menu-section">
             <div class="menu-section-title">Catalog</div>
             <div class="layers-list">
                 <div class="checkbox-option">
@@ -1584,7 +1579,6 @@
         const panInfo = document.getElementById('panInfo');
         const breadcrumbInfo = document.getElementById('breadcrumbInfo');
         const verbosityOptions = document.getElementById('verbosityOptions');
-        const routingOptions = document.getElementById('routingOptions');
         const showTestDiagramsToggle = document.getElementById('showTestDiagramsToggle');
         const showIncludeCsvToggle = document.getElementById('showIncludeCsvToggle');
         const layersList = document.getElementById('layersList');
@@ -2778,23 +2772,6 @@
                     verbosityOptions.appendChild(div);
                 });
                 
-                // Populate routing options (once)
-                const routingModes = ["orthogonal"];
-                const routingLabels = {
-                    "orthogonal": "Right Angles (Temporary Default)"
-                };
-                routingModes.forEach(mode => {
-                    const div = document.createElement('div');
-                    div.className = 'radio-option';
-                    div.innerHTML = `
-                        <input type="radio" id="rout_${mode}" name="routing" value="${mode}" 
-                               ${mode === state.routing ? 'checked' : ''}>
-                        <label for="rout_${mode}">${routingLabels[mode]}</label>
-                    `;
-                    div.querySelector('input').addEventListener('change', onRoutingChange);
-                    routingOptions.appendChild(div);
-                });
-
                 // Restore prior session only when no explicit external diagram
                 // override was provided.
                 if (!hasExternalSelectionOverride && restorePersistedSelection()) {

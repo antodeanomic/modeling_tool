@@ -19,7 +19,7 @@ def run_test() -> int:
     user_class = model.get_class("User")
     display_class = model.get_class("Display")
     keypad_class = model.get_class("Keypad")
-    class_diagram = model.get_class_diagram("CalculatorDiagonalArchitecture")
+    class_diagram = model.get_class_diagram("CalculatorArchitecture")
     sequence = model.get_sequence("SoftReq0001")
 
     if user_class is None or display_class is None or keypad_class is None:
@@ -58,7 +58,7 @@ def run_test() -> int:
         print(f"FAIL: unexpected Keypad feature IDs: {keypad_class.trace_feature_ids}")
         return 1
 
-    if sequence.parent_diagram != "CalculatorDiagonalArchitecture":
+    if sequence.parent_diagram != "CalculatorArchitecture":
         print(f"FAIL: unexpected sequence parent diagram: {sequence.parent_diagram}")
         return 1
 

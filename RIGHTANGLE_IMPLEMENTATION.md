@@ -1,5 +1,7 @@
 # Right-Angle Connector Text Layout Implementation Plan
 
+Historical note: this plan predates the May 2026 routing-scope change. References to diagonal comparison are legacy notes, not current behavior; class-diagram routing is orthogonal-only.
+
 ## Phase 1: Analysis & Pre-calculation (RIGHT ANGLE - ORTHOGONAL)
 
 ### Goal

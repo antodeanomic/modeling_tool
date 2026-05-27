@@ -38,6 +38,8 @@ Before starting any non-trivial implementation task, check the applicable docume
 | `CLASS_DIAGRAM_LAYOUT_REQUIREMENTS.md` | Class Diagram Layout & Routing | `Structure_0007–0009`, `ClassRouting_0001–0012`, `Rendering_0020–0023` |
 | `CLASS_DIAGRAM_LAYOUT_ARCHITECTURE_REQUIREMENTS.md` | Class Diagram Layout/Routing Ownership, Column Allocation, Guardrail Precedence | Architectural ownership and precedence rules supplementing `Structure_*`, `ClassRouting_*`, and `Rendering_*` |
 | `CONNECTOR_TEXT_LAYOUT.md` | Connector Text Positioning (all diagrams) | (inline text placement rules — no formal IDs) |
+| `ROUTER_INCIDENT_WORKFLOW.md` | Router investigation process for complex Diagram Viewer routing problems | Development-process trigger, required routing sequence artifact, note-color semantics |
+| `ROUTER_INCIDENT_TEMPLATE.md` | Reusable template for complex Diagram Viewer router investigations | Copy-paste incident scaffold with routing sequence diagram and color-coded note sections |
 | `CSV_EDITOR_MVP_REQUIREMENTS.md` | CSV Editor UI | CSV Editor MVP v0.1–v0.3 acceptance criteria |
 | `_ADR.md` | Architecture Decision Records | (rationale records — no formal IDs) |
 | `_TEST_COVERAGE.md` | Test Traceability | Requirement-to-test mapping |
@@ -50,6 +52,8 @@ Before starting any non-trivial implementation task, check the applicable docume
 - `_REQUIREMENTS_FULL.md` - extended requirement context
 - `traceability.csv` - requirement-to-implementation mapping
 - `_ADR.md` - architecture decision index
+- `ROUTER_INCIDENT_WORKFLOW.md` - required analysis workflow for complex router incidents
+- `ROUTER_INCIDENT_TEMPLATE.md` - reusable scaffold for router incident analysis packets
 - `ui_data.json` - UI configuration and metadata
 - `ai_diagram_filter_config.schema.json` - schema for AI-authored diagram collections
 - `ai_diagram_filter_config.example.json` - example configuration

@@ -10,16 +10,15 @@ from class_diagram_renderer import render_class_diagram_svg
 from model import Model
 import re
 
-# Load the class_diagrams.csv file
-csv_path = 'Process/02_Architecture/class_diagrams.csv'
+# Load a known sample class diagram
+csv_path = 'Source/sample_model.csv'
 model = parse_csv(csv_path)
 
 # Get the first class diagram
 if model.class_diagrams:
     diagram = model.class_diagrams[0]
     
-    # Test both routing modes
-    for routing_mode in ["diagonal", "orthogonal"]:
+    for routing_mode in ["orthogonal"]:
         diagram.routing = routing_mode
         svg = render_class_diagram_svg(model, diagram, verbosity_level="High")
         

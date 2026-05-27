@@ -413,7 +413,7 @@ def _check_dataflow_routing_label_overlap(csv_path: Path) -> None:
 
     original_routing = diagram.routing
     try:
-        for routing_mode in ("diagonal", "orthogonal"):
+        for routing_mode in ("orthogonal",):
             diagram.routing = routing_mode
             svg_text = render_class_diagram_svg(model, diagram, verbosity_level="High")
             _check_label_multiplicity_non_overlap(svg_text, "DataFlow", routing_mode)

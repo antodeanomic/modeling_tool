@@ -1,4 +1,4 @@
-# Mixed routing and element types test
+# Orthogonal routing and element types test
 
 Class ; WebApp ; Web application component ; element_type=component
     MemberVar ; port     ; Server port number
@@ -13,7 +13,7 @@ Class ; Cache ; In-memory cache ; element_type=package
 Class ; Logger ; Logging utility ; element_type=object
     Function ; +log() ; Write log entry
 
-ClassDiagram ; MixedElements ; Mixed element types ; routing=mixed
+ClassDiagram ; MixedElements ; Mixed element types ; routing=orthogonal
     WebApp ; Database ; --> ; 1 ; 1    ; uses
     WebApp ; Cache    ; ◇-- ; 1 ; 0..1 ; has
     Cache  ; Logger   ; ..> ;   ;      ; logs

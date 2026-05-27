@@ -26,6 +26,7 @@ This file focuses on specific rules and constraints. The guide covers the broade
 ## Requirement Authority Rule
 
 - Requirement documents in `Process/` are the source of truth for all behavior. Chat messages may clarify requirements but never override them.
+- For complex Diagram Viewer router problems, apply `Process/ROUTER_INCIDENT_WORKFLOW.md` before implementation-heavy changes.
 - **Before starting any non-trivial task**: review the applicable requirement documents in `Process/` and identify any way the chat direction diverges from, extends beyond, or contradicts documented requirements.
 - Report ALL detected divergences in bold red text **before writing any code** — even when the chat direction seems like a helpful improvement. The threshold is *any* divergence, not just outright contradiction.
 - Identify the specific requirement by name or ID: <strong><span style="color:red">Chat direction diverges from requirement XXXX: [specific difference].</span></strong>
@@ -81,6 +82,17 @@ This is a UML modeling tool (Class Diagrams and Sequence Diagrams) that:
 - If an exception is unavoidable, document the reason in code comments and add regression coverage for:
   - the exceptional diagram, and
   - at least one non-exception diagram to confirm no collateral behavior change.
+
+## Router Investigation Rule
+
+- When a Diagram Viewer router problem is complex, create or update a routing sequence analysis artifact before broad edits.
+- The artifact must follow `Process/ROUTER_INCIDENT_WORKFLOW.md` and preserve green, orange, red, and blue note semantics.
+- If the live viewer notation cannot express every color directly, carry the missing semantics in companion Markdown within `Process/`.
+
+## Routing Scope Rule
+
+- Class-diagram routing is orthogonal-only.
+- Do not preserve or reintroduce diagonal or mixed class-diagram routing behavior unless the requirement artifacts are explicitly changed first.
 
 ## Visual Acceptance Rules
 

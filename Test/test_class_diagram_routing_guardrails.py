@@ -2,7 +2,7 @@
 """Guardrail regression checks for class diagram connector routing.
 
 Validates every class diagram found in workspace CSV artifacts against:
-1) non-orthogonal (diagonal) connector segments,
+1) non-orthogonal connector segments,
 2) connector segments passing through object bodies,
 3) endpoint approach direction mismatches against selected edges,
 4) same-axis segment overlap for a non-trivial shared span,
@@ -453,7 +453,7 @@ def run_test() -> int:
 
         for diagram in model.class_diagrams:
             any_issues_for_diagram = False
-            for routing_mode in ("diagonal", "orthogonal"):
+            for routing_mode in ("orthogonal",):
                 filtered = ClassDiagramDef(
                     diagram_id=diagram.diagram_id,
                     description=diagram.description,

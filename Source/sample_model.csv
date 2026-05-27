@@ -33,11 +33,11 @@ Class;Display;Shows current value and results;trace_req=Rendering_0001,Rendering
 Class;Keypad;Receives button presses;trace_req=Parser_0001;trace_feature=FEAT-001
     Function;ReadKey;Returns which key was pressed
 
-ClassDiagram ; CalculatorDiagonalArchitecture ; Calculator architecture with diagonal connectors ; routing=diagonal
+ClassDiagram ; CalculatorArchitecture ; Calculator architecture with orthogonal connectors ; routing=orthogonal
     User   ; Display ; --> ; 1 ; 1 ; updates
     User   ; Keypad  ; --> ; 1 ; 1 ; reads
     Keypad ; Display ; ..> ;   ;   ; notifies
 
-Sequence ; SoftReq0001 ; Sample calculator interaction ; ; parent=CalculatorDiagonalArchitecture
+Sequence ; SoftReq0001 ; Sample calculator interaction ; ; parent=CalculatorArchitecture
     User    ; Keypad  ; ReadKey ; key ; digit
     Display ; Display ; Update  ; digit ; done

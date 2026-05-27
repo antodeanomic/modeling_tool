@@ -7,6 +7,7 @@ Follow `WORKFLOW.md` as the default operating workflow for all non-trivial tasks
 - Maintain traceability from user intent -> Markdown artifacts -> CSV model -> code.
 - Keep changes small and explain mapping between artifacts and implementation.
 - Ask for confirmation only when blocked or when requirement ambiguity prevents safe progress.
+- For complex Diagram Viewer router problems, apply `Process/ROUTER_INCIDENT_WORKFLOW.md` before implementation-heavy changes.
 - Requirement documents in `Process/` outrank chat at all times. Chat may clarify or revise intent, but it never silently overrides a documented requirement.
 - **Before starting any non-trivial task**: review the applicable requirement documents in `Process/` and identify any way the chat direction diverges from, extends beyond, or contradicts documented requirements.
 - Report ALL detected divergences in bold red text **before writing any code** — even when the chat direction seems like a helpful improvement. The threshold is *any* divergence, not just outright contradiction.
@@ -14,8 +15,11 @@ Follow `WORKFLOW.md` as the default operating workflow for all non-trivial tasks
 - The resolution sequence is: surface the divergence → discuss → update the requirement artifact → then implement the code.
 - **Never implement a change that silently passes a documented requirement.** Silent requirement drift is the primary cause of functional regressions in this project.
 - Root-level `*.md` files (e.g., `CONNECTOR_ARCHITECTURE.md`, `ROUTING_FIX_SUMMARY.md`, `VHV_ROUTING_IMPLEMENTATION.md`) are **historical implementation notes, not requirements**. Do not apply them as authoritative guidance. Requirements are defined exclusively in `Process/` documents.
-- For connector routing changes, always validate both `diagonal` and `orthogonal` modes in the same response cycle.
-- Treat `mixed` routing mode as optional and out of scope unless the user explicitly requests it.
+- For class-diagram connector routing changes, validate the orthogonal routing path and its guardrails in the same response cycle.
+
+## Router Investigation Rule
+- When a Diagram Viewer router problem is complex, create or update a routing sequence analysis artifact with green, orange, red, and blue note semantics before broad edits.
+- If the live diagram format cannot express all four colors directly, preserve the missing color semantics in companion Markdown within `Process/` rather than dropping them.
 
 ## Renderer Development Rule (Generic-First)
 - All renderer changes must be implemented as generic behavior that applies across diagrams.
